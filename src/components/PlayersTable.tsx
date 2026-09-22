@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Player } from '@/types';
 import styles from './PlayersTable.module.css';
 import { formatNumbers } from '@/utils/formatNumbers';
+import { isImageUrl, truncateLevelLabel } from '@/utils/isImageUrl';
 
 interface PlayersTableProps {
   players: Player[];
@@ -54,16 +55,27 @@ export default function PlayersTable({ players, onEdit, onDelete }: PlayersTable
               <tr key={player.id}>
                 <td>{filteredPlayers.indexOf(player) + 1}</td>
                 <td>
-                  {player.profilePhoto ? (
-                    <img
-                      src={player.profilePhoto}
-                      alt={player.name}
-                      className={styles.playerPhoto}
-                      title={player.name}
-                    />
-                  ) : (
-                    <div className={styles.noPhoto}>—</div>
-                  )}
+                  <div className={styles.photoWrapper}>
+                    {player.profilePhoto ? (
+                      <img
+                        src={player.profilePhoto}
+                        alt={player.name}
+                        className={styles.playerPhoto}
+                        title={player.name}
+                      />
+                    ) : (
+                      <div className={styles.noPhoto}>—</div>
+                    )}
+                    {player.levelImage && (
+                      <div className={styles.levelBadge} title="Level">
+                        {isImageUrl(player.levelImage) ? (
+                          <img src={player.levelImage} alt="Level" />
+                        ) : (
+                          <span>{truncateLevelLabel(player.levelImage)}</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </td>
                 <td>{player.playerId}</td>
                 <td>{player.name}</td>

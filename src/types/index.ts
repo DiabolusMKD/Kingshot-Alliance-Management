@@ -1,3 +1,18 @@
+export interface Kingdom {
+  id: number;
+  created_at?: string;
+}
+
+export interface Alliance {
+  id: number;
+  name: string;
+  nameTag: string;
+  description?: string | null;
+  allianceImageUrl?: string | null;
+  kingdomId: number;
+  created_at?: string;
+}
+
 export interface Player {
   id: string; // UUID from Supabase
   playerId: string;

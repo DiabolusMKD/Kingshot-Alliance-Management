@@ -3,15 +3,18 @@
 import { useState, useEffect } from 'react';
 import { Player } from '@/types';
 import { fetchPlayerFromKingshot } from '@/utils/kingshotApi';
+import { getPlayerByPlayerId } from '@/utils/playerService';
 import styles from './PlayerForm.module.css';
 
 interface PlayerFormProps {
   player?: Player;
-  onSubmit: (player: Omit<Player, 'id' | 'created_at' | 'updated_at'>) => void;
+  kingdomId: number;
+  allianceId: string;
+  onSubmit: (player: Omit<Player, 'id' | 'created_at' | 'updated_at'>, existingPlayerId?: string) => void;
   onCancel: () => void;
 }
 
-const EMPTY_FORM_DATA = {
+const EMPTY_FORM_DATA: FormData = {
   playerId: '',
   name: '',
   aliasName: '',
@@ -19,8 +22,7 @@ const EMPTY_FORM_DATA = {
   trialliancePower: 0,
   power: 0,
   profilePhoto: '',
-  allianceId: '',
-  kingdomId: 0,
+  levelImage: '',
 };
 
 type FormData = {
@@ -31,46 +33,52 @@ type FormData = {
   trialliancePower: number;
   power: number;
   profilePhoto: string;
-  allianceId: string | null;
-  kingdomId: number;
+  levelImage: string;
 };
 
-export default function PlayerForm({ player, onSubmit, onCancel }: PlayerFormProps) {
-  const [formData, setFormData] = useState<FormData>(EMPTY_FORM_DATA as FormData);
+type DataSource = 'database' | 'api' | 'manual' | null;
+
+export default function PlayerForm({ player, kingdomId, allianceId, onSubmit, onCancel }: PlayerFormProps) {
+  const [formData, setFormData] = useState<FormData>(EMPTY_FORM_DATA);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [fetchedFromAPI, setFetchedFromAPI] = useState(false);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
+  const [dataSource, setDataSource] = useState<DataSource>(null);
+  const [detailsStage, setDetailsStage] = useState(false);
+  const [foundPlayerId, setFoundPlayerId] = useState<string | null>(null);
   const isEditMode = !!player;
 
   useEffect(() => {
     if (player) {
       // Edit mode: populate with existing player data
-      const { id, created_at, updated_at, ...playerDataWithoutId } = player;
-      setFormData((prev) => ({
-        ...prev,
-        ...playerDataWithoutId,
-        playerId: playerDataWithoutId.playerId || '',
-        name: playerDataWithoutId.name || '',
-        aliasName: playerDataWithoutId.aliasName || '',
-        swordlandPower: playerDataWithoutId.swordlandPower ?? 0,
-        trialliancePower: playerDataWithoutId.trialliancePower ?? 0,
-        power: playerDataWithoutId.power ?? 0,
-        profilePhoto: playerDataWithoutId.profilePhoto || '',
-        allianceId: playerDataWithoutId.allianceId || '',
-        kingdomId: playerDataWithoutId.kingdomId ?? 0,
-      }));
-      setFetchedFromAPI(false);
+      setFormData({
+        playerId: player.playerId || '',
+        name: player.name || '',
+        aliasName: player.aliasName || '',
+        swordlandPower: player.swordlandPower ?? 0,
+        trialliancePower: player.trialliancePower ?? 0,
+        power: player.power ?? 0,
+        profilePhoto: player.profilePhoto || '',
+        levelImage: player.levelImage || '',
+      });
+      setDataSource(null);
+      setDetailsStage(true);
+      setFoundPlayerId(null);
       setError(null);
+      setInfoMessage(null);
     } else {
-      setFormData(EMPTY_FORM_DATA as FormData);
-      setFetchedFromAPI(false);
+      setFormData(EMPTY_FORM_DATA);
+      setDataSource(null);
+      setDetailsStage(false);
+      setFoundPlayerId(null);
       setError(null);
+      setInfoMessage(null);
     }
   }, [player]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    const numericFields = ['swordlandPower', 'trialliancePower', 'power', 'kingdomId'];
+    const numericFields = ['swordlandPower', 'trialliancePower', 'power'];
 
     setFormData((prev) => ({
       ...prev,
@@ -91,38 +99,76 @@ export default function PlayerForm({ player, onSubmit, onCancel }: PlayerFormPro
     try {
       const playerData = await fetchPlayerFromKingshot(formData.playerId);
       setFormData((prev) => {
-        if (!playerData) {
-          return prev;
-        }
-
-        if (playerData.kingdom) {
-          prev.kingdomId = playerData.kingdom;
-          delete (playerData as any).kingdom;
-        }
-
-        const merged: any = { ...prev, ...playerData };
+        const merged: FormData = { ...prev, ...playerData };
 
         // Prevent overwriting existing numeric stats with missing/zero values from API
-        const stats: Array<keyof FormData> = ['power', 'swordlandPower', 'trialliancePower'];
+        const stats = ['power', 'swordlandPower', 'trialliancePower'] as const;
         stats.forEach((k) => {
-          const val = (playerData as any)[k];
-          if (val === undefined || val === null || val === 0) {
-            merged[k] = prev[k];
-          } else {
-            merged[k] = val;
-          }
+          const val = playerData[k as keyof typeof playerData] as number | undefined;
+          merged[k] = val === undefined || val === null || val === 0 ? prev[k] : val;
         });
 
-        // profilePhoto: use API value if present, otherwise keep previous
+        // profilePhoto/levelImage: use API value if present, otherwise keep previous
         if (!playerData.profilePhoto) merged.profilePhoto = prev.profilePhoto;
+        if (!playerData.levelImage) merged.levelImage = prev.levelImage;
 
-        // preserve allianceId and prefer existing kingdomId if set
-        merged.allianceId = prev.allianceId;
-        merged.kingdomId = prev.kingdomId || 0;
-
-        return merged as FormData;
+        return merged;
       });
-      setFetchedFromAPI(true);
+      setDataSource('api');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch player data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleFetchPlayer = async () => {
+    if (!formData.playerId) {
+      setError('Please enter a Player ID');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    setInfoMessage(null);
+
+    try {
+      const existingPlayer = await getPlayerByPlayerId(formData.playerId);
+
+      if (existingPlayer) {
+        setFormData((prev) => ({
+          ...prev,
+          name: existingPlayer.name || '',
+          aliasName: existingPlayer.aliasName || '',
+          power: existingPlayer.power ?? 0,
+          swordlandPower: existingPlayer.swordlandPower ?? 0,
+          trialliancePower: existingPlayer.trialliancePower ?? 0,
+          profilePhoto: existingPlayer.profilePhoto || '',
+          levelImage: existingPlayer.levelImage || '',
+        }));
+        setDataSource('database');
+        setFoundPlayerId(existingPlayer.id);
+        setInfoMessage('Existing player found. Fields are editable below.');
+        setDetailsStage(true);
+        return;
+      }
+
+      try {
+        const kingshotData = await fetchPlayerFromKingshot(formData.playerId);
+        setFormData((prev) => ({
+          ...prev,
+          name: kingshotData.name || '',
+          profilePhoto: kingshotData.profilePhoto || prev.profilePhoto,
+          levelImage: kingshotData.levelImage || prev.levelImage,
+        }));
+        setDataSource('api');
+        setInfoMessage('Player found via the Kingshot API.');
+      } catch {
+        setDataSource('manual');
+        setInfoMessage('Player not found. Please enter the details manually.');
+      }
+
+      setDetailsStage(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch player data');
     } finally {
@@ -138,15 +184,16 @@ export default function PlayerForm({ player, onSubmit, onCancel }: PlayerFormPro
       return;
     }
 
-    if (!isEditMode && !fetchedFromAPI) {
-      // Add mode: first submit should fetch the player data
-      await handleRefetch();
+    if (!isEditMode && !detailsStage) {
+      // Add mode: first submit looks up the player instead of saving
+      await handleFetchPlayer();
       return;
     }
 
-    // Both edit and add (after fetch) modes submit here
-    onSubmit(formData);
+    onSubmit({ ...formData, kingdomId, allianceId }, foundPlayerId ?? undefined);
   };
+
+  const lockedFromApi = dataSource === 'api';
 
   if (isEditMode) {
     return (
@@ -190,7 +237,7 @@ export default function PlayerForm({ player, onSubmit, onCancel }: PlayerFormPro
             onChange={handleChange}
             className={styles.input}
             placeholder="Player name"
-            readOnly={fetchedFromAPI}
+            readOnly={lockedFromApi}
           />
         </div>
 
@@ -206,7 +253,7 @@ export default function PlayerForm({ player, onSubmit, onCancel }: PlayerFormPro
             onChange={handleChange}
             className={styles.input}
             placeholder="Player alias"
-            readOnly={fetchedFromAPI}
+            readOnly={lockedFromApi}
           />
         </div>
 
@@ -223,9 +270,9 @@ export default function PlayerForm({ player, onSubmit, onCancel }: PlayerFormPro
             className={styles.input}
             placeholder="0"
             min="0"
-            readOnly={fetchedFromAPI}
+            readOnly={lockedFromApi}
           />
-          {fetchedFromAPI && <small className={styles.readOnlyHint}>Read-only (from API)</small>}
+          {lockedFromApi && <small className={styles.readOnlyHint}>Read-only (from API)</small>}
         </div>
 
         <div className={styles.formGroup}>
@@ -241,9 +288,9 @@ export default function PlayerForm({ player, onSubmit, onCancel }: PlayerFormPro
             className={styles.input}
             placeholder="0"
             min="0"
-            readOnly={fetchedFromAPI}
+            readOnly={lockedFromApi}
           />
-          {fetchedFromAPI && <small className={styles.readOnlyHint}>Read-only (from API)</small>}
+          {lockedFromApi && <small className={styles.readOnlyHint}>Read-only (from API)</small>}
         </div>
 
         <div className={styles.formGroup}>
@@ -259,41 +306,23 @@ export default function PlayerForm({ player, onSubmit, onCancel }: PlayerFormPro
             className={styles.input}
             placeholder="0"
             min="0"
-            readOnly={fetchedFromAPI}
+            readOnly={lockedFromApi}
           />
-          {fetchedFromAPI && <small className={styles.readOnlyHint}>Read-only (from API)</small>}
+          {lockedFromApi && <small className={styles.readOnlyHint}>Read-only (from API)</small>}
         </div>
 
         <div className={styles.formGroup}>
-          <label htmlFor="allianceId" className={styles.label}>
-            Alliance ID
+          <label htmlFor="levelImage" className={styles.label}>
+            Level Image URL
           </label>
           <input
             type="text"
-            id="allianceId"
-            name="allianceId"
-            value={formData.allianceId || ''}
+            id="levelImage"
+            name="levelImage"
+            value={formData.levelImage}
             onChange={handleChange}
             className={styles.input}
-            placeholder="e.g., FCK"
-            readOnly={fetchedFromAPI}
-          />
-          {fetchedFromAPI && <small className={styles.readOnlyHint}>Read-only (from API)</small>}
-        </div>
-
-        <div className={styles.formGroup}>
-          <label htmlFor="kingdomId" className={styles.label}>
-            Kingdom ID
-          </label>
-          <input
-            type="number"
-            id="kingdomId"
-            name="kingdomId"
-            value={formData.kingdomId}
-            onChange={handleChange}
-            className={styles.input}
-            placeholder="0"
-            min="0"
+            placeholder="https://example.com/level.png"
           />
         </div>
 
@@ -312,37 +341,26 @@ export default function PlayerForm({ player, onSubmit, onCancel }: PlayerFormPro
   return (
     <form className={styles.form} onSubmit={handleSubmit}>
       {error && <div className={styles.errorMessage}>{error}</div>}
+      {infoMessage && <div className={styles.infoMessage}>{infoMessage}</div>}
 
       <div className={styles.formGroup}>
         <label htmlFor="playerId" className={styles.label}>
           In-Game Player ID <span className={styles.required}>*</span>
         </label>
-        {!fetchedFromAPI ? (
-          <input
-            type="text"
-            id="playerId"
-            name="playerId"
-            value={formData.playerId}
-            onChange={handleChange}
-            className={styles.input}
-            placeholder="e.g. 123123123"
-            required
-          />
-        ) : (
-          <input
-            type="text"
-            id="playerId"
-            name="playerId"
-            value={formData.playerId}
-            onChange={handleChange}
-            className={styles.input}
-            placeholder="e.g. 123123123"
-            readOnly
-          />
-        )}
+        <input
+          type="text"
+          id="playerId"
+          name="playerId"
+          value={formData.playerId}
+          onChange={handleChange}
+          className={styles.input}
+          placeholder="e.g. 123123123"
+          readOnly={detailsStage}
+          required
+        />
       </div>
 
-      {!fetchedFromAPI ? (
+      {!detailsStage ? (
         // Step 1: Only playerId, show fetch button
         <div className={styles.actions}>
           <button type="button" onClick={onCancel} className={styles.cancelButton}>
@@ -357,7 +375,7 @@ export default function PlayerForm({ player, onSubmit, onCancel }: PlayerFormPro
           </button>
         </div>
       ) : (
-        // Step 2: After fetching, show all fields
+        // Step 2: After lookup, show the remaining fields
         <>
           <div className={styles.formGroup}>
             <label htmlFor="name" className={styles.label}>
@@ -371,8 +389,9 @@ export default function PlayerForm({ player, onSubmit, onCancel }: PlayerFormPro
               onChange={handleChange}
               className={styles.input}
               placeholder="Player name"
-              readOnly
+              readOnly={lockedFromApi}
             />
+            {lockedFromApi && <small className={styles.readOnlyHint}>Read-only (from API)</small>}
           </div>
 
           <div className={styles.formGroup}>
@@ -387,8 +406,9 @@ export default function PlayerForm({ player, onSubmit, onCancel }: PlayerFormPro
               onChange={handleChange}
               className={styles.input}
               placeholder="Player alias"
-              readOnly
+              readOnly={lockedFromApi}
             />
+            {lockedFromApi && <small className={styles.readOnlyHint}>Read-only (from API)</small>}
           </div>
 
           <div className={styles.formGroup}>
@@ -404,9 +424,9 @@ export default function PlayerForm({ player, onSubmit, onCancel }: PlayerFormPro
               className={styles.input}
               placeholder="0"
               min="0"
-              readOnly
+              readOnly={lockedFromApi}
             />
-            <small className={styles.readOnlyHint}>Read-only (from API)</small>
+            {lockedFromApi && <small className={styles.readOnlyHint}>Read-only (from API)</small>}
           </div>
 
           <div className={styles.formGroup}>
@@ -442,37 +462,6 @@ export default function PlayerForm({ player, onSubmit, onCancel }: PlayerFormPro
           </div>
 
           <div className={styles.formGroup}>
-            <label htmlFor="allianceId" className={styles.label}>
-              Alliance ID
-            </label>
-            <input
-              type="text"
-              id="allianceId"
-              name="allianceId"
-              value={formData.allianceId || ''}
-              onChange={handleChange}
-              className={styles.input}
-              placeholder="e.g., FCK"
-            />
-          </div>
-
-          <div className={styles.formGroup}>
-            <label htmlFor="kingdomId" className={styles.label}>
-              Kingdom ID
-            </label>
-            <input
-              type="number"
-              id="kingdomId"
-              name="kingdomId"
-              value={formData.kingdomId}
-              onChange={handleChange}
-              className={styles.input}
-              placeholder="0"
-              min="0"
-            />
-          </div>
-
-          <div className={styles.formGroup}>
             <label htmlFor="profilePhoto" className={styles.label}>
               Profile Photo URL
             </label>
@@ -487,12 +476,30 @@ export default function PlayerForm({ player, onSubmit, onCancel }: PlayerFormPro
             />
           </div>
 
+          <div className={styles.formGroup}>
+            <label htmlFor="levelImage" className={styles.label}>
+              Level Image URL
+            </label>
+            <input
+              type="text"
+              id="levelImage"
+              name="levelImage"
+              value={formData.levelImage}
+              onChange={handleChange}
+              className={styles.input}
+              placeholder="https://example.com/level.png"
+            />
+          </div>
+
           <div className={styles.actions}>
             <button
               type="button"
               onClick={() => {
-                setFetchedFromAPI(false);
+                setDetailsStage(false);
+                setDataSource(null);
+                setFoundPlayerId(null);
                 setError(null);
+                setInfoMessage(null);
               }}
               className={styles.cancelButton}
             >

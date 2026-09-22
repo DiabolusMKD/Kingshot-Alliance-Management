@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
       response = await fetch(fetchUrl, { 
         cache: 'no-store',
         headers: {
-          'User-Agent': 'kingshot-fck-alliance/1.0'
+          'User-Agent': 'kingshot-alliance-management/1.0'
         }
       });
       console.log('[API Route] Response status:', response.status);

@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Kingshot FCK Alliance",
-  description: "FCK Alliance Management Platform",
+  title: "Kingshot Alliance Management",
+  description: "Kingshot Alliance Management Platform",
 };
 
 export default function RootLayout({

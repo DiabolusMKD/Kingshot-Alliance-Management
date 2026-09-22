@@ -1,19 +1,30 @@
 'use client';
 
+import { use } from 'react';
 import Link from 'next/link';
 import Navigation from '@/components/Navigation';
 import styles from './page.module.css';
 
-export default function EventsPage() {
+interface EventsPageProps {
+  params: Promise<{ kingdomId: string; allianceSlug: string }>;
+}
+
+export default function EventsPage({ params }: EventsPageProps) {
+  const { kingdomId, allianceSlug } = use(params);
+
   return (
     <>
       <Navigation />
       <main className={styles.main}>
         <div className={styles.container}>
+          <Link href={`/${kingdomId}/${allianceSlug}`} className={styles.backLink}>
+            ← Back to Alliance
+          </Link>
+
           <h1 className={styles.title}>Events</h1>
 
           <div className={styles.eventsGrid}>
-            <Link href="/swordland" className={styles.eventCard}>
+            <Link href={`/${kingdomId}/${allianceSlug}/events/swordland`} className={styles.eventCard}>
               <div className={styles.cardContent}>
                 <h2 className={styles.cardTitle}>Swordland</h2>
                 <p className={styles.cardDescription}>
@@ -23,7 +34,7 @@ export default function EventsPage() {
               <div className={styles.cardIcon}>⚔️</div>
             </Link>
 
-            <Link href="/tri-alliance" className={styles.eventCard}>
+            <Link href={`/${kingdomId}/${allianceSlug}/events/tri-alliance`} className={styles.eventCard}>
               <div className={styles.cardContent}>
                 <h2 className={styles.cardTitle}>Tri Alliance</h2>
                 <p className={styles.cardDescription}>

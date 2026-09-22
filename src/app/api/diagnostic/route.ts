@@ -28,7 +28,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       cache: 'no-store',
       signal: controller.signal,
       headers: {
-        'User-Agent': 'kingshot-fck-alliance/1.0'
+        'User-Agent': 'kingshot-alliance-management/1.0'
       }
     });
     

@@ -31,6 +31,16 @@
   margin-bottom: 8px;
 }
 
+.infoMessage {
+  padding: 10px 12px;
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
 .input {
   padding: 10px 12px;
   border: 1px solid var(--border-color);

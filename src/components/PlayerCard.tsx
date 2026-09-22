@@ -3,6 +3,7 @@
 import { Player } from '@/types';
 import styles from './PlayerCard.module.css';
 import { formatNumbers } from '@/utils/formatNumbers';
+import { isImageUrl, truncateLevelLabel } from '@/utils/isImageUrl';
 
 interface PlayerCardProps {
   player: Player;
@@ -26,6 +27,15 @@ export default function PlayerCard({ player, onEdit, onDelete }: PlayerCardProps
           <p className={styles.alias}>{player.aliasName}</p>
           <p className={styles.playerId}>ID: {player.playerId}</p>
         </div>
+        {player.levelImage && (
+          <div className={styles.levelImage} title="Level">
+            {isImageUrl(player.levelImage) ? (
+              <img src={player.levelImage} alt="Level" />
+            ) : (
+              <span>{truncateLevelLabel(player.levelImage)}</span>
+            )}
+          </div>
+        )}
       </div>
 
       <div className={styles.cardBody}>

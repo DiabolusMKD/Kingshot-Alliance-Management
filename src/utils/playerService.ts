@@ -49,6 +49,28 @@ export async function getPlayerById(id: string): Promise<Player | null> {
 }
 
 /**
+ * Look up a player by their in-game player ID, regardless of alliance/kingdom.
+ */
+export async function getPlayerByPlayerId(playerId: string): Promise<Player | null> {
+  try {
+    const { data, error } = await supabase
+      .from('player')
+      .select('*')
+      .eq('playerId', playerId)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to fetch player: ${error.message}`);
+    }
+
+    return data || null;
+  } catch (error) {
+    console.error('Error fetching player by playerId:', error);
+    throw error;
+  }
+}
+
+/**
  * Create a new player in Supabase
  */
 export async function createPlayer(

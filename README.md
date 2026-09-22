@@ -1,4 +1,4 @@
-# Kingshot FCK Alliance
+# Kingshot Alliance Management
 
 A Next.js-based platform for managing players and organizing events across Swordland and Tri Alliance with legion management capabilities.
 
@@ -89,7 +89,7 @@ npm start
 ## Features in Detail
 
 ### Landing Page
-- Welcome message with FCK Alliance branding
+- Welcome message with Kingshot Alliance Management branding
 - Two CTAs: Players and Events
 - Responsive design with featured image
 
@@ -181,7 +181,7 @@ The project uses CSS Modules with a dark theme. Global CSS variables are defined
 
 ## License
 
-This project is private and proprietary to Kingshot FCK Alliance.
+This project is private and proprietary to Kingshot Alliance Management.
 
 ## Support
 

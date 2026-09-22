@@ -9,6 +9,17 @@
   margin: 0 auto;
 }
 
+.backLink {
+  display: inline-block;
+  margin-bottom: 20px;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.backLink:hover {
+  color: var(--accent-color);
+}
+
 .title {
   font-size: 32px;
   font-weight: 700;

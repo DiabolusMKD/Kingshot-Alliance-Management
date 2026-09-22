@@ -1,35 +1,38 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Player } from '@/types';
+import { use, useEffect, useState } from 'react';
+import Link from 'next/link';
+import { Alliance, Player } from '@/types';
 import Navigation from '@/components/Navigation';
 import PlayersTable from '@/components/PlayersTable';
 import PlayersCard from '@/components/PlayersCard';
 import PlayerForm from '@/components/PlayerForm';
 import Dialog from '@/components/Dialog';
 import { getPlayers, createPlayer, updatePlayer, removePlayerFromAlliance } from '@/utils/playerService';
-import { fetchPlayerFromKingshot } from '@/utils/kingshotApi';
 import { getSessionPlayers, setSessionPlayers, upsertSessionPlayer, removeSessionPlayer } from '@/utils/sessionStorageService';
+import { getAlliancesByKingdomId } from '@/utils/allianceService';
+import { findAllianceBySlug } from '@/utils/allianceSlug';
 import styles from './page.module.css';
 
-const allianceId = 1; // FCK alliance ID
-const kingdomId = 844; // Kingdom ID to filter players by
+interface PlayersPageProps {
+  params: Promise<{ kingdomId: string; allianceSlug: string }>;
+}
 
-export default function PlayersPage() {
+export default function PlayersPage({ params }: PlayersPageProps) {
+  const { kingdomId, allianceSlug } = use(params);
+  const kingdomIdNumber = Number(kingdomId);
+
+  const [alliance, setAlliance] = useState<Alliance | null | undefined>(undefined);
   const [players, setPlayers] = useState<Player[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | undefined>();
   const [isLoading, setIsLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'table' | 'card'>('table');
 
-  useEffect(() => {
-    loadPlayers();
-  }, []);
-
-  const loadPlayers = async () => {
+  const loadPlayers = async (allianceId: number) => {
     try {
       setIsLoading(true);
-      const allPlayers = await getPlayers(allianceId, kingdomId); // Fetch players for FCK alliance and specified kingdom
+      const allPlayers = await getPlayers(allianceId, kingdomIdNumber);
       // Filter to only show active players and sort by power descending
       const activePlayers = allPlayers.sort((a, b) => b.power - a.power);
       setPlayers(activePlayers);
@@ -48,6 +51,33 @@ export default function PlayersPage() {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    getAlliancesByKingdomId(kingdomIdNumber)
+      .then((alliances) => {
+        if (!isMounted) return;
+        const match = findAllianceBySlug(alliances, allianceSlug) || null;
+        setAlliance(match);
+        if (match) {
+          loadPlayers(match.id);
+        } else {
+          setIsLoading(false);
+        }
+      })
+      .catch((error) => {
+        console.error('Failed to resolve alliance:', error);
+        if (isMounted) {
+          setAlliance(null);
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [kingdomId, allianceSlug]);
 
   const handleAddPlayer = () => {
     setSelectedPlayer(undefined);
@@ -72,7 +102,12 @@ export default function PlayersPage() {
     }
   };
 
-  const handleFormSubmit = async (formData: Omit<Player, 'id' | 'created_at' | 'updated_at'>) => {
+  const handleFormSubmit = async (
+    formData: Omit<Player, 'id' | 'created_at' | 'updated_at'>,
+    existingPlayerId?: string
+  ) => {
+    if (!alliance) return;
+
     try {
       setIsLoading(true);
 
@@ -85,26 +120,14 @@ export default function PlayersPage() {
           )
         );
         upsertSessionPlayer(updatedPlayer);
+      } else if (existingPlayerId) {
+        // Player already exists in the database under another alliance/kingdom —
+        // move that row here instead of inserting a duplicate (playerId is unique).
+        const movedPlayer = await updatePlayer(existingPlayerId, formData);
+        setPlayers((prev) => [...prev, movedPlayer].sort((a, b) => b.power - a.power));
+        upsertSessionPlayer(movedPlayer);
       } else {
-        // Add new player - fetch from API first if we only have playerId
-        let playerData = formData;
-        playerData.allianceId = `${allianceId}`; // Ensure allianceId is set for new players
-
-        if (!formData.name) {
-          try {
-            const kingshotData = await fetchPlayerFromKingshot(formData.playerId);
-            playerData = {
-              ...formData,
-              ...kingshotData,
-            };
-          } catch (err) {
-            console.error('Failed to fetch player from API:', err);
-            alert('Failed to fetch player data from API. Please try again.');
-            return;
-          }
-        }
-
-        const newPlayer = await createPlayer(playerData);
+        const newPlayer = await createPlayer(formData);
         setPlayers((prev) => [...prev, newPlayer].sort((a, b) => b.power - a.power));
         upsertSessionPlayer(newPlayer);
       }
@@ -147,6 +170,20 @@ export default function PlayersPage() {
     document.body.removeChild(link);
   };
 
+  if (alliance === null) {
+    return (
+      <>
+        <Navigation />
+        <main className={styles.main}>
+          <div className={styles.container}>
+            <p>Alliance not found.</p>
+            <Link href={`/${kingdomId}`}>← Back to Kingdom {kingdomId}</Link>
+          </div>
+        </main>
+      </>
+    );
+  }
+
   if (isLoading) {
     return (
       <>
@@ -165,6 +202,10 @@ export default function PlayersPage() {
       <Navigation />
       <main className={styles.main}>
         <div className={styles.container}>
+          <Link href={`/${kingdomId}/${allianceSlug}`} className={styles.backLink}>
+            ← Back to {alliance?.name}
+          </Link>
+
           <div className={styles.header}>
             <div className={styles.headerActions}>
               <div className={styles.viewSwitcher}>
@@ -216,6 +257,8 @@ export default function PlayersPage() {
       >
         <PlayerForm
           player={selectedPlayer}
+          kingdomId={kingdomIdNumber}
+          allianceId={alliance ? String(alliance.id) : ''}
           onSubmit={handleFormSubmit}
           onCancel={handleFormCancel}
         />
