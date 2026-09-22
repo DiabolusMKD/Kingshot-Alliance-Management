@@ -92,7 +92,6 @@ Edit `.env.local`:
 ```
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key_here
-NEXT_PUBLIC_KINGSHOT_API_URL=https://kingshot.net/api
 ```
 
 ### 4. **Test It**

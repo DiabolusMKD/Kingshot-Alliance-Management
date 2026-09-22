@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { fetchKingshotPlayerViaRedeem, KINGSHOT_REDEEM_URL } from '@/utils/kingshotRedeem';
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,26 +13,17 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const kingshotApiUrl = process.env.NEXT_PUBLIC_KINGSHOT_API_URL || 'https://kingshot.net/api';
-    const fetchUrl = `${kingshotApiUrl}/player-info?playerId=${playerId}`;
-    
-    console.log('[API Route] Fetching from:', fetchUrl);
+    console.log('[API Route] Fetching player via redeem action:', KINGSHOT_REDEEM_URL, playerId);
 
-    let response;
+    let result;
     try {
-      
-      response = await fetch(fetchUrl, { 
-        cache: 'no-store',
-        headers: {
-          'User-Agent': 'kingshot-alliance-management/1.0'
-        }
-      });
-      console.log('[API Route] Response status:', response.status);
+      result = await fetchKingshotPlayerViaRedeem(playerId);
+      console.log('[API Route] Response status:', result.httpResponse.status);
     } catch (fetchError) {
       console.error('[API Route] Fetch failed:', fetchError);
       const errorMsg = fetchError instanceof Error ? fetchError.message : 'Unknown error';
       return NextResponse.json(
-        { 
+        {
           error: `Failed to reach Kingshot API: ${errorMsg}`,
           status: 'error'
         },
@@ -39,35 +31,29 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Check HTTP status first before parsing JSON
-    if (!response.ok) {
-      let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-      let errorText = '';
-      try {
-        errorText = await response.text();
-        console.error('[API Route] Non-OK response text:', errorText.substring(0, 500));
-        // Try to parse as JSON if possible
-        const errorData = JSON.parse(errorText);
-        errorMessage = errorData.message || errorMessage;
-      } catch (e) {
-        // Response is not JSON, use default message
-        console.error('[API Route] Non-JSON error response:', errorText.substring(0, 200));
+    const { httpResponse, rawText, parsed } = result;
+
+    // Check HTTP status first
+    if (!httpResponse.ok) {
+      console.error('[API Route] Non-OK response:', httpResponse.status, rawText.substring(0, 500));
+      if (httpResponse.status === 404) {
+        // Most likely cause: kingshot.net redeployed and the Server Action id rotated.
+        return NextResponse.json(
+          { error: 'Kingshot lookup is temporarily unavailable (upstream action id changed)', status: 'error' },
+          { status: 502 }
+        );
       }
       return NextResponse.json(
-        { error: errorMessage, status: 'error' },
-        { status: response.status }
+        { error: `HTTP ${httpResponse.status}: ${httpResponse.statusText}`, status: 'error' },
+        { status: httpResponse.status }
       );
     }
 
-    let data;
-    try {
-      data = await response.json();
-      console.log('[API Route] Response data keys:', Object.keys(data));
-    } catch (parseError) {
-      console.error('[API Route] JSON parse error:', parseError);
+    if (!parsed) {
+      console.error('[API Route] Failed to parse redeem response:', rawText.substring(0, 500));
       return NextResponse.json(
-        { 
-          error: 'Failed to parse Kingshot API response - received non-JSON content',
+        {
+          error: 'Failed to parse Kingshot API response - received unexpected content',
           status: 'error',
           details: process.env.NODE_ENV === 'development' ? 'Check server logs for details' : undefined
         },
@@ -75,9 +61,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Check if the API returned an error status
-    if (data.status === 'error') {
-      const errorMessage = data.message || 'Player not found';
+    // Check if the API returned a failure status
+    if (parsed.status === 'fail' || !parsed.data) {
+      const errorMessage = parsed.message || 'Player not found';
       console.error('[API Route] API error status:', errorMessage);
       return NextResponse.json(
         { error: errorMessage, status: 'error' },
@@ -85,16 +71,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    if (!data.data) {
-      console.error('[API Route] No data field in response');
-      return NextResponse.json(
-        { error: 'Invalid API response format', status: 'error' },
-        { status: 502 }
-      );
-    }
-
-    console.log('[API Route] Success:', { playerId: data.data.playerId, name: data.data.name });
-    return NextResponse.json(data);
+    console.log('[API Route] Success:', { playerId: parsed.data.playerId, name: parsed.data.name });
+    return NextResponse.json({ status: 'success', data: parsed.data, message: parsed.message });
   } catch (error) {
     console.error('[API Route] Unexpected error:', error);
     return NextResponse.json(

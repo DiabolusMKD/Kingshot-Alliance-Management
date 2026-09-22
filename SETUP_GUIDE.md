@@ -47,7 +47,6 @@ Edit `.env.local` in your project root and add your Supabase credentials:
 ```
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key_here
-NEXT_PUBLIC_KINGSHOT_API_URL=https://kingshot.net/api
 ```
 
 ## Step 4: Enable Row Level Security (Optional but Recommended)

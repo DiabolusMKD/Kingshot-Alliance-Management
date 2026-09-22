@@ -23,7 +23,18 @@ interface KingshotAPIResponse {
   timestamp: string;
 }
 
-const KINGSHOT_API_URL = process.env.NEXT_PUBLIC_KINGSHOT_API_URL || 'https://kingshot.net/api';
+/**
+ * The Kingshot API returns the level image as a short label like "TG7" rather
+ * than a URL. Map it to the actual icon hosted on kingshot's CDN.
+ */
+function mapLevelImageToIconUrl(levelImage?: string): string | undefined {
+  if (!levelImage) return undefined;
+
+  const match = levelImage.match(/^TG(\d+)$/i);
+  if (!match) return levelImage;
+
+  return `https://got-global-avatar.akamaized.net/img/icon/stove_lv_${match[1]}.png`;
+}
 
 /**
  * Fetch player data from Kingshot API
@@ -74,7 +85,7 @@ export async function fetchPlayerFromKingshot(playerId: string): Promise<Kingsho
       level: playerData.level,
       levelRendered: playerData.level ? `Level ${playerData.level}` : undefined,
       levelRenderedDetailed: playerData.level ? `Level ${playerData.level} (Detailed)` : undefined,
-      levelImage: playerData.levelImage || undefined,
+      levelImage: mapLevelImageToIconUrl(playerData.levelImage),
       profilePhoto: playerData.profilePhoto || `/images/default-profile.png`,
     };
   } catch (error) {

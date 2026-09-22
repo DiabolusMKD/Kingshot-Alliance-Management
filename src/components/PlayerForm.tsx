@@ -98,22 +98,12 @@ export default function PlayerForm({ player, kingdomId, allianceId, onSubmit, on
 
     try {
       const playerData = await fetchPlayerFromKingshot(formData.playerId);
-      setFormData((prev) => {
-        const merged: FormData = { ...prev, ...playerData };
-
-        // Prevent overwriting existing numeric stats with missing/zero values from API
-        const stats = ['power', 'swordlandPower', 'trialliancePower'] as const;
-        stats.forEach((k) => {
-          const val = playerData[k as keyof typeof playerData] as number | undefined;
-          merged[k] = val === undefined || val === null || val === 0 ? prev[k] : val;
-        });
-
-        // profilePhoto/levelImage: use API value if present, otherwise keep previous
-        if (!playerData.profilePhoto) merged.profilePhoto = prev.profilePhoto;
-        if (!playerData.levelImage) merged.levelImage = prev.levelImage;
-
-        return merged;
-      });
+      setFormData((prev) => ({
+        ...prev,
+        name: playerData.name || prev.name,
+        profilePhoto: playerData.profilePhoto || prev.profilePhoto,
+        levelImage: playerData.levelImage || prev.levelImage,
+      }));
       setDataSource('api');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch player data');
