@@ -6,6 +6,8 @@ import { Player } from '@/types';
 import styles from './PlayersTable.module.css';
 import { formatNumbers } from '@/utils/formatNumbers';
 import { isImageUrl, truncateLevelLabel } from '@/utils/isImageUrl';
+import Dialog from './Dialog';
+import PlayerCard from './PlayerCard';
 
 interface PlayersTableProps {
   players: Player[];
@@ -15,6 +17,17 @@ interface PlayersTableProps {
 
 export default function PlayersTable({ players, onEdit, onDelete }: PlayersTableProps) {
   const [searchTerm, setSearchTerm] = useState('');
+  const [viewedPlayer, setViewedPlayer] = useState<Player | null>(null);
+
+  const handleViewEdit = (player: Player) => {
+    setViewedPlayer(null);
+    onEdit(player);
+  };
+
+  const handleViewDelete = (id: string) => {
+    setViewedPlayer(null);
+    onDelete(id);
+  };
 
   const filteredPlayers = players.filter(
     (player) =>
@@ -89,6 +102,26 @@ export default function PlayersTable({ players, onEdit, onDelete }: PlayersTable
                 <td>
                   <div className={styles.actions}>
                     <button
+                      onClick={() => setViewedPlayer(player)}
+                      className={styles.viewButton}
+                      title="View player"
+                    >
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                    </button>
+                    <button
                       onClick={() => onEdit(player)}
                       className={styles.editButton}
                       title="Edit player"
@@ -98,7 +131,7 @@ export default function PlayersTable({ players, onEdit, onDelete }: PlayersTable
                     <button
                       onClick={() => onDelete(player.id)}
                       className={styles.deleteButton}
-                      title="Deactivate player"
+                      title="Remove player from alliance"
                     >
                       ✕
                     </button>
@@ -114,6 +147,16 @@ export default function PlayersTable({ players, onEdit, onDelete }: PlayersTable
           </div>
         )}
       </div>
+
+      <Dialog
+        isOpen={!!viewedPlayer}
+        title={viewedPlayer?.name ?? 'Player'}
+        onClose={() => setViewedPlayer(null)}
+      >
+        {viewedPlayer && (
+          <PlayerCard player={viewedPlayer} onEdit={handleViewEdit} onDelete={handleViewDelete} />
+        )}
+      </Dialog>
     </div>
   );
 }
