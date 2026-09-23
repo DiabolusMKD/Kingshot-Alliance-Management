@@ -11,9 +11,10 @@ interface PlayerCardProps {
   onEdit?: (player: Player) => void;
   onDelete?: (id: string) => void;
   readOnly?: boolean;
+  allianceLabel?: string;
 }
 
-export default function PlayerCard({ player, onEdit, onDelete, readOnly = false }: PlayerCardProps) {
+export default function PlayerCard({ player, onEdit, onDelete, readOnly = false, allianceLabel }: PlayerCardProps) {
   return (
     <div className={styles.card}>
       <div className={styles.cardHeader}>
@@ -30,11 +31,26 @@ export default function PlayerCard({ player, onEdit, onDelete, readOnly = false 
           <h3 className={styles.name}>{player.name}</h3>
           <p className={styles.alias}>{player.aliasName}</p>
           <p className={styles.playerId}>ID: {player.playerId}</p>
-          {player.kingdomId && <p className={styles.kingdom}>Kingdom: {player.kingdomId}</p>}
         </div>
       </div>
 
       <div className={styles.cardBody}>
+        {player.kingdomId && (
+          <div className={styles.stat}>
+            <span className={styles.label}>Kingdom</span>
+            <span className={styles.value}>{player.kingdomId}</span>
+          </div>
+        )}
+        {allianceLabel && (
+          <div className={styles.stat}>
+            <span className={styles.label}>Alliance</span>
+            <span className={styles.value}>{allianceLabel}</span>
+          </div>
+        )}
+        <div className={styles.stat}>
+          <span className={styles.label}>Power</span>
+          <span className={styles.value}>{formatNumbers(player.power)}</span>
+        </div>
         {player.levelImage && (
           <div className={styles.stat}>
             <span className={styles.label}>Level</span>
@@ -47,18 +63,6 @@ export default function PlayerCard({ player, onEdit, onDelete, readOnly = false 
             </div>
           </div>
         )}
-        <div className={styles.stat}>
-          <span className={styles.label}>Power</span>
-          <span className={styles.value}>{formatNumbers(player.power)}</span>
-        </div>
-        <div className={styles.stat}>
-          <span className={styles.label}>Swordland</span>
-          <span className={styles.value}>{formatNumbers(player.swordlandPower)}</span>
-        </div>
-        <div className={styles.stat}>
-          <span className={styles.label}>Tri Alliance</span>
-          <span className={styles.value}>{formatNumbers(player.trialliancePower)}</span>
-        </div>
       </div>
 
       {!readOnly && (

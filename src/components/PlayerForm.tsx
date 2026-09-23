@@ -1,15 +1,17 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Player } from '@/types';
+import { Alliance, Player } from '@/types';
 import { fetchPlayerFromKingshot } from '@/utils/kingshotApi';
 import { getPlayerByPlayerId } from '@/utils/playerService';
+import { formatAllianceLabel } from '@/utils/allianceLabel';
 import styles from './PlayerForm.module.css';
 
 interface PlayerFormProps {
   player?: Player;
   kingdomId: number;
   allianceId: string;
+  alliances: Alliance[];
   onSubmit: (player: Omit<Player, 'id' | 'created_at' | 'updated_at'>, existingPlayerId?: string) => void;
   onCancel: () => void;
 }
@@ -23,6 +25,7 @@ const EMPTY_FORM_DATA: FormData = {
   power: 0,
   profilePhoto: '',
   levelImage: '',
+  allianceId: '',
 };
 
 type FormData = {
@@ -34,11 +37,12 @@ type FormData = {
   power: number;
   profilePhoto: string;
   levelImage: string;
+  allianceId: string;
 };
 
 type DataSource = 'database' | 'api' | 'manual' | null;
 
-export default function PlayerForm({ player, kingdomId, allianceId, onSubmit, onCancel }: PlayerFormProps) {
+export default function PlayerForm({ player, kingdomId, allianceId, alliances, onSubmit, onCancel }: PlayerFormProps) {
   const [formData, setFormData] = useState<FormData>(EMPTY_FORM_DATA);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -60,6 +64,7 @@ export default function PlayerForm({ player, kingdomId, allianceId, onSubmit, on
         power: player.power ?? 0,
         profilePhoto: player.profilePhoto || '',
         levelImage: player.levelImage || '',
+        allianceId: player.allianceId ? String(player.allianceId) : allianceId,
       });
       setDataSource(null);
       setDetailsStage(true);
@@ -188,7 +193,10 @@ export default function PlayerForm({ player, kingdomId, allianceId, onSubmit, on
       return;
     }
 
-    onSubmit({ ...formData, kingdomId, allianceId }, foundPlayerId ?? undefined);
+    // Add mode always targets the alliance being added to; edit mode uses the
+    // (possibly changed) alliance selected in the dropdown below.
+    const targetAllianceId = isEditMode ? formData.allianceId : allianceId;
+    onSubmit({ ...formData, kingdomId, allianceId: targetAllianceId }, foundPlayerId ?? undefined);
   };
 
   const lockedFromApi = dataSource === 'api';
@@ -252,6 +260,27 @@ export default function PlayerForm({ player, kingdomId, allianceId, onSubmit, on
             className={styles.input}
             placeholder="Player alias"
           />
+        </div>
+
+        <div className={styles.formGroup}>
+          <label htmlFor="allianceId" className={styles.label}>
+            Alliance
+          </label>
+          <select
+            id="allianceId"
+            name="allianceId"
+            value={formData.allianceId}
+            onChange={(e) => setFormData((prev) => ({ ...prev, allianceId: e.target.value }))}
+            className={styles.input}
+          >
+            {alliances
+              .filter((a) => a.kingdomId === kingdomId)
+              .map((a) => (
+                <option key={a.id} value={String(a.id)}>
+                  {formatAllianceLabel(a)}
+                </option>
+              ))}
+          </select>
         </div>
 
         <div className={styles.formGroup}>

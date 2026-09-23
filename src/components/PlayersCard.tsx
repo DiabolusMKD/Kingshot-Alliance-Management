@@ -1,18 +1,25 @@
 'use client';
 
 import { useState } from 'react';
-import { Player } from '@/types';
+import { Alliance, Player } from '@/types';
 import PlayerCard from './PlayerCard';
 import styles from './PlayersCard.module.css';
+import { formatAllianceLabel } from '@/utils/allianceLabel';
 
 interface PlayersCardProps {
   players: Player[];
+  alliances: Alliance[];
   onEdit: (player: Player) => void;
   onDelete: (id: string) => void;
 }
 
-export default function PlayersCard({ players, onEdit, onDelete }: PlayersCardProps) {
+export default function PlayersCard({ players, alliances, onEdit, onDelete }: PlayersCardProps) {
   const [searchTerm, setSearchTerm] = useState('');
+
+  const getAllianceLabel = (player: Player) => {
+    const alliance = alliances.find((a) => String(a.id) === String(player.allianceId));
+    return alliance ? formatAllianceLabel(alliance) : undefined;
+  };
 
   const filteredPlayers = players.filter(
     (player) =>
@@ -42,6 +49,7 @@ export default function PlayersCard({ players, onEdit, onDelete }: PlayersCardPr
             player={player}
             onEdit={onEdit}
             onDelete={onDelete}
+            allianceLabel={getAllianceLabel(player)}
           />
         ))}
       </div>

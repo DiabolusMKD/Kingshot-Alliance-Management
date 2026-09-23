@@ -2,22 +2,29 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { Player } from '@/types';
+import { Alliance, Player } from '@/types';
 import styles from './PlayersTable.module.css';
 import { formatNumbers } from '@/utils/formatNumbers';
 import { isImageUrl, truncateLevelLabel } from '@/utils/isImageUrl';
+import { formatAllianceLabel } from '@/utils/allianceLabel';
 import Dialog from './Dialog';
 import PlayerCard from './PlayerCard';
 
 interface PlayersTableProps {
   players: Player[];
+  alliances: Alliance[];
   onEdit: (player: Player) => void;
   onDelete: (id: string) => void;
 }
 
-export default function PlayersTable({ players, onEdit, onDelete }: PlayersTableProps) {
+export default function PlayersTable({ players, alliances, onEdit, onDelete }: PlayersTableProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [viewedPlayer, setViewedPlayer] = useState<Player | null>(null);
+
+  const getAllianceLabel = (player: Player) => {
+    const alliance = alliances.find((a) => String(a.id) === String(player.allianceId));
+    return alliance ? formatAllianceLabel(alliance) : undefined;
+  };
 
   const handleViewEdit = (player: Player) => {
     setViewedPlayer(null);
@@ -59,8 +66,7 @@ export default function PlayersTable({ players, onEdit, onDelete }: PlayersTable
               <th>Name</th>
               <th>Alias</th>
               <th>Power</th>
-              <th>Swordland</th>
-              <th>Tri Alliance</th>
+              <th>Alliance</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -97,8 +103,7 @@ export default function PlayersTable({ players, onEdit, onDelete }: PlayersTable
                 <td>{player.name}</td>
                 <td>{player.aliasName}</td>
                 <td>{formatNumbers(player.power)}</td>
-                <td>{formatNumbers(player.swordlandPower)}</td>
-                <td>{formatNumbers(player.trialliancePower)}</td>
+                <td>{getAllianceLabel(player) ?? '—'}</td>
                 <td>
                   <div className={styles.actions}>
                     <button
@@ -154,7 +159,12 @@ export default function PlayersTable({ players, onEdit, onDelete }: PlayersTable
         onClose={() => setViewedPlayer(null)}
       >
         {viewedPlayer && (
-          <PlayerCard player={viewedPlayer} onEdit={handleViewEdit} onDelete={handleViewDelete} />
+          <PlayerCard
+            player={viewedPlayer}
+            onEdit={handleViewEdit}
+            onDelete={handleViewDelete}
+            allianceLabel={getAllianceLabel(viewedPlayer)}
+          />
         )}
       </Dialog>
     </div>

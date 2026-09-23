@@ -77,12 +77,6 @@
   color: var(--text-secondary);
 }
 
-.kingdom {
-  margin: 2px 0 0;
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
 .cardBody {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

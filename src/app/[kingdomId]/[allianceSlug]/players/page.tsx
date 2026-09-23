@@ -38,6 +38,7 @@ export default function PlayersPage({ params }: PlayersPageProps) {
   const kingdomIdNumber = Number(kingdomId);
 
   const [alliance, setAlliance] = useState<Alliance | null | undefined>(undefined);
+  const [kingdomAlliances, setKingdomAlliances] = useState<Alliance[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | undefined>();
@@ -77,6 +78,7 @@ export default function PlayersPage({ params }: PlayersPageProps) {
     getAlliancesByKingdomId(kingdomIdNumber)
       .then((alliances) => {
         if (!isMounted) return;
+        setKingdomAlliances(alliances);
         const match = findAllianceBySlug(alliances, allianceSlug) || null;
         setAlliance(match);
         if (match) {
@@ -133,12 +135,20 @@ export default function PlayersPage({ params }: PlayersPageProps) {
       if (selectedPlayer) {
         // Update existing player
         const updatedPlayer = await updatePlayer(selectedPlayer.id, formData);
-        setPlayers((prev) =>
-          prev.map((p) =>
-            p.id === selectedPlayer.id ? updatedPlayer : p
-          )
-        );
-        upsertSessionPlayer(updatedPlayer);
+        const movedToAnotherAlliance = String(updatedPlayer.allianceId) !== String(alliance.id);
+
+        if (movedToAnotherAlliance) {
+          // Player was moved to a different alliance, so it no longer belongs on this page
+          setPlayers((prev) => prev.filter((p) => p.id !== selectedPlayer.id));
+          removeSessionPlayer(updatedPlayer.id);
+        } else {
+          setPlayers((prev) =>
+            prev.map((p) =>
+              p.id === selectedPlayer.id ? updatedPlayer : p
+            )
+          );
+          upsertSessionPlayer(updatedPlayer);
+        }
       } else if (existingPlayerId) {
         // Player already exists in the database under another alliance/kingdom —
         // move that row here instead of inserting a duplicate (playerId is unique).
@@ -251,12 +261,14 @@ export default function PlayersPage({ params }: PlayersPageProps) {
           {viewMode === 'table' ? (
             <PlayersTable
               players={players}
+              alliances={kingdomAlliances}
               onEdit={handleEditPlayer}
               onDelete={handleDeletePlayer}
             />
           ) : (
             <PlayersCard
               players={players}
+              alliances={kingdomAlliances}
               onEdit={handleEditPlayer}
               onDelete={handleDeletePlayer}
             />
@@ -277,6 +289,7 @@ export default function PlayersPage({ params }: PlayersPageProps) {
           player={selectedPlayer}
           kingdomId={kingdomIdNumber}
           allianceId={alliance ? String(alliance.id) : ''}
+          alliances={kingdomAlliances}
           onSubmit={handleFormSubmit}
           onCancel={handleFormCancel}
         />
