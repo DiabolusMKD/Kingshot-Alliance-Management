@@ -1,9 +1,9 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
-import Link from "next/link";
 import { Alliance, Player, AllianceEvent, PlayerAssignment, EventStatus } from "@/types";
 import Navigation from "@/components/Navigation";
+import BackLink from "@/components/BackLink";
 import EventHero from "@/components/EventHero";
 import SwordlandEventLayout from "@/components/SwordlandEventLayout";
 import EventList from "@/components/EventList";
@@ -186,9 +186,9 @@ export default function SwordlandPage({ params }: SwordlandPageProps) {
       <>
         <Navigation />
         <main className={styles.main}>
+          <BackLink href={`/${kingdomId}/${allianceSlug}/events`}>Back to Events</BackLink>
           <div className={styles.container}>
             <p>Alliance not found.</p>
-            <Link href={`/${kingdomId}/${allianceSlug}/events`}>← Back to Events</Link>
           </div>
         </main>
       </>

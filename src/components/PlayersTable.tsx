@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { Player } from '@/types';
 import styles from './PlayersTable.module.css';
 import { formatNumbers } from '@/utils/formatNumbers';
@@ -44,9 +45,9 @@ export default function PlayersTable({ players, onEdit, onDelete }: PlayersTable
               <th>Player ID</th>
               <th>Name</th>
               <th>Alias</th>
+              <th>Power</th>
               <th>Swordland</th>
               <th>Tri Alliance</th>
-              <th>Power</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -57,11 +58,13 @@ export default function PlayersTable({ players, onEdit, onDelete }: PlayersTable
                 <td>
                   <div className={styles.photoWrapper}>
                     {player.profilePhoto ? (
-                      <img
+                      <Image
                         src={player.profilePhoto}
                         alt={player.name}
                         className={styles.playerPhoto}
                         title={player.name}
+                        width={40}
+                        height={40}
                       />
                     ) : (
                       <div className={styles.noPhoto}>—</div>
@@ -69,7 +72,7 @@ export default function PlayersTable({ players, onEdit, onDelete }: PlayersTable
                     {player.levelImage && (
                       <div className={styles.levelBadge} title="Level">
                         {isImageUrl(player.levelImage) ? (
-                          <img src={player.levelImage} alt="Level" />
+                          <Image src={player.levelImage} alt="Level" width={24} height={24} />
                         ) : (
                           <span>{truncateLevelLabel(player.levelImage)}</span>
                         )}
@@ -80,9 +83,9 @@ export default function PlayersTable({ players, onEdit, onDelete }: PlayersTable
                 <td>{player.playerId}</td>
                 <td>{player.name}</td>
                 <td>{player.aliasName}</td>
+                <td>{formatNumbers(player.power)}</td>
                 <td>{formatNumbers(player.swordlandPower)}</td>
                 <td>{formatNumbers(player.trialliancePower)}</td>
-                <td>{formatNumbers(player.power)}</td>
                 <td>
                   <div className={styles.actions}>
                     <button

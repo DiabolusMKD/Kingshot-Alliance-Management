@@ -9,10 +9,9 @@ import styles from './AllianceCards.module.css';
 interface AllianceCardsProps {
   alliances: Alliance[];
   kingdomId: number;
-  onEdit: (alliance: Alliance) => void;
 }
 
-export default function AllianceCards({ alliances, kingdomId, onEdit }: AllianceCardsProps) {
+export default function AllianceCards({ alliances, kingdomId }: AllianceCardsProps) {
   return (
     <div className={styles.grid}>
       {alliances.map((alliance) => (
@@ -21,17 +20,6 @@ export default function AllianceCards({ alliances, kingdomId, onEdit }: Alliance
           href={`/${kingdomId}/${getAllianceSlug(alliance.id)}`}
           className={styles.card}
         >
-          <button
-            className={styles.editButton}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onEdit(alliance);
-            }}
-            title="Edit alliance"
-          >
-            ✎ Edit
-          </button>
           <AllianceAvatar alliance={alliance} className={styles.image} />
           <div className={styles.info}>
             <h3 className={styles.name}>{alliance.name}</h3>

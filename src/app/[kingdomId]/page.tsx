@@ -7,7 +7,7 @@ import AllianceForm from '@/components/AllianceForm';
 import AllianceTable from '@/components/AllianceTable';
 import AllianceCards from '@/components/AllianceCards';
 import { Alliance } from '@/types';
-import { getAlliancesByKingdomId, createAlliance, updateAlliance } from '@/utils/allianceService';
+import { getAlliancesByKingdomId, createAlliance } from '@/utils/allianceService';
 import styles from './page.module.css';
 
 interface KingdomPageProps {
@@ -21,7 +21,6 @@ export default function KingdomPage({ params }: KingdomPageProps) {
   const [alliances, setAlliances] = useState<Alliance[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingAlliance, setEditingAlliance] = useState<Alliance | null>(null);
   const [viewMode, setViewMode] = useState<'table' | 'card'>('table');
 
   const loadAlliances = async () => {
@@ -41,32 +40,16 @@ export default function KingdomPage({ params }: KingdomPageProps) {
   }, [kingdomId]);
 
   const openCreateDialog = () => {
-    setEditingAlliance(null);
-    setIsDialogOpen(true);
-  };
-
-  const openEditDialog = (alliance: Alliance) => {
-    setEditingAlliance(alliance);
     setIsDialogOpen(true);
   };
 
   const closeDialog = () => {
     setIsDialogOpen(false);
-    setEditingAlliance(null);
   };
 
   const handleCreateAlliance = async (allianceData: Omit<Alliance, 'id' | 'created_at'>) => {
     const newAlliance = await createAlliance(allianceData);
     setAlliances((prev) => [...prev, newAlliance].sort((a, b) => a.name.localeCompare(b.name)));
-    closeDialog();
-  };
-
-  const handleUpdateAlliance = async (allianceData: Omit<Alliance, 'id' | 'created_at'>) => {
-    if (!editingAlliance) return;
-    const updated = await updateAlliance(editingAlliance.id, allianceData);
-    setAlliances((prev) =>
-      prev.map((alliance) => (alliance.id === updated.id ? updated : alliance)).sort((a, b) => a.name.localeCompare(b.name))
-    );
     closeDialog();
   };
 
@@ -108,18 +91,17 @@ export default function KingdomPage({ params }: KingdomPageProps) {
           ) : alliances.length === 0 ? (
             <span className={styles.noAlliances}>No alliances</span>
           ) : viewMode === 'table' ? (
-            <AllianceTable alliances={alliances} kingdomId={kingdomIdNumber} onEdit={openEditDialog} />
+            <AllianceTable alliances={alliances} kingdomId={kingdomIdNumber} />
           ) : (
-            <AllianceCards alliances={alliances} kingdomId={kingdomIdNumber} onEdit={openEditDialog} />
+            <AllianceCards alliances={alliances} kingdomId={kingdomIdNumber} />
           )}
         </div>
       </main>
 
-      <Dialog isOpen={isDialogOpen} title={editingAlliance ? 'Edit Alliance' : 'Create Alliance'} onClose={closeDialog}>
+      <Dialog isOpen={isDialogOpen} title="Create Alliance" onClose={closeDialog}>
         <AllianceForm
           kingdomId={kingdomIdNumber}
-          alliance={editingAlliance ?? undefined}
-          onSubmit={editingAlliance ? handleUpdateAlliance : handleCreateAlliance}
+          onSubmit={handleCreateAlliance}
           onCancel={closeDialog}
         />
       </Dialog>

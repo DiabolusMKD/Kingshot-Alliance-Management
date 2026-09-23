@@ -46,6 +46,12 @@
   resize: vertical;
 }
 
+.charCount {
+  align-self: flex-end;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
 .input:focus,
 .textarea:focus {
   outline: none;

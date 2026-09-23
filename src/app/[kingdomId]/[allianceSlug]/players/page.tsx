@@ -1,9 +1,9 @@
 'use client';
 
 import { use, useEffect, useState } from 'react';
-import Link from 'next/link';
 import { Alliance, Player } from '@/types';
 import Navigation from '@/components/Navigation';
+import BackLink from '@/components/BackLink';
 import PlayersTable from '@/components/PlayersTable';
 import PlayersCard from '@/components/PlayersCard';
 import PlayerForm from '@/components/PlayerForm';
@@ -18,6 +18,21 @@ interface PlayersPageProps {
   params: Promise<{ kingdomId: string; allianceSlug: string }>;
 }
 
+interface CsvColumn {
+  key: string;
+  label: string;
+  getValue: (player: Player) => string | number;
+}
+
+const CSV_COLUMNS: CsvColumn[] = [
+  { key: 'playerId', label: 'Player ID', getValue: (p) => p.playerId },
+  { key: 'name', label: 'Name', getValue: (p) => p.name },
+  { key: 'aliasName', label: 'Alias', getValue: (p) => p.aliasName },
+  { key: 'swordlandPower', label: 'Swordland', getValue: (p) => p.swordlandPower },
+  { key: 'trialliancePower', label: 'Tri Alliance', getValue: (p) => p.trialliancePower },
+  { key: 'power', label: 'Power', getValue: (p) => p.power },
+];
+
 export default function PlayersPage({ params }: PlayersPageProps) {
   const { kingdomId, allianceSlug } = use(params);
   const kingdomIdNumber = Number(kingdomId);
@@ -28,6 +43,10 @@ export default function PlayersPage({ params }: PlayersPageProps) {
   const [selectedPlayer, setSelectedPlayer] = useState<Player | undefined>();
   const [isLoading, setIsLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'table' | 'card'>('table');
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [selectedColumns, setSelectedColumns] = useState<Record<string, boolean>>(
+    () => Object.fromEntries(CSV_COLUMNS.map((column) => [column.key, true]))
+  );
 
   const loadPlayers = async (allianceId: number) => {
     try {
@@ -147,17 +166,17 @@ export default function PlayersPage({ params }: PlayersPageProps) {
     setSelectedPlayer(undefined);
   };
 
+  const toggleExportColumn = (key: string) => {
+    setSelectedColumns((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
   const exportToCSV = () => {
+    const columns = CSV_COLUMNS.filter((column) => selectedColumns[column.key]);
+    if (columns.length === 0) return;
+
     const csvContent = [
-      ['Player ID', 'Name', 'Alias', 'Swordland', 'Tri Alliance', 'Power'],
-      ...players.map((p) => [
-        p.playerId,
-        p.name,
-        p.aliasName,
-        p.swordlandPower,
-        p.trialliancePower,
-        p.power
-      ])
+      columns.map((column) => column.label),
+      ...players.map((p) => columns.map((column) => column.getValue(p))),
     ];
     const csvString = csvContent.map((row) => row.join(',')).join('\n');
     const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
@@ -168,6 +187,8 @@ export default function PlayersPage({ params }: PlayersPageProps) {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setIsExportDialogOpen(false);
   };
 
   if (alliance === null) {
@@ -175,9 +196,9 @@ export default function PlayersPage({ params }: PlayersPageProps) {
       <>
         <Navigation />
         <main className={styles.main}>
+          <BackLink href={`/${kingdomId}`}>Back to Kingdom {kingdomId}</BackLink>
           <div className={styles.container}>
             <p>Alliance not found.</p>
-            <Link href={`/${kingdomId}`}>← Back to Kingdom {kingdomId}</Link>
           </div>
         </main>
       </>
@@ -201,11 +222,8 @@ export default function PlayersPage({ params }: PlayersPageProps) {
     <>
       <Navigation />
       <main className={styles.main}>
+        <BackLink href={`/${kingdomId}/${allianceSlug}`}>Back to {alliance?.name}</BackLink>
         <div className={styles.container}>
-          <Link href={`/${kingdomId}/${allianceSlug}`} className={styles.backLink}>
-            ← Back to {alliance?.name}
-          </Link>
-
           <div className={styles.header}>
             <div className={styles.headerActions}>
               <div className={styles.viewSwitcher}>
@@ -244,7 +262,7 @@ export default function PlayersPage({ params }: PlayersPageProps) {
             />
           )}
 
-          <button className={styles.exportButton} onClick={exportToCSV}>
+          <button className={styles.exportButton} onClick={() => setIsExportDialogOpen(true)}>
             Export to CSV
           </button>
         </div>
@@ -262,6 +280,45 @@ export default function PlayersPage({ params }: PlayersPageProps) {
           onSubmit={handleFormSubmit}
           onCancel={handleFormCancel}
         />
+      </Dialog>
+
+      <Dialog
+        isOpen={isExportDialogOpen}
+        title="Export to CSV"
+        onClose={() => setIsExportDialogOpen(false)}
+      >
+        <div className={styles.exportDialog}>
+          <p className={styles.exportHint}>Choose which columns to include:</p>
+          <div className={styles.exportColumns}>
+            {CSV_COLUMNS.map((column) => (
+              <label key={column.key} className={styles.exportColumnOption}>
+                <input
+                  type="checkbox"
+                  checked={selectedColumns[column.key]}
+                  onChange={() => toggleExportColumn(column.key)}
+                />
+                {column.label}
+              </label>
+            ))}
+          </div>
+          <div className={styles.exportActions}>
+            <button
+              type="button"
+              className={styles.cancelButton}
+              onClick={() => setIsExportDialogOpen(false)}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className={styles.addButton}
+              onClick={exportToCSV}
+              disabled={!Object.values(selectedColumns).some(Boolean)}
+            >
+              Export
+            </button>
+          </div>
+        </div>
       </Dialog>
     </>
   );

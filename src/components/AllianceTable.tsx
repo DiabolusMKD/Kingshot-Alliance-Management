@@ -9,10 +9,9 @@ import styles from './AllianceTable.module.css';
 interface AllianceTableProps {
   alliances: Alliance[];
   kingdomId: number;
-  onEdit: (alliance: Alliance) => void;
 }
 
-export default function AllianceTable({ alliances, kingdomId, onEdit }: AllianceTableProps) {
+export default function AllianceTable({ alliances, kingdomId }: AllianceTableProps) {
   const router = useRouter();
 
   return (
@@ -23,11 +22,7 @@ export default function AllianceTable({ alliances, kingdomId, onEdit }: Alliance
             <th>No.</th>
             <th>Image</th>
             <th>Name</th>
-            <th>Tag</th>
             <th>Description</th>
-            <th>
-              <span className={styles.visuallyHidden}>Actions</span>
-            </th>
           </tr>
         </thead>
         <tbody>
@@ -41,20 +36,9 @@ export default function AllianceTable({ alliances, kingdomId, onEdit }: Alliance
               <td>
                 <AllianceAvatar alliance={alliance} className={styles.allianceImage} />
               </td>
-              <td>{alliance.name}</td>
-              <td>{alliance.nameTag}</td>
-              <td>{alliance.description || '—'}</td>
-              <td>
-                <button
-                  className={styles.editButton}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onEdit(alliance);
-                  }}
-                  title="Edit alliance"
-                >
-                  ✎
-                </button>
+              <td>[{alliance.nameTag}]{alliance.name}</td>
+              <td className={styles.descriptionCell} title={alliance.description || undefined}>
+                {alliance.description || '—'}
               </td>
             </tr>
           ))}

@@ -24,13 +24,14 @@ interface KingshotAPIResponse {
 }
 
 /**
- * The Kingshot API returns the level image as a short label like "TG7" rather
- * than a URL. Map it to the actual icon hosted on kingshot's CDN.
+ * The Kingshot API returns the level image as a short label like "TG7" or
+ * "TG6-3" rather than a URL. Map it to the actual icon hosted on kingshot's
+ * CDN, using only the number between "TG" and the optional "-" suffix.
  */
 function mapLevelImageToIconUrl(levelImage?: string): string | undefined {
   if (!levelImage) return undefined;
 
-  const match = levelImage.match(/^TG(\d+)$/i);
+  const match = levelImage.match(/^TG(\d+)(?:-\d+)?$/i);
   if (!match) return levelImage;
 
   return `https://got-global-avatar.akamaized.net/img/icon/stove_lv_${match[1]}.png`;

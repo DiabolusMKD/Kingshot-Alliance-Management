@@ -5,6 +5,8 @@ import { Alliance } from '@/types';
 import { DEFAULT_ALLIANCE_IMAGE_URL } from '@/utils/constants';
 import styles from './AllianceForm.module.css';
 
+const DESCRIPTION_MAX_LENGTH = 255;
+
 interface AllianceFormProps {
   kingdomId: number;
   alliance?: Alliance;
@@ -96,7 +98,11 @@ export default function AllianceForm({ kingdomId, alliance, onSubmit, onCancel }
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           disabled={isLoading}
+          maxLength={DESCRIPTION_MAX_LENGTH}
         />
+        <span className={styles.charCount}>
+          {description.length}/{DESCRIPTION_MAX_LENGTH}
+        </span>
       </div>
 
       <div className={styles.formGroup}>
