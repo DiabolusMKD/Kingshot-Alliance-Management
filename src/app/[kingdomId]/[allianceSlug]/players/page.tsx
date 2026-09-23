@@ -188,7 +188,11 @@ export default function PlayersPage({ params }: PlayersPageProps) {
       columns.map((column) => column.label),
       ...players.map((p) => columns.map((column) => column.getValue(p))),
     ];
-    const csvString = csvContent.map((row) => row.join(',')).join('\n');
+    // Quote every cell so spreadsheet apps treat values like "008" as text
+    // instead of silently converting them to numbers and dropping the zeros.
+    const csvString = csvContent
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
     const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');

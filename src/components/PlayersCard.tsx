@@ -24,7 +24,8 @@ export default function PlayersCard({ players, alliances, onEdit, onDelete }: Pl
   const filteredPlayers = players.filter(
     (player) =>
       player.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      player.aliasName.toLowerCase().includes(searchTerm.toLowerCase())
+      player.aliasName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      String(player.playerId).includes(searchTerm)
   );
 
   return (
@@ -32,7 +33,7 @@ export default function PlayersCard({ players, alliances, onEdit, onDelete }: Pl
       <div className={styles.searchWrapper}>
         <input
           type="text"
-          placeholder="Search by player name or alias..."
+          placeholder="Search by player name, alias, or ID..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className={styles.searchInput}

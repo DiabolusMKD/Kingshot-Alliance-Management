@@ -39,7 +39,8 @@ export default function PlayersTable({ players, alliances, onEdit, onDelete }: P
   const filteredPlayers = players.filter(
     (player) =>
       player.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      player.aliasName.toLowerCase().includes(searchTerm.toLowerCase())
+      player.aliasName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      String(player.playerId).includes(searchTerm)
   )
 
   return (
@@ -47,7 +48,7 @@ export default function PlayersTable({ players, alliances, onEdit, onDelete }: P
       <div className={styles.searchWrapper}>
         <input
           type="text"
-          placeholder="Search by player name or alias..."
+          placeholder="Search by player name, alias, or ID..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className={styles.searchInput}
@@ -62,9 +63,9 @@ export default function PlayersTable({ players, alliances, onEdit, onDelete }: P
             <tr>
               <th>No.</th>
               <th>Photo</th>
-              <th>Player ID</th>
               <th>Name</th>
               <th>Alias</th>
+              <th>Player ID</th>
               <th>Power</th>
               <th>Alliance</th>
               <th>Actions</th>
@@ -99,9 +100,9 @@ export default function PlayersTable({ players, alliances, onEdit, onDelete }: P
                     )}
                   </div>
                 </td>
-                <td>{player.playerId}</td>
                 <td>{player.name}</td>
                 <td>{player.aliasName}</td>
+                <td>{player.playerId}</td>
                 <td>{formatNumbers(player.power)}</td>
                 <td>{getAllianceLabel(player) ?? '—'}</td>
                 <td>
