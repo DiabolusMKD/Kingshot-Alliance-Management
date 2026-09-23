@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { Alliance } from '@/types';
-import { DEFAULT_ALLIANCE_IMAGE_URL } from '@/utils/constants';
 import styles from './AllianceForm.module.css';
 
 const DESCRIPTION_MAX_LENGTH = 255;
@@ -19,9 +18,7 @@ export default function AllianceForm({ kingdomId, alliance, onSubmit, onCancel }
   const [name, setName] = useState(alliance?.name ?? '');
   const [nameTag, setNameTag] = useState(alliance?.nameTag ?? '');
   const [description, setDescription] = useState(alliance?.description ?? '');
-  const [allianceImageUrl, setAllianceImageUrl] = useState(
-    alliance ? alliance.allianceImageUrl ?? DEFAULT_ALLIANCE_IMAGE_URL : ''
-  );
+  const [allianceImageUrl, setAllianceImageUrl] = useState(alliance?.allianceImageUrl ?? '');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

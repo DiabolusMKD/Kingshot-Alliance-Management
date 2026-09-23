@@ -98,12 +98,16 @@ export default function PlayerForm({ player, kingdomId, allianceId, onSubmit, on
 
     try {
       const playerData = await fetchPlayerFromKingshot(formData.playerId);
-      setFormData((prev) => ({
-        ...prev,
-        name: playerData.name || prev.name,
-        profilePhoto: playerData.profilePhoto || prev.profilePhoto,
-        levelImage: playerData.levelImage || prev.levelImage,
-      }));
+      setFormData((prev) => {
+        const name = playerData.name || prev.name;
+        return {
+          ...prev,
+          name,
+          aliasName: prev.aliasName || name,
+          profilePhoto: playerData.profilePhoto || prev.profilePhoto,
+          levelImage: playerData.levelImage || prev.levelImage,
+        };
+      });
       setDataSource('api');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch player data');
@@ -129,7 +133,7 @@ export default function PlayerForm({ player, kingdomId, allianceId, onSubmit, on
         setFormData((prev) => ({
           ...prev,
           name: existingPlayer.name || '',
-          aliasName: existingPlayer.aliasName || '',
+          aliasName: existingPlayer.aliasName || existingPlayer.name || '',
           power: existingPlayer.power ?? 0,
           swordlandPower: existingPlayer.swordlandPower ?? 0,
           trialliancePower: existingPlayer.trialliancePower ?? 0,
@@ -145,12 +149,16 @@ export default function PlayerForm({ player, kingdomId, allianceId, onSubmit, on
 
       try {
         const kingshotData = await fetchPlayerFromKingshot(formData.playerId);
-        setFormData((prev) => ({
-          ...prev,
-          name: kingshotData.name || '',
-          profilePhoto: kingshotData.profilePhoto || prev.profilePhoto,
-          levelImage: kingshotData.levelImage || prev.levelImage,
-        }));
+        setFormData((prev) => {
+          const name = kingshotData.name || '';
+          return {
+            ...prev,
+            name,
+            aliasName: prev.aliasName || name,
+            profilePhoto: kingshotData.profilePhoto || prev.profilePhoto,
+            levelImage: kingshotData.levelImage || prev.levelImage,
+          };
+        });
         setDataSource('api');
         setInfoMessage('Player found via the Kingshot API.');
       } catch {
@@ -243,7 +251,6 @@ export default function PlayerForm({ player, kingdomId, allianceId, onSubmit, on
             onChange={handleChange}
             className={styles.input}
             placeholder="Player alias"
-            readOnly={lockedFromApi}
           />
         </div>
 
@@ -260,9 +267,7 @@ export default function PlayerForm({ player, kingdomId, allianceId, onSubmit, on
             className={styles.input}
             placeholder="0"
             min="0"
-            readOnly={lockedFromApi}
           />
-          {lockedFromApi && <small className={styles.readOnlyHint}>Read-only (from API)</small>}
         </div>
 
         <div className={styles.formGroup}>
@@ -337,17 +342,40 @@ export default function PlayerForm({ player, kingdomId, allianceId, onSubmit, on
         <label htmlFor="playerId" className={styles.label}>
           In-Game Player ID <span className={styles.required}>*</span>
         </label>
-        <input
-          type="text"
-          id="playerId"
-          name="playerId"
-          value={formData.playerId}
-          onChange={handleChange}
-          className={styles.input}
-          placeholder="e.g. 123123123"
-          readOnly={detailsStage}
-          required
-        />
+        {detailsStage ? (
+          <div className={styles.inputWithButton}>
+            <input
+              type="text"
+              id="playerId"
+              name="playerId"
+              value={formData.playerId}
+              onChange={handleChange}
+              className={styles.input}
+              placeholder="e.g. 123123123"
+              readOnly
+              required
+            />
+            <button
+              type="button"
+              onClick={handleRefetch}
+              disabled={isLoading || !formData.playerId}
+              className={styles.refetchButton}
+            >
+              {isLoading ? 'Fetching...' : 'Refetch'}
+            </button>
+          </div>
+        ) : (
+          <input
+            type="text"
+            id="playerId"
+            name="playerId"
+            value={formData.playerId}
+            onChange={handleChange}
+            className={styles.input}
+            placeholder="e.g. 123123123"
+            required
+          />
+        )}
       </div>
 
       {!detailsStage ? (
@@ -396,9 +424,7 @@ export default function PlayerForm({ player, kingdomId, allianceId, onSubmit, on
               onChange={handleChange}
               className={styles.input}
               placeholder="Player alias"
-              readOnly={lockedFromApi}
             />
-            {lockedFromApi && <small className={styles.readOnlyHint}>Read-only (from API)</small>}
           </div>
 
           <div className={styles.formGroup}>
@@ -414,9 +440,7 @@ export default function PlayerForm({ player, kingdomId, allianceId, onSubmit, on
               className={styles.input}
               placeholder="0"
               min="0"
-              readOnly={lockedFromApi}
             />
-            {lockedFromApi && <small className={styles.readOnlyHint}>Read-only (from API)</small>}
           </div>
 
           <div className={styles.formGroup}>
