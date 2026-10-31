@@ -4,6 +4,9 @@ import { useState, useEffect } from "react";
 import { Player, PlayerAssignment } from "@/types";
 import styles from "./TriAllianceEventLayout.module.css";
 
+const MAX_LEGION_PLAYERS = 30;
+const MAX_SUBSTITUTES = 10;
+
 interface TriAllianceEventLayoutProps {
   players: Player[];
   initialAssignments?: PlayerAssignment[];
@@ -89,6 +92,22 @@ export default function TriAllianceEventLayout({
     const player = players.find((p) => p.id === playerId);
     if (!player) return;
 
+    if (
+      (toCategory === "legion1" || toCategory === "legion2") &&
+      assignments[toCategory].length >= MAX_LEGION_PLAYERS
+    ) {
+      alert(`A legion can't have more than ${MAX_LEGION_PLAYERS} players. Add them as substitutes instead.`);
+      return;
+    }
+
+    if (
+      (toCategory === "substituteLegion1" || toCategory === "substituteLegion2") &&
+      assignments[toCategory].length >= MAX_SUBSTITUTES
+    ) {
+      alert(`A legion can't have more than ${MAX_SUBSTITUTES} substitutes.`);
+      return;
+    }
+
     setAssignments((prev) => {
       const newAssignments = { ...prev };
 
@@ -120,65 +139,54 @@ export default function TriAllianceEventLayout({
   };
 
   const handleGenerateString = () => {
+    const teamLabels = [
+      "Team 1 (Right outer)",
+      "Team 2 (Right inner)",
+      "Team 3 (Left outer)",
+      "Team 4 (Left inner)",
+    ];
+    // Distribution order by power rank: outer teams first, right before left
+    const distributionOrder = [0, 2, 1, 3];
+
     const splitLegion = (players: Player[]) => {
-      // Sort strongest -> weakest
+      // Sort strongest -> weakest by tri-alliance power
       const sortedPlayers = [...players].sort(
-        (a, b) => Number(b.power) - Number(a.power),
+        (a, b) => Number(b.trialliancePower) - Number(a.trialliancePower),
       );
 
-      const leftSide: Player[] = [];
-      const rightSide: Player[] = [];
-
-      // Alternate players between left/right
+      const teams: Player[][] = [[], [], [], []];
       sortedPlayers.forEach((player, index) => {
-        if (index % 2 === 0) {
-          leftSide.push(player);
-        } else {
-          rightSide.push(player);
-        }
+        teams[distributionOrder[index % 4]].push(player);
       });
 
-      // Split side into offense/support
-      const splitSide = (sidePlayers: Player[]) => {
-        const offenseCount = Math.floor(sidePlayers.length / 2);
-        // support automatically gets extra if odd
+      // Teams of 6+ get 3 offense, smaller teams 2; the rest is support
+      return teams.map((team) => {
+        const offenseCount = team.length >= 6 ? 3 : 2;
 
         return {
-          offense: sidePlayers.slice(0, offenseCount),
-          support: sidePlayers.slice(offenseCount),
+          offense: team.slice(0, offenseCount),
+          support: team.slice(offenseCount),
         };
-      };
-
-      const left = splitSide(leftSide);
-      const right = splitSide(rightSide);
-
-      return {
-        leftOffense: left.offense,
-        leftSupport: left.support,
-        rightOffense: right.offense,
-        rightSupport: right.support,
-      };
+      });
     };
 
     const formatPlayers = (players: Player[]) =>
       players.map((p) => p.name).join(", ") || "None";
 
-    const legion1 = splitLegion(assignments.legion1);
-    const legion2 = splitLegion(assignments.legion2);
+    const formatLegion = (title: string, legion: Player[], substitutes: Player[]) =>
+      `${title}:
+${splitLegion(legion)
+  .map(
+    (team, index) => `${teamLabels[index]}:
+- Offense: ${formatPlayers(team.offense)}
+- Support: ${formatPlayers(team.support)}`,
+  )
+  .join("\n")}
+Substitutions: ${formatPlayers(substitutes)}`;
 
-    const fullString = `Legion 1 assignments:
-LEFT OFFENSE: ${formatPlayers(legion1.leftOffense)}
-RIGHT OFFENSE: ${formatPlayers(legion1.rightOffense)}
-LEFT SUPPORT: ${formatPlayers(legion1.leftSupport)}
-RIGHT SUPPORT: ${formatPlayers(legion1.rightSupport)}
-Substitutes: ${formatPlayers(assignments.substituteLegion1)}
+    const fullString = `${formatLegion("Legion 1", assignments.legion1, assignments.substituteLegion1)}
 
-Legion 2 assignments:
-LEFT OFFENSE: ${formatPlayers(legion2.leftOffense)}
-RIGHT OFFENSE: ${formatPlayers(legion2.rightOffense)}
-LEFT SUPPORT: ${formatPlayers(legion2.leftSupport)}
-RIGHT SUPPORT: ${formatPlayers(legion2.rightSupport)}
-Substitutes: ${formatPlayers(assignments.substituteLegion2)}`;
+${formatLegion("Legion 2", assignments.legion2, assignments.substituteLegion2)}`;
 
     setGeneratedString(fullString);
 
@@ -288,6 +296,26 @@ Substitutes: ${formatPlayers(assignments.substituteLegion2)}`;
         );
       }
 
+      // Players over the limits stay unassigned
+      const limits: [keyof LegionAssignments, number][] = [
+        ["legion1", MAX_LEGION_PLAYERS],
+        ["legion2", MAX_LEGION_PLAYERS],
+        ["substituteLegion1", MAX_SUBSTITUTES],
+        ["substituteLegion2", MAX_SUBSTITUTES],
+      ];
+      const overflow: Player[] = [];
+      limits.forEach(([key, max]) => {
+        overflow.push(...newAssignments[key].slice(max));
+        newAssignments[key] = newAssignments[key].slice(0, max);
+      });
+
+      if (overflow.length > 0) {
+        newAssignments.unassigned.push(...overflow);
+        alert(
+          `Too many players in the JSON (max ${MAX_LEGION_PLAYERS} per legion and ${MAX_SUBSTITUTES} substitutes). These players were left unassigned: ${overflow.map((p) => p.name).join(", ")}`,
+        );
+      }
+
       setAssignments(newAssignments);
       setJsonInput("");
       setShowJsonModal(false);
@@ -367,6 +395,7 @@ Substitutes: ${formatPlayers(assignments.substituteLegion2)}`;
             >
               <option value="unassigned">Unassigned</option>
               <option value="legion1">Legion 1</option>
+              <option value="legion2">Legion 2</option>
               <option value="substituteLegion1">Substitute Legion 1</option>
               <option value="substituteLegion2">Substitute Legion 2</option>
             </select>
@@ -391,7 +420,9 @@ Substitutes: ${formatPlayers(assignments.substituteLegion2)}`;
         />
       </div>
 
-      <h2 className={styles.playersHeader}>Players</h2>
+      <h2 className={styles.playersHeader}>
+        Players ({assignments.unassigned.length} unassigned)
+      </h2>
 
       {/* Players Assignment Table */}
       <div className={styles.tableWrapper}>
@@ -434,25 +465,25 @@ Substitutes: ${formatPlayers(assignments.substituteLegion2)}`;
       {/* Two Column Layout */}
       <div className={styles.legionsContainer}>
         <PlayerSelectBox
-          title="Legion 1"
+          title={`Legion 1 (${assignments.legion1.length}/${MAX_LEGION_PLAYERS})`}
           players={assignments.legion1}
           category="legion1"
         />
 
         <PlayerSelectBox
-          title="Substitute Legion 1"
+          title={`Substitute Legion 1 (${assignments.substituteLegion1.length}/${MAX_SUBSTITUTES})`}
           players={assignments.substituteLegion1}
           category="substituteLegion1"
         />
 
         <PlayerSelectBox
-          title="Legion 2"
+          title={`Legion 2 (${assignments.legion2.length}/${MAX_LEGION_PLAYERS})`}
           players={assignments.legion2}
           category="legion2"
         />
 
         <PlayerSelectBox
-          title="Substitute Legion 2"
+          title={`Substitute Legion 2 (${assignments.substituteLegion2.length}/${MAX_SUBSTITUTES})`}
           players={assignments.substituteLegion2}
           category="substituteLegion2"
         />

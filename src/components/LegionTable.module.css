@@ -24,7 +24,14 @@
   border-radius: 4px;
   overflow: auto;
   background-color: var(--bg-secondary);
-  max-height: calc(100vh - 300px);
+  max-height: 360px;
+}
+
+.table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background-color: var(--bg-tertiary);
 }
 
 .table {
