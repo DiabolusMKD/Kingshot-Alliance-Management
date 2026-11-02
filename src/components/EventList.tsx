@@ -1,7 +1,16 @@
 'use client';
 
 import { AllianceEvent, EventStatus } from '@/types';
+import { parseEventResults } from '@/utils/eventResults';
 import styles from './EventList.module.css';
+
+const RESULT_LABELS: Record<string, string> = {
+  win: 'Win',
+  lose: 'Lose',
+  '1st': '1st place',
+  '2nd': '2nd place',
+  '3rd': '3rd place',
+};
 
 interface EventListProps {
   events: AllianceEvent[];
@@ -61,6 +70,38 @@ export default function EventList({
     return <div className={styles.empty}>No events created yet. Create your first event!</div>;
   }
 
+  // Notes hold the results JSON for completed events; plain text notes are shown as-is
+  const renderNotes = (notes?: string) => {
+    if (!notes) return null;
+
+    const results = parseEventResults(notes);
+    if (!results) {
+      return (
+        <div className={styles.field}>
+          <label>Notes:</label>
+          <p>{notes}</p>
+        </div>
+      );
+    }
+
+    const legions = [
+      { title: 'Legion 1', result: results.legion_1 },
+      { title: 'Legion 2', result: results.legion_2 },
+    ].filter(({ result }) => result.status);
+    if (legions.length === 0) return null;
+
+    return (
+      <div className={styles.field}>
+        <label>Results:</label>
+        <p>
+          {legions
+            .map(({ title, result }) => `${title}: ${RESULT_LABELS[result.status!] ?? result.status}`)
+            .join(' · ')}
+        </p>
+      </div>
+    );
+  };
+
   const renderEventCards = (eventList: AllianceEvent[]) => (
     <div className={styles.eventsGrid}>
       {eventList.map((event) => (
@@ -89,12 +130,7 @@ export default function EventList({
               </div>
             )}
 
-            {event.notes && (
-              <div className={styles.field}>
-                <label>Notes:</label>
-                <p>{event.notes}</p>
-              </div>
-            )}
+            {renderNotes(event.notes)}
 
             <div className={styles.field}>
               <label>Assignments:</label>

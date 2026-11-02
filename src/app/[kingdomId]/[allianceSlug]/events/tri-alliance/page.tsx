@@ -1,15 +1,19 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
-import { Alliance, Player, AllianceEvent, PlayerAssignment, EventStatus } from "@/types";
+import { use, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Alliance, Player, AllianceEvent, PlayerAssignment, EventStatus, EventResults } from "@/types";
 import Navigation from "@/components/Navigation";
 import BackLink from "@/components/BackLink";
 import EventHero from "@/components/EventHero";
 import TriAllianceEventLayout from "@/components/TriAllianceEventLayout";
 import EventList from "@/components/EventList";
+import { useToast } from "@/components/Toast";
 import { getPlayers } from "@/utils/playerService";
 import { getAlliancesByKingdomId } from "@/utils/allianceService";
 import { findAllianceBySlug } from "@/utils/allianceSlug";
+import { findEventBySlug, getEventSlug } from "@/utils/eventSlug";
+import { parseEventResults, serializeEventResults } from "@/utils/eventResults";
 import {
   getAllianceEvents,
   createAllianceEvent,
@@ -24,26 +28,45 @@ const EVENT_ID = 2; // Tri Alliance event ID
 
 interface TriAlliancePageProps {
   params: Promise<{ kingdomId: string; allianceSlug: string }>;
+  searchParams: Promise<{ event?: string | string[] }>;
 }
 
 interface EventFormData {
   startsAt: string;
 }
 
-export default function TriAlliancePage({ params }: TriAlliancePageProps) {
+export default function TriAlliancePage({ params, searchParams }: TriAlliancePageProps) {
   const { kingdomId, allianceSlug } = use(params);
+  const { event: eventParam } = use(searchParams);
+  const eventSlug = Array.isArray(eventParam) ? eventParam[0] : eventParam;
   const kingdomIdNumber = Number(kingdomId);
+  const basePath = `/${kingdomId}/${allianceSlug}/events/tri-alliance`;
+
+  const router = useRouter();
+  const toast = useToast();
 
   const [alliance, setAlliance] = useState<Alliance | null | undefined>(undefined);
   const [players, setPlayers] = useState<Player[]>([]);
   const [events, setEvents] = useState<AllianceEvent[]>([]);
-  const [selectedEvent, setSelectedEvent] = useState<AllianceEvent | null>(
-    null,
-  );
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [formData, setFormData] = useState<EventFormData>({ startsAt: "" });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+
+  // The event being edited comes from the ?event= URL param
+  const selectedEvent = eventSlug ? findEventBySlug(events, eventSlug) ?? null : null;
+
+  // Memoized so the editor isn't reset on every re-render of this page
+  const initialAssignments = useMemo(
+    () => deserializeAssignments(selectedEvent?.assignments || null),
+    [selectedEvent?.assignments],
+  );
+
+  // Points, results and MVPs of a completed event (stored in notes)
+  const initialResults = useMemo(
+    () => parseEventResults(selectedEvent?.notes),
+    [selectedEvent?.notes],
+  );
 
   const loadData = async (allianceId: number) => {
     try {
@@ -58,7 +81,7 @@ export default function TriAlliancePage({ params }: TriAlliancePageProps) {
       setEvents(eventsData);
     } catch (error) {
       console.error("Failed to load data:", error);
-      alert("Failed to load data");
+      toast.error("Failed to load data");
     } finally {
       setIsLoading(false);
     }
@@ -91,6 +114,14 @@ export default function TriAlliancePage({ params }: TriAlliancePageProps) {
     };
   }, [kingdomId, allianceSlug]);
 
+  const openEvent = (event: AllianceEvent) => {
+    router.push(`${basePath}?event=${getEventSlug(event.id!)}`);
+  };
+
+  const handleBackToList = () => {
+    router.push(basePath);
+  };
+
   const handleCreateEventClick = () => {
     setShowCreateForm(true);
     setFormData({ startsAt: "" });
@@ -105,7 +136,7 @@ export default function TriAlliancePage({ params }: TriAlliancePageProps) {
     if (!alliance) return;
 
     if (!formData.startsAt) {
-      alert("Please select a date and time");
+      toast.warning("Please select a date and time");
       return;
     }
 
@@ -123,33 +154,41 @@ export default function TriAlliancePage({ params }: TriAlliancePageProps) {
         assignments: undefined,
       });
 
-      setSelectedEvent(newEvent);
+      setEvents((prev) => [newEvent, ...prev]);
       setShowCreateForm(false);
       setFormData({ startsAt: "" });
+      toast.success("Event created");
+      openEvent(newEvent);
     } catch (error) {
       console.error("Failed to create event:", error);
-      alert("Failed to create event");
+      toast.error("Failed to create event");
     }
   };
 
-  const handleSaveAssignments = async (assignments: PlayerAssignment[]) => {
+  const handleSaveAssignments = async (
+    assignments: PlayerAssignment[],
+    eventStatus: EventStatus,
+    results?: EventResults,
+  ) => {
     if (!selectedEvent || !alliance) return;
 
     setIsSaving(true);
     try {
       const serialized = serializeAssignments(assignments);
 
-      const updated = await updateAllianceEvent(selectedEvent.id!, {
+      await updateAllianceEvent(selectedEvent.id!, {
         assignments: serialized,
         updatedAt: new Date().toISOString(),
+        status: eventStatus,
+        ...(results ? { notes: serializeEventResults(results) } : {}),
       });
 
-      setSelectedEvent(updated);
+      toast.success("Event updated successfully");
+      handleBackToList();
       await loadData(alliance.id);
-      alert("Event saved successfully!");
     } catch (error) {
       console.error("Failed to save event:", error);
-      alert("Failed to save event");
+      toast.error("Failed to save event");
     } finally {
       setIsSaving(false);
     }
@@ -161,17 +200,14 @@ export default function TriAlliancePage({ params }: TriAlliancePageProps) {
     try {
       await deleteAllianceEvent(eventId);
       setEvents((prev) => prev.filter((e) => e.id !== eventId));
+      toast.success("Event deleted");
       if (selectedEvent?.id === eventId) {
-        setSelectedEvent(null);
+        handleBackToList();
       }
     } catch (error) {
       console.error("Failed to delete event:", error);
-      alert("Failed to delete event");
+      toast.error("Failed to delete event");
     }
-  };
-
-  const handleBackToList = () => {
-    setSelectedEvent(null);
   };
 
   if (alliance === null) {
@@ -241,13 +277,27 @@ export default function TriAlliancePage({ params }: TriAlliancePageProps) {
               </div>
               <EventHero eventType="tri-alliance" />
               <TriAllianceEventLayout
+                key={selectedEvent.id}
                 players={players}
-                initialAssignments={deserializeAssignments(
-                  selectedEvent.assignments || null,
-                )}
+                initialAssignments={initialAssignments}
+                initialResults={initialResults}
+                eventStatus={selectedEvent.status}
                 onSave={handleSaveAssignments}
                 isSaving={isSaving}
               />
+            </>
+          ) : eventSlug && !isLoading ? (
+            // Unknown event id in the URL
+            <>
+              <div className={styles.header}>
+                <button
+                  onClick={handleBackToList}
+                  className={styles.backButton}
+                >
+                  ← Back to Events
+                </button>
+              </div>
+              <p>Event not found.</p>
             </>
           ) : (
             // Events List View
@@ -268,7 +318,7 @@ export default function TriAlliancePage({ params }: TriAlliancePageProps) {
               ) : (
                 <EventList
                   events={events}
-                  onEventClick={setSelectedEvent}
+                  onEventClick={openEvent}
                   onDeleteEvent={handleDeleteEvent}
                   isLoading={false}
                 />

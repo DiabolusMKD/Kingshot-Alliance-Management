@@ -7,4 +7,8 @@ if (!supabaseUrl || !supabaseKey) {
   throw new Error('Missing Supabase environment variables');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+// In the browser, go through the /supabase rewrite in next.config.ts (same origin, no CORS)
+const clientUrl =
+  typeof window !== 'undefined' ? `${window.location.origin}/supabase` : supabaseUrl;
+
+export const supabase = createClient(clientUrl, supabaseKey);

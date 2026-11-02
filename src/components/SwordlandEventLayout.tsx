@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 import LegionTable from "./LegionTable";
 import BuildingPreview from "./BuildingPreview";
+import EventPoints, { PointsLegion, useEventPoints } from "./EventPoints";
 import {
   Player,
   PlayerAssignment,
+  EventResults,
   EventStatus,
   LegionBuildingData,
   BuildingAssignment,
@@ -37,6 +39,11 @@ const BUILDINGS = [
   "Undercellars",
 ];
 
+const SWORDLAND_RESULTS = [
+  { value: "win", label: "Win" },
+  { value: "lose", label: "Lose" },
+];
+
 const emptyBuildings = (): Record<string, BuildingAssignment> =>
   Object.fromEntries(
     BUILDINGS.map((b) => [b, { leader: null, support: [], manual: false }]),
@@ -45,14 +52,20 @@ const emptyBuildings = (): Record<string, BuildingAssignment> =>
 export default function SwordlandEventLayout({
   players,
   initialAssignments = [],
+  initialResults = null,
   eventStatus = "not-started",
   onSave,
   isSaving,
 }: {
   players: Player[];
   initialAssignments?: PlayerAssignment[];
+  initialResults?: EventResults | null;
   eventStatus?: EventStatus;
-  onSave: (a: PlayerAssignment[], status: EventStatus) => Promise<void>;
+  onSave: (
+    a: PlayerAssignment[],
+    status: EventStatus,
+    results?: EventResults,
+  ) => Promise<void>;
   isSaving?: boolean;
 }) {
   const [assignments, setAssignments] = useState<LegionAssignments>({
@@ -63,6 +76,13 @@ export default function SwordlandEventLayout({
 
   const [currentEventStatus, setCurrentEventStatus] =
     useState<EventStatus>(eventStatus);
+
+  // Points, legion results and MVPs of a completed event
+  const pointsState = useEventPoints(initialAssignments, initialResults);
+  // Completed events open on the points view; assignments are shown on demand
+  const [assignmentsExpanded, setAssignmentsExpanded] = useState(
+    eventStatus !== "completed",
+  );
 
   const [legionSubstitutes, setLegionSubstitutes] = useState<{
     legion1: Player[];
@@ -392,7 +412,12 @@ ${buildingText}${substitutesText}`;
       })),
     ];
 
-    await onSave(payload, currentEventStatus);
+    // Results (points, win/lose, MVPs) are only saved for completed events
+    await onSave(
+      payload,
+      currentEventStatus,
+      currentEventStatus === "completed" ? pointsState.buildResults(pointsLegions) : undefined,
+    );
   };
 
   // Reset everything
@@ -461,116 +486,158 @@ ${buildingText}${substitutesText}`;
     }
   };
 
-  console.log(preview);
-  console.log(assignments);
-  console.log(legionSubstitutes);
+  const isCompleted = currentEventStatus === "completed";
+
+  const pointsLegions: PointsLegion[] = [
+    {
+      key: "legion_1",
+      title: "Legion 1",
+      players: assignments.legion1,
+      substitutes: legionSubstitutes.legion1,
+    },
+    {
+      key: "legion_2",
+      title: "Legion 2",
+      players: assignments.legion2,
+      substitutes: legionSubstitutes.legion2,
+    },
+  ];
+  const showAssignments = !isCompleted || assignmentsExpanded;
 
   return (
     <div className={styles.container}>
-      {/* SEARCH */}
-      <div className={styles.searchWrapper}>
-        <input
-          className={styles.searchInput}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search..."
-        />
-        {search && (
-          <button className={styles.clearButton} onClick={() => setSearch("")}>
-            ✕
-          </button>
-        )}
-      </div>
-
-      {/* UNASSIGNED */}
-      <h2 className={styles.playersHeader}>
-        Unassigned ({assignments.unassigned.length})
-      </h2>
-
-      <div className={styles.tableWrapper}>
-        <table className={styles.table}>
-          <tbody>
-            {filter(assignments.unassigned).map((p) => (
-              <tr key={`u-${p.id}`}>
-                <td>{p.name}</td>
-                <td>{p.swordlandPower}</td>
-                <td>
-                  <select
-                    className={styles.tableSelect}
-                    onChange={(e) =>
-                      movePlayer(p.id, "unassigned", e.target.value as any)
-                    }
-                    defaultValue=""
-                  >
-                    <option value="">Move</option>
-                    <option value="legion1">Legion 1</option>
-                    <option value="legion2">Legion 2</option>
-                  </select>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* LEGIONS */}
-      <div className={styles.legionsContainer}>
-        <div style={{ flex: 1 }}>
-          <LegionTable
-            title={`Legion 1 (${assignments.legion1.length})`}
-            players={assignments.legion1}
-            legion="legion1"
-            BUILDINGS={BUILDINGS}
-            filterPlayers={filter}
-            handleManualBuildingAssign={handleManualBuildingAssign}
-            movePlayerToSubstitute={movePlayerToSubstitute}
-            movePlayer={movePlayer}
-            preview={preview?.legion1 || undefined}
+      {/* POINTS (completed events only) */}
+      {isCompleted && (
+        <>
+          <EventPoints
+            legions={pointsLegions}
+            resultLabel="Result"
+            resultOptions={SWORDLAND_RESULTS}
+            state={pointsState}
           />
+          <div className={styles.editAssignmentsBar}>
+            <button
+              type="button"
+              onClick={() => setAssignmentsExpanded((prev) => !prev)}
+              className={styles.uploadJsonButton}
+              aria-expanded={assignmentsExpanded}
+            >
+              {assignmentsExpanded ? "Hide assignments" : "Edit assignments"}
+            </button>
+          </div>
+        </>
+      )}
 
-          {/* Substitutes for Legion 1 */}
-          <LegionTable
-            title={`Substitutes (${legionSubstitutes.legion1.length})`}
-            players={legionSubstitutes.legion1}
-            legion="legion1"
-            BUILDINGS={[]}
-            selectedBuilding={"substitute"}
-            filterPlayers={filter}
-            handleManualBuildingAssign={() => {}}
-            movePlayerToSubstitute={() => {}}
-            movePlayer={() => {}}
-            movePlayerFromSubstitute={movePlayerFromSubstitute}
-          />
-        </div>
+      {showAssignments && (
+        <>
+          {/* SEARCH */}
+          <div className={styles.searchWrapper}>
+            <input
+              className={styles.searchInput}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search..."
+            />
+            {search && (
+              <button className={styles.clearButton} onClick={() => setSearch("")}>
+                ✕
+              </button>
+            )}
+          </div>
 
-        <div style={{ flex: 1 }}>
-          <LegionTable
-            title={`Legion 2 (${assignments.legion2.length})`}
-            players={assignments.legion2}
-            legion="legion2"
-            BUILDINGS={BUILDINGS}
-            filterPlayers={filter}
-            handleManualBuildingAssign={handleManualBuildingAssign}
-            movePlayerToSubstitute={movePlayerToSubstitute}
-            movePlayer={movePlayer}
-            preview={preview?.legion2 || undefined}
-          />
+          {/* UNASSIGNED */}
+          <h2 className={styles.playersHeader}>
+            Unassigned ({assignments.unassigned.length})
+          </h2>
 
-          {/* Substitutes for Legion 2 */}
-          <LegionTable
-            title={`Substitutes (${legionSubstitutes.legion2.length})`}
-            players={legionSubstitutes.legion2}
-            legion="legion2"
-            BUILDINGS={[]}
-            selectedBuilding={"substitute"}
-            filterPlayers={filter}
-            handleManualBuildingAssign={() => {}}
-            movePlayerToSubstitute={() => {}}
-            movePlayer={() => {}}
-            movePlayerFromSubstitute={movePlayerFromSubstitute}
-          />
-        </div>
-      </div>
+          <div className={styles.tableWrapper}>
+            <table className={styles.table}>
+              <tbody>
+                {filter(assignments.unassigned).map((p) => (
+                  <tr key={`u-${p.id}`}>
+                    <td>{p.name}</td>
+                    <td>{p.swordlandPower}</td>
+                    <td>
+                      <select
+                        className={styles.tableSelect}
+                        onChange={(e) =>
+                          movePlayer(p.id, "unassigned", e.target.value as any)
+                        }
+                        defaultValue=""
+                      >
+                        <option value="">Move</option>
+                        <option value="legion1">Legion 1</option>
+                        <option value="legion2">Legion 2</option>
+                      </select>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* LEGIONS */}
+          <div className={styles.legionsContainer}>
+            <div className={styles.legionGroup}>
+              <h3 className={styles.legionGroupTitle}>Legion 1</h3>
+              <LegionTable
+                title={`Players (${assignments.legion1.length})`}
+                players={assignments.legion1}
+                legion="legion1"
+                BUILDINGS={BUILDINGS}
+                filterPlayers={filter}
+                handleManualBuildingAssign={handleManualBuildingAssign}
+                movePlayerToSubstitute={movePlayerToSubstitute}
+                movePlayer={movePlayer}
+                preview={preview?.legion1 || undefined}
+              />
+
+              {/* Substitutes for Legion 1 */}
+              <LegionTable
+                title={`Substitutes (${legionSubstitutes.legion1.length})`}
+                players={legionSubstitutes.legion1}
+                legion="legion1"
+                BUILDINGS={[]}
+                selectedBuilding={"substitute"}
+                filterPlayers={filter}
+                handleManualBuildingAssign={() => {}}
+                movePlayerToSubstitute={() => {}}
+                movePlayer={() => {}}
+                movePlayerFromSubstitute={movePlayerFromSubstitute}
+              />
+            </div>
+
+            <div className={styles.legionGroup}>
+              <h3 className={styles.legionGroupTitle}>Legion 2</h3>
+              <LegionTable
+                title={`Players (${assignments.legion2.length})`}
+                players={assignments.legion2}
+                legion="legion2"
+                BUILDINGS={BUILDINGS}
+                filterPlayers={filter}
+                handleManualBuildingAssign={handleManualBuildingAssign}
+                movePlayerToSubstitute={movePlayerToSubstitute}
+                movePlayer={movePlayer}
+                preview={preview?.legion2 || undefined}
+              />
+
+              {/* Substitutes for Legion 2 */}
+              <LegionTable
+                title={`Substitutes (${legionSubstitutes.legion2.length})`}
+                players={legionSubstitutes.legion2}
+                legion="legion2"
+                BUILDINGS={[]}
+                selectedBuilding={"substitute"}
+                filterPlayers={filter}
+                handleManualBuildingAssign={() => {}}
+                movePlayerToSubstitute={() => {}}
+                movePlayer={() => {}}
+                movePlayerFromSubstitute={movePlayerFromSubstitute}
+              />
+            </div>
+          </div>
+        </>
+      )}
 
       {/* ACTIONS */}
       <div className={styles.actions}>
@@ -592,45 +659,54 @@ ${buildingText}${substitutesText}`;
           {isSaving ? "Saving..." : "Save"}
         </button>
 
-        <button
-          className={styles.uploadJsonButton}
-          onClick={() => setShowJsonModal(true)}
-        >
-          Upload JSON
-        </button>
+        {showAssignments && (
+          <>
+            <button
+              className={styles.uploadJsonButton}
+              onClick={() => setShowJsonModal(true)}
+            >
+              Upload JSON
+            </button>
 
-        <button className={styles.resetButton} onClick={reset}>
-          Reset
-        </button>
+            <button className={styles.resetButton} onClick={reset}>
+              Reset
+            </button>
+          </>
+        )}
       </div>
 
-      {/* OUTPUTS */}
-      {textOut && (
-        <div className={styles.textAreaWrapper}>
-          <label htmlFor="textOutput" className={styles.label}>
-            Generated String
-          </label>
-          <textarea
-            id="textOutput"
-            className={styles.textarea}
-            value={textOut}
-            readOnly
-          />
-        </div>
-      )}
+      {/* Outputs are shown together with the assignments */}
+      {showAssignments && (
+        <>
+          {/* OUTPUTS */}
+          {textOut && (
+            <div className={styles.textAreaWrapper}>
+              <label htmlFor="textOutput" className={styles.label}>
+                Generated String
+              </label>
+              <textarea
+                id="textOutput"
+                className={styles.textarea}
+                value={textOut}
+                readOnly
+              />
+            </div>
+          )}
 
-      {jsonOut && (
-        <div className={styles.textAreaWrapper}>
-          <label htmlFor="jsonOutput" className={styles.label}>
-            Generated JSON
-          </label>
-          <textarea
-            id="jsonOutput"
-            className={styles.textarea}
-            value={jsonOut}
-            readOnly
-          />
-        </div>
+          {jsonOut && (
+            <div className={styles.textAreaWrapper}>
+              <label htmlFor="jsonOutput" className={styles.label}>
+                Generated JSON
+              </label>
+              <textarea
+                id="jsonOutput"
+                className={styles.textarea}
+                value={jsonOut}
+                readOnly
+              />
+            </div>
+          )}
+        </>
       )}
 
       {/* UPLOAD JSON MODAL */}
@@ -670,24 +746,28 @@ ${buildingText}${substitutesText}`;
         </div>
       )}
 
-      {/* PREVIEW */}
-      <div className={styles.previewContainer}>
-        <BuildingPreview
-          title="Legion 1"
-          legion="legion1"
-          legionData={preview.legion1}
-          BUILDINGS={BUILDINGS}
-          moveSubstitute={() => {}}
-        />
+      {showAssignments && (
+        <>
+          {/* PREVIEW */}
+          <div className={styles.previewContainer}>
+            <BuildingPreview
+              title="Legion 1"
+              legion="legion1"
+              legionData={preview.legion1}
+              BUILDINGS={BUILDINGS}
+              moveSubstitute={() => {}}
+            />
 
-        <BuildingPreview
-          title="Legion 2"
-          legion="legion2"
-          legionData={preview.legion2}
-          BUILDINGS={BUILDINGS}
-          moveSubstitute={() => {}}
-        />
-      </div>
+            <BuildingPreview
+              title="Legion 2"
+              legion="legion2"
+              legionData={preview.legion2}
+              BUILDINGS={BUILDINGS}
+              moveSubstitute={() => {}}
+            />
+          </div>
+        </>
+      )}
     </div>
   );
 }

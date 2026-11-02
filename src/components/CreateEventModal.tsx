@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useToast } from "./Toast";
 
 interface Props {
   onClose: () => void;
@@ -10,6 +11,7 @@ interface Props {
 export default function CreateEventModal({ onClose, onSubmit }: Props) {
   const [startsAt, setStartsAt] = useState("");
   const [loading, setLoading] = useState(false);
+  const toast = useToast();
 
   const handleSave = async () => {
     try {
@@ -17,7 +19,7 @@ export default function CreateEventModal({ onClose, onSubmit }: Props) {
       await onSubmit(startsAt);
     } catch (err) {
       console.error(err);
-      alert("Failed to create event");
+      toast.error("Failed to create event");
     } finally {
       setLoading(false);
     }

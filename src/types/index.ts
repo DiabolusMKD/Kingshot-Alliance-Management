@@ -84,7 +84,19 @@ export interface PlayerAssignment {
   power: number;
   triAlliancePower?: number;
   swordlandPower?: number;
+  points?: number;
 }
+
+// Results of a completed event, stored as JSON in alliance_event.notes
+export type LegionResultKey = "legion_1" | "legion_2";
+
+export interface LegionResult {
+  status: string | null; // "win" | "lose" (Swordland) or "1st" | "2nd" | "3rd" (Tri Alliance)
+  mvp: string | null; // player id
+  players_points: Record<string, number>[]; // [{ [playerId]: points }]
+}
+
+export type EventResults = Record<LegionResultKey, LegionResult>;
 
 export interface EventAssignments {
   eventType: EventType;

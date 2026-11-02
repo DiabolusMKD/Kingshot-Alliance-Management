@@ -1,0 +1,144 @@
+.header {
+  font-size: 1.5rem;
+  margin: 2rem 0 1rem;
+  color: var(--text-primary);
+}
+
+.container {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+
+@media (max-width: 1024px) {
+  .container {
+    grid-template-columns: 1fr;
+  }
+}
+
+.legionGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.legionGroupHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--accent-color);
+}
+
+.legionGroupHeader .legionGroupTitle {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.resultSelect {
+  min-width: 120px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.resultSelect:focus,
+.select:focus {
+  outline: none;
+  border-color: var(--accent-color);
+}
+
+.select {
+  padding: 0.35rem 0.5rem;
+  font-size: 0.85rem;
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.mvpSelected {
+  border-color: #f59e0b;
+  font-weight: 700;
+}
+
+.legionGroupTitle {
+  font-size: 1.25rem;
+  margin: 0;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--accent-color);
+  color: var(--text-primary);
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+}
+
+.columnTitle {
+  font-size: 1.1rem;
+  margin: 0;
+  color: var(--accent-color);
+}
+
+.playerList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 360px;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+.playerItem {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+}
+
+.playerName {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.input {
+  width: 110px;
+  padding: 0.35rem 0.5rem;
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--accent-color);
+}
+
+.empty {
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 1rem;
+  margin: 0;
+}

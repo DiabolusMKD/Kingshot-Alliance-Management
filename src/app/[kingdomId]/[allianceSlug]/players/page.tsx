@@ -8,6 +8,7 @@ import PlayersTable from '@/components/PlayersTable';
 import PlayersCard from '@/components/PlayersCard';
 import PlayerForm from '@/components/PlayerForm';
 import Dialog from '@/components/Dialog';
+import { useToast } from '@/components/Toast';
 import { getPlayers, createPlayer, updatePlayer, removePlayerFromAlliance } from '@/utils/playerService';
 import { getSessionPlayers, setSessionPlayers, upsertSessionPlayer, removeSessionPlayer } from '@/utils/sessionStorageService';
 import { getAlliancesByKingdomId } from '@/utils/allianceService';
@@ -36,6 +37,7 @@ const CSV_COLUMNS: CsvColumn[] = [
 export default function PlayersPage({ params }: PlayersPageProps) {
   const { kingdomId, allianceSlug } = use(params);
   const kingdomIdNumber = Number(kingdomId);
+  const toast = useToast();
 
   const [alliance, setAlliance] = useState<Alliance | null | undefined>(undefined);
   const [kingdomAlliances, setKingdomAlliances] = useState<Alliance[]>([]);
@@ -65,7 +67,7 @@ export default function PlayersPage({ params }: PlayersPageProps) {
       if (sessionPlayers.length > 0) {
         setPlayers(sessionPlayers);
       } else {
-        alert('Failed to load players. Please ensure Supabase credentials are set in .env.local');
+        toast.error('Failed to load players. Please ensure Supabase credentials are set in .env.local');
       }
     } finally {
       setIsLoading(false);
@@ -118,7 +120,7 @@ export default function PlayersPage({ params }: PlayersPageProps) {
         removeSessionPlayer(playerId);
       } catch (error) {
         console.error('Failed to remove player from alliance:', error);
-        alert('Failed to remove player from alliance');
+        toast.error('Failed to remove player from alliance');
       }
     }
   };
@@ -165,7 +167,7 @@ export default function PlayersPage({ params }: PlayersPageProps) {
       setSelectedPlayer(undefined);
     } catch (error) {
       console.error('Failed to save player:', error);
-      alert(error instanceof Error ? error.message : 'Failed to save player');
+      toast.error(error instanceof Error ? error.message : 'Failed to save player');
     } finally {
       setIsLoading(false);
     }

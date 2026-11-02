@@ -1,18 +1,45 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Player, PlayerAssignment } from "@/types";
+import { EventResults, EventStatus, Player, PlayerAssignment } from "@/types";
+import { useToast } from "./Toast";
+import EventPoints, { PointsLegion, useEventPoints } from "./EventPoints";
 import styles from "./TriAllianceEventLayout.module.css";
 
 const MAX_LEGION_PLAYERS = 30;
 const MAX_SUBSTITUTES = 10;
 
+const TRI_ALLIANCE_PLACES = [
+  { value: "1st", label: "1st place" },
+  { value: "2nd", label: "2nd place" },
+  { value: "3rd", label: "3rd place" },
+];
+
 interface TriAllianceEventLayoutProps {
   players: Player[];
   initialAssignments?: PlayerAssignment[];
-  onSave: (assignments: PlayerAssignment[]) => Promise<void>;
+  initialResults?: EventResults | null;
+  eventStatus: EventStatus;
+  onSave: (
+    assignments: PlayerAssignment[],
+    status: EventStatus,
+    results?: EventResults,
+  ) => Promise<void>;
   isSaving?: boolean;
 }
+
+const CopyIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <rect x="9" y="9" width="13" height="13" rx="2" />
+    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+  </svg>
+);
+
+const CheckIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M20 6 9 17l-5-5" />
+  </svg>
+);
 
 interface LegionAssignments {
   legion1: Player[];
@@ -22,12 +49,65 @@ interface LegionAssignments {
   unassigned: Player[];
 }
 
+// Defined outside the main component so it isn't remounted (losing scroll position) on every render
+function PlayerSelectBox({
+  title,
+  players,
+  category,
+  onMove,
+}: {
+  title: string;
+  players: Player[];
+  category: string;
+  onMove: (playerId: string, fromCategory: string, toCategory: string) => void;
+}) {
+  return (
+    <div className={styles.column}>
+      <h3 className={styles.columnTitle}>{title}</h3>
+      <div className={styles.playerList}>
+        {players.map((player) => (
+          <div key={player.id} className={styles.playerItem}>
+            <span className={styles.playerName}>
+              {player.name}{" "}
+              <span className={styles.power}>({player.power})</span>
+            </span>
+            <select
+              value={category}
+              onChange={(e) => onMove(player.id, category, e.target.value)}
+              className={styles.select}
+            >
+              <option value="unassigned">Unassigned</option>
+              <option value="legion1">Legion 1</option>
+              <option value="legion2">Legion 2</option>
+              <option value="substituteLegion1">Substitute Legion 1</option>
+              <option value="substituteLegion2">Substitute Legion 2</option>
+            </select>
+          </div>
+        ))}
+        {players.length === 0 && <p className={styles.empty}>No players</p>}
+      </div>
+    </div>
+  );
+}
+
 export default function TriAllianceEventLayout({
   players,
   initialAssignments = [],
+  initialResults = null,
+  eventStatus,
   onSave,
   isSaving = false,
 }: TriAllianceEventLayoutProps) {
+  const toast = useToast();
+  const [currentEventStatus, setCurrentEventStatus] =
+    useState<EventStatus>(eventStatus);
+  // Points, legion results and MVPs of a completed event
+  const pointsState = useEventPoints(initialAssignments, initialResults);
+  // Completed events open on the points view; assignments are shown on demand
+  const [assignmentsExpanded, setAssignmentsExpanded] = useState(
+    eventStatus !== "completed",
+  );
+  const [copiedField, setCopiedField] = useState<"string" | "json" | null>(null);
   const [assignments, setAssignments] = useState<LegionAssignments>({
     legion1: [],
     legion2: [],
@@ -44,6 +124,7 @@ export default function TriAllianceEventLayout({
   const [jsonModalError, setJsonModalError] = useState("");
 
   useEffect(() => {
+
     // Load initial assignments or default to unassigned
     if (initialAssignments.length > 0) {
       const newAssignments: LegionAssignments = {
@@ -96,7 +177,7 @@ export default function TriAllianceEventLayout({
       (toCategory === "legion1" || toCategory === "legion2") &&
       assignments[toCategory].length >= MAX_LEGION_PLAYERS
     ) {
-      alert(`A legion can't have more than ${MAX_LEGION_PLAYERS} players. Add them as substitutes instead.`);
+      toast.warning(`A legion can't have more than ${MAX_LEGION_PLAYERS} players. Add them as substitutes instead.`);
       return;
     }
 
@@ -104,7 +185,7 @@ export default function TriAllianceEventLayout({
       (toCategory === "substituteLegion1" || toCategory === "substituteLegion2") &&
       assignments[toCategory].length >= MAX_SUBSTITUTES
     ) {
-      alert(`A legion can't have more than ${MAX_SUBSTITUTES} substitutes.`);
+      toast.warning(`A legion can't have more than ${MAX_SUBSTITUTES} substitutes.`);
       return;
     }
 
@@ -311,7 +392,7 @@ ${formatLegion("Legion 2", assignments.legion2, assignments.substituteLegion2)}`
 
       if (overflow.length > 0) {
         newAssignments.unassigned.push(...overflow);
-        alert(
+        toast.warning(
           `Too many players in the JSON (max ${MAX_LEGION_PLAYERS} per legion and ${MAX_SUBSTITUTES} substitutes). These players were left unassigned: ${overflow.map((p) => p.name).join(", ")}`,
         );
       }
@@ -326,185 +407,207 @@ ${formatLegion("Legion 2", assignments.legion2, assignments.substituteLegion2)}`
 
   const handleSave = async () => {
     const allAssignments: PlayerAssignment[] = [];
+    const categories = [
+      "legion1",
+      "legion2",
+      "substituteLegion1",
+      "substituteLegion2",
+    ] as const;
 
-    assignments.legion1.forEach((p) => {
-      allAssignments.push({
-        playerId: p.id,
-        legion: "legion1",
-        name: p.name,
-        triAlliancePower: p.trialliancePower,
-        power: p.power,
+    categories.forEach((legion) => {
+      assignments[legion].forEach((p) => {
+        allAssignments.push({
+          playerId: p.id,
+          legion,
+          name: p.name,
+          triAlliancePower: p.trialliancePower,
+          power: p.power,
+          });
       });
     });
 
-    assignments.legion2.forEach((p) => {
-      allAssignments.push({
-        playerId: p.id,
-        legion: "legion2",
-        name: p.name,
-        triAlliancePower: p.trialliancePower,
-        power: p.power,
-      });
-    });
-
-    assignments.substituteLegion1.forEach((p) => {
-      allAssignments.push({
-        playerId: p.id,
-        legion: "substituteLegion1",
-        name: p.name,
-        triAlliancePower: p.trialliancePower,
-        power: p.power,
-      });
-    });
-
-    assignments.substituteLegion2.forEach((p) => {
-      allAssignments.push({
-        playerId: p.id,
-        legion: "substituteLegion2",
-        name: p.name,
-        triAlliancePower: p.trialliancePower,
-        power: p.power,
-      });
-    });
-
-    await onSave(allAssignments);
+    // Results (points, places, MVPs) are only saved for completed events
+    await onSave(
+      allAssignments,
+      currentEventStatus,
+      currentEventStatus === "completed" ? pointsState.buildResults(pointsLegions) : undefined,
+    );
   };
 
-  const PlayerSelectBox = ({
-    title,
-    players: playerList,
-    category,
-  }: {
-    title: string;
-    players: Player[];
-    category: string;
-  }) => (
-    <div className={styles.column}>
-      <h3 className={styles.columnTitle}>{title}</h3>
-      <div className={styles.playerList}>
-        {filterPlayers(playerList).map((player) => (
-          <div key={player.id} className={styles.playerItem}>
-            <span className={styles.playerName}>
-              {player.name}{" "}
-              <span className={styles.power}>({player.power})</span>
-            </span>
-            <select
-              value={category}
-              onChange={(e) => movePlayer(player.id, category, e.target.value)}
-              className={styles.select}
-            >
-              <option value="unassigned">Unassigned</option>
-              <option value="legion1">Legion 1</option>
-              <option value="legion2">Legion 2</option>
-              <option value="substituteLegion1">Substitute Legion 1</option>
-              <option value="substituteLegion2">Substitute Legion 2</option>
-            </select>
-          </div>
-        ))}
-        {filterPlayers(playerList).length === 0 && (
-          <p className={styles.empty}>No players</p>
-        )}
-      </div>
-    </div>
-  );
+  const handleCopy = async (field: "string" | "json", text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 2000);
+    } catch (error) {
+      console.error("Failed to copy:", error);
+      toast.error("Failed to copy to clipboard");
+    }
+  };
+
+  const isCompleted = currentEventStatus === "completed";
+
+  const pointsLegions: PointsLegion[] = [
+    {
+      key: "legion_1",
+      title: "Legion 1",
+      players: assignments.legion1,
+      substitutes: assignments.substituteLegion1,
+    },
+    {
+      key: "legion_2",
+      title: "Legion 2",
+      players: assignments.legion2,
+      substitutes: assignments.substituteLegion2,
+    },
+  ];
+  const showAssignments = !isCompleted || assignmentsExpanded;
+
+  const legionColumns = [
+    {
+      title: "Legion 1",
+      legion: "legion1",
+      substitutes: "substituteLegion1",
+    },
+    {
+      title: "Legion 2",
+      legion: "legion2",
+      substitutes: "substituteLegion2",
+    },
+  ] as const;
 
   return (
     <div className={styles.container}>
-      <div className={styles.searchWrapper}>
-        <input
-          type="text"
-          placeholder="Search by player name..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className={styles.searchInput}
-        />
-      </div>
+      {/* Points (completed events only) */}
+      {isCompleted && (
+        <>
+          <EventPoints
+            legions={pointsLegions}
+            resultLabel="Place"
+            resultOptions={TRI_ALLIANCE_PLACES}
+            state={pointsState}
+          />
+          <div className={styles.editAssignmentsBar}>
+            <button
+              type="button"
+              onClick={() => setAssignmentsExpanded((prev) => !prev)}
+              className={styles.uploadJsonButton}
+              aria-expanded={assignmentsExpanded}
+            >
+              {assignmentsExpanded ? "Hide assignments" : "Edit assignments"}
+            </button>
+          </div>
+        </>
+      )}
 
-      <h2 className={styles.playersHeader}>
-        Players ({assignments.unassigned.length} unassigned)
-      </h2>
+      {showAssignments && (
+        <>
+          <div className={styles.searchWrapper}>
+            <input
+              type="text"
+              placeholder="Search by player name..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className={styles.searchInput}
+            />
+          </div>
 
-      {/* Players Assignment Table */}
-      <div className={styles.tableWrapper}>
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Tri Alliance Power</th>
-              <th>Power</th>
-              <th>Assign</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filterPlayers(assignments.unassigned).map((player) => (
-              <tr key={player.id}>
-                <td>{player.name}</td>
-                <td>{player.trialliancePower}</td>
-                <td>{player.power}</td>
-                <td>
-                  <select
-                    value="unassigned"
-                    onChange={(e) =>
-                      movePlayer(player.id, "unassigned", e.target.value)
-                    }
-                    className={styles.tableSelect}
-                  >
-                    <option value="unassigned">Unassigned</option>
-                    <option value="legion1">Legion 1</option>
-                    <option value="legion2">Legion 2</option>
-                  </select>
-                </td>
-              </tr>
+          <h2 className={styles.playersHeader}>
+            Players ({assignments.unassigned.length} unassigned)
+          </h2>
+
+          {/* Players Assignment Table */}
+          <div className={styles.tableWrapper}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Tri Alliance Power</th>
+                  <th>Power</th>
+                  <th>Assign</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filterPlayers(assignments.unassigned).map((player) => (
+                  <tr key={player.id}>
+                    <td>{player.name}</td>
+                    <td>{player.trialliancePower}</td>
+                    <td>{player.power}</td>
+                    <td>
+                      <select
+                        value="unassigned"
+                        onChange={(e) =>
+                          movePlayer(player.id, "unassigned", e.target.value)
+                        }
+                        className={styles.tableSelect}
+                      >
+                        <option value="unassigned">Unassigned</option>
+                        <option value="legion1">Legion 1</option>
+                        <option value="legion2">Legion 2</option>
+                      </select>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <h2 className={styles.legionsHeader}>Legion Assignments</h2>
+
+          {/* One column per legion: players, then substitutes */}
+          <div className={styles.legionsContainer}>
+            {legionColumns.map((column) => (
+              <div key={column.legion} className={styles.legionGroup}>
+                <h3 className={styles.legionGroupTitle}>{column.title}</h3>
+                <PlayerSelectBox
+                  title={`Players (${assignments[column.legion].length}/${MAX_LEGION_PLAYERS})`}
+                  players={filterPlayers(assignments[column.legion])}
+                  category={column.legion}
+                  onMove={movePlayer}
+                />
+                <PlayerSelectBox
+                  title={`Substitutes (${assignments[column.substitutes].length}/${MAX_SUBSTITUTES})`}
+                  players={filterPlayers(assignments[column.substitutes])}
+                  category={column.substitutes}
+                  onMove={movePlayer}
+                />
+              </div>
             ))}
-          </tbody>
-        </table>
-      </div>
-
-      <h2 className={styles.legionsHeader}>Legion Assignments</h2>
-
-      {/* Two Column Layout */}
-      <div className={styles.legionsContainer}>
-        <PlayerSelectBox
-          title={`Legion 1 (${assignments.legion1.length}/${MAX_LEGION_PLAYERS})`}
-          players={assignments.legion1}
-          category="legion1"
-        />
-
-        <PlayerSelectBox
-          title={`Substitute Legion 1 (${assignments.substituteLegion1.length}/${MAX_SUBSTITUTES})`}
-          players={assignments.substituteLegion1}
-          category="substituteLegion1"
-        />
-
-        <PlayerSelectBox
-          title={`Legion 2 (${assignments.legion2.length}/${MAX_LEGION_PLAYERS})`}
-          players={assignments.legion2}
-          category="legion2"
-        />
-
-        <PlayerSelectBox
-          title={`Substitute Legion 2 (${assignments.substituteLegion2.length}/${MAX_SUBSTITUTES})`}
-          players={assignments.substituteLegion2}
-          category="substituteLegion2"
-        />
-      </div>
+          </div>
+        </>
+      )}
 
       {/* Actions */}
       <div className={styles.actions}>
-        <button
-          onClick={handleReset}
-          className={styles.resetButton}
-          type="button"
+        <select
+          value={currentEventStatus}
+          onChange={(e) => setCurrentEventStatus(e.target.value as EventStatus)}
+          className={styles.statusSelect}
+          name="eventStatus"
         >
-          Reset
-        </button>
+          <option value="not-started">Not Started</option>
+          <option value="ongoing">Ongoing</option>
+          <option value="completed">Completed</option>
+        </select>
 
-        <button
-          onClick={() => setShowJsonModal(true)}
-          className={styles.uploadJsonButton}
-        >
-          Upload JSON
-        </button>
+        {showAssignments && (
+          <>
+            <button
+              onClick={handleReset}
+              className={styles.resetButton}
+              type="button"
+            >
+              Reset
+            </button>
+
+            <button
+              onClick={() => setShowJsonModal(true)}
+              className={styles.uploadJsonButton}
+            >
+              Upload JSON
+            </button>
+          </>
+        )}
 
         <button
           onClick={handleSave}
@@ -515,34 +618,43 @@ ${formatLegion("Legion 2", assignments.legion2, assignments.substituteLegion2)}`
         </button>
       </div>
 
-      {/* Generated String TextArea */}
-      {generatedString && (
-        <div className={styles.textAreaWrapper}>
-          <label htmlFor="generatedString" className={styles.label}>
-            Generated String
-          </label>
-          <textarea
-            id="generatedString"
-            value={generatedString}
-            readOnly
-            className={styles.textarea}
-          />
-        </div>
-      )}
-
-      {/* Generated JSON TextArea */}
-      {generatedJson && (
-        <div className={styles.textAreaWrapper}>
-          <label htmlFor="generatedJson" className={styles.label}>
-            Generated JSON
-          </label>
-          <textarea
-            id="generatedJson"
-            value={generatedJson}
-            readOnly
-            className={styles.textarea}
-          />
-        </div>
+      {/* Outputs are shown together with the assignments */}
+      {showAssignments && (
+        <>
+          {/* Generated String and JSON side by side */}
+          <div className={styles.outputsContainer}>
+            {[
+              { field: "string" as const, label: "Generated String", value: generatedString },
+              { field: "json" as const, label: "Generated JSON", value: generatedJson },
+            ]
+              .filter((output) => output.value)
+              .map((output) => (
+                <div key={output.field} className={styles.textAreaWrapper}>
+                  <div className={styles.outputHeader}>
+                    <label htmlFor={`generated-${output.field}`} className={styles.label}>
+                      {output.label}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(output.field, output.value)}
+                      className={styles.copyButton}
+                      title={`Copy ${output.label.toLowerCase()}`}
+                      aria-label={`Copy ${output.label.toLowerCase()}`}
+                    >
+                      {copiedField === output.field ? <CheckIcon /> : <CopyIcon />}
+                      {copiedField === output.field ? "Copied" : "Copy"}
+                    </button>
+                  </div>
+                  <textarea
+                    id={`generated-${output.field}`}
+                    value={output.value}
+                    readOnly
+                    className={styles.textarea}
+                  />
+                </div>
+              ))}
+          </div>
+        </>
       )}
 
       {/* JSON Import Modal */}
