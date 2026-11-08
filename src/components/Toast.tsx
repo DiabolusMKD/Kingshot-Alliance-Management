@@ -8,15 +8,15 @@ export type ToastType = "success" | "warning" | "error" | "info";
 interface ToastItem {
   id: number;
   type: ToastType;
-  message: string;
+  message: React.ReactNode;
 }
 
 interface ToastApi {
-  show: (type: ToastType, message: string, duration?: number) => void;
-  success: (message: string, duration?: number) => void;
-  warning: (message: string, duration?: number) => void;
-  error: (message: string, duration?: number) => void;
-  info: (message: string, duration?: number) => void;
+  show: (type: ToastType, message: React.ReactNode, duration?: number) => void;
+  success: (message: React.ReactNode, duration?: number) => void;
+  warning: (message: React.ReactNode, duration?: number) => void;
+  error: (message: React.ReactNode, duration?: number) => void;
+  info: (message: React.ReactNode, duration?: number) => void;
 }
 
 // Errors and warnings stay a bit longer so they can be read
@@ -60,7 +60,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const show = useCallback(
-    (type: ToastType, message: string, duration = DEFAULT_DURATION[type]) => {
+    (type: ToastType, message: React.ReactNode, duration = DEFAULT_DURATION[type]) => {
       const id = nextId.current++;
       setToasts((prev) => [...prev, { id, type, message }]);
       setTimeout(() => dismiss(id), duration);
@@ -103,7 +103,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             >
               {icons[toast.type]}
             </svg>
-            <p className={styles.message}>{toast.message}</p>
+            <div className={styles.message}>{toast.message}</div>
             <button
               type="button"
               className={styles.close}

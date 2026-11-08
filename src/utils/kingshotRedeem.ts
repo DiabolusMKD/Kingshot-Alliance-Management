@@ -8,23 +8,33 @@
 // sent by a browser on https://kingshot.net/gift-codes/redeem and update
 // KINGSHOT_REDEEM_ACTION_ID (env var) or the fallback below.
 
-export const KINGSHOT_REDEEM_URL = 'https://kingshot.net/gift-codes/redeem';
+export const KINGSHOT_REDEEM_URL = 'https://kingshot.net/gift-codes/redeem?code=VIP777';
 
 export const KINGSHOT_REDEEM_ACTION_ID =
-  process.env.KINGSHOT_REDEEM_ACTION_ID || '408688ea81aee7437ae595e78a24005333c8d97b93';
+  process.env.KINGSHOT_REDEEM_ACTION_ID || '40ddf39f7b74ee90fadd9689084adba6a31ab228e4';
+
+export interface KingshotRedeemAlliance {
+  id: string;
+  name: string;
+  abbr: string;
+}
 
 export interface KingshotRedeemPlayerData {
   playerId: string;
   name: string;
   kingdom?: number;
   level?: number;
+  levelLabel?: string; // e.g. "TG8"
+  profilePhoto?: string;
+  power?: string; // numeric string, e.g. "471080998"
+  alliance?: KingshotRedeemAlliance | null;
   [key: string]: any;
 }
 
 export interface KingshotRedeemResponse {
   status: 'success' | 'fail';
-  data?: KingshotRedeemPlayerData | null;
-  message: string;
+  player?: KingshotRedeemPlayerData | null;
+  message?: string;
   errorKey?: string;
 }
 

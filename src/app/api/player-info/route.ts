@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Check if the API returned a failure status
-    if (parsed.status === 'fail' || !parsed.data) {
+    if (parsed.status === 'fail' || !parsed.player) {
       const errorMessage = parsed.message || 'Player not found';
       console.error('[API Route] API error status:', errorMessage);
       return NextResponse.json(
@@ -71,8 +71,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log('[API Route] Success:', { playerId: parsed.data.playerId, name: parsed.data.name });
-    return NextResponse.json({ status: 'success', data: parsed.data, message: parsed.message });
+    console.log('[API Route] Success:', { playerId: parsed.player.playerId, name: parsed.player.name });
+    return NextResponse.json({ status: 'success', data: parsed.player, message: parsed.message });
   } catch (error) {
     console.error('[API Route] Unexpected error:', error);
     return NextResponse.json(

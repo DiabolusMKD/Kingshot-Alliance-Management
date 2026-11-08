@@ -28,14 +28,14 @@ interface PreviewState {
 }
 
 const BUILDINGS = [
-  "Sanctum 1",
-  "Sanctum 2",
-  "Bell Tower",
-  "Stables",
+  "Sanctum North-West",
+  "Sanctum South-East",
   "Abbey 1",
   "Abbey 2",
   "Abbey 3",
   "Abbey 4",
+  "Bell Tower",
+  "Stables",
   "Undercellars",
 ];
 

@@ -5,14 +5,15 @@
   z-index: 2000;
   display: flex;
   flex-direction: column;
+  align-items: flex-end;
   gap: 0.75rem;
-  width: min(380px, calc(100vw - 2rem));
   pointer-events: none;
 }
 
 .toast {
   --toast-color: var(--accent-color);
 
+  width: min(380px, calc(100vw - 2rem));
   display: flex;
   align-items: flex-start;
   gap: 0.75rem;
@@ -55,6 +56,19 @@
   font-size: 0.95rem;
   line-height: 1.4;
   word-break: break-word;
+  white-space: pre-line;
+  max-height: 160px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+/* Success toasts carry the per-field edit summary, so give them more room */
+.success {
+  width: min(560px, calc(100vw - 2rem));
+}
+
+.success .message {
+  max-height: 320px;
 }
 
 .close {

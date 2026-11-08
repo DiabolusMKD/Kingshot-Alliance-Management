@@ -40,7 +40,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     if (parsed) {
       diagnostics.parsedStructure = {
         status: parsed.status,
-        hasData: !!parsed.data,
+        hasPlayer: !!parsed.player,
         message: parsed.message,
       };
     }

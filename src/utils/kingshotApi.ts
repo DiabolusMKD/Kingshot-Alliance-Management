@@ -1,3 +1,5 @@
+import { Alliance } from '@/types';
+
 export interface KingshotPlayerData {
   playerId: string;
   name: string;
@@ -7,16 +9,24 @@ export interface KingshotPlayerData {
   levelRenderedDetailed?: string;
   levelImage?: string;
   profilePhoto?: string;
+  power?: number;
+  alliance?: {
+    name: string;
+    tag: string;
+  };
 }
 
 interface KingshotAPIResponse {
   status: 'success' | 'error';
   data?: {
-    playerId: number;
+    playerId: string;
     name: string;
     kingdom?: number;
     level?: number;
-    [key: string]: any;
+    levelLabel?: string;
+    profilePhoto?: string;
+    power?: string;
+    alliance?: { id: string; name: string; abbr: string } | null;
   };
   message: string;
   meta?: any;
@@ -35,6 +45,28 @@ function mapLevelImageToIconUrl(levelImage?: string): string | undefined {
   if (!match) return levelImage;
 
   return `https://got-global-avatar.akamaized.net/img/icon/stove_lv_${match[1]}.png`;
+}
+
+/**
+ * Find the local alliance matching the player's in-game alliance within the
+ * given kingdom. Prefers an exact tag + name match, then falls back to the tag
+ * alone (tags are unique per kingdom), then a case-insensitive tag match.
+ */
+export function findMatchingAlliance(
+  alliances: Alliance[],
+  kingdomId: number,
+  kingshotAlliance?: KingshotPlayerData['alliance']
+): Alliance | undefined {
+  if (!kingshotAlliance) return undefined;
+
+  const inKingdom = alliances.filter((a) => a.kingdomId === kingdomId);
+  const { name, tag } = kingshotAlliance;
+
+  return (
+    inKingdom.find((a) => a.nameTag === tag && a.name === name) ??
+    inKingdom.find((a) => a.nameTag === tag) ??
+    inKingdom.find((a) => a.nameTag.toLowerCase() === tag.toLowerCase())
+  );
 }
 
 /**
@@ -78,7 +110,8 @@ export async function fetchPlayerFromKingshot(playerId: string): Promise<Kingsho
     const playerData = data.data;
 
     // Map API response to our Player interface
-    // Note: API doesn't return swordland/triAlliance/power, so we set defaults
+    // Note: API doesn't return swordland/triAlliance power
+    const power = Number(playerData.power);
     return {
       playerId: String(playerData.playerId) || playerId,
       name: playerData.name || 'Unknown',
@@ -86,8 +119,12 @@ export async function fetchPlayerFromKingshot(playerId: string): Promise<Kingsho
       level: playerData.level,
       levelRendered: playerData.level ? `Level ${playerData.level}` : undefined,
       levelRenderedDetailed: playerData.level ? `Level ${playerData.level} (Detailed)` : undefined,
-      levelImage: mapLevelImageToIconUrl(playerData.levelImage),
+      levelImage: mapLevelImageToIconUrl(playerData.levelLabel),
       profilePhoto: playerData.profilePhoto || `/images/default-profile.png`,
+      power: Number.isFinite(power) ? power : undefined,
+      alliance: playerData.alliance
+        ? { name: playerData.alliance.name, tag: playerData.alliance.abbr }
+        : undefined,
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

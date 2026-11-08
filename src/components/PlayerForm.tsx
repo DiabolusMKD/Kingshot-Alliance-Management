@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Alliance, Player } from '@/types';
-import { fetchPlayerFromKingshot } from '@/utils/kingshotApi';
+import { fetchPlayerFromKingshot, findMatchingAlliance, KingshotPlayerData } from '@/utils/kingshotApi';
 import { getPlayerByPlayerId } from '@/utils/playerService';
 import { formatAllianceLabel } from '@/utils/allianceLabel';
 import styles from './PlayerForm.module.css';
@@ -60,7 +60,7 @@ export default function PlayerForm({ player, kingdomId, allianceId, alliances, o
         name: player.name || '',
         aliasName: player.aliasName || '',
         swordlandPower: player.swordlandPower ?? 0,
-        trialliancePower: player.trialliancePower ?? 0,
+        trialliancePower: player.trialliancePower || player.power || 0,
         power: player.power ?? 0,
         profilePhoto: player.profilePhoto || '',
         levelImage: player.levelImage || '',
@@ -85,11 +85,32 @@ export default function PlayerForm({ player, kingdomId, allianceId, alliances, o
     const { name, value } = e.target;
     const numericFields = ['swordlandPower', 'trialliancePower', 'power'];
 
-    setFormData((prev) => ({
-      ...prev,
-      [name]: numericFields.includes(name) && value ? Number(value) : value,
-    }));
+    setFormData((prev) => {
+      const next = {
+        ...prev,
+        [name]: numericFields.includes(name) && value ? Number(value) : value,
+      };
+      // Tri Alliance power follows the player's power
+      if (name === 'power') next.trialliancePower = next.power;
+      return next;
+    });
     setError(null);
+  };
+
+  const mergeKingshotData = (prev: FormData, kingshotData: KingshotPlayerData): FormData => {
+    const name = kingshotData.name || prev.name;
+    const matchedAlliance = findMatchingAlliance(alliances, kingdomId, kingshotData.alliance);
+    const power = kingshotData.power ?? prev.power;
+    return {
+      ...prev,
+      name,
+      aliasName: prev.aliasName || name,
+      power,
+      trialliancePower: power,
+      profilePhoto: kingshotData.profilePhoto || prev.profilePhoto,
+      levelImage: kingshotData.levelImage || prev.levelImage,
+      allianceId: matchedAlliance ? String(matchedAlliance.id) : prev.allianceId,
+    };
   };
 
   const handleRefetch = async () => {
@@ -103,16 +124,7 @@ export default function PlayerForm({ player, kingdomId, allianceId, alliances, o
 
     try {
       const playerData = await fetchPlayerFromKingshot(formData.playerId);
-      setFormData((prev) => {
-        const name = playerData.name || prev.name;
-        return {
-          ...prev,
-          name,
-          aliasName: prev.aliasName || name,
-          profilePhoto: playerData.profilePhoto || prev.profilePhoto,
-          levelImage: playerData.levelImage || prev.levelImage,
-        };
-      });
+      setFormData((prev) => mergeKingshotData(prev, playerData));
       setDataSource('api');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch player data');
@@ -141,7 +153,7 @@ export default function PlayerForm({ player, kingdomId, allianceId, alliances, o
           aliasName: existingPlayer.aliasName || existingPlayer.name || '',
           power: existingPlayer.power ?? 0,
           swordlandPower: existingPlayer.swordlandPower ?? 0,
-          trialliancePower: existingPlayer.trialliancePower ?? 0,
+          trialliancePower: existingPlayer.trialliancePower || existingPlayer.power || 0,
           profilePhoto: existingPlayer.profilePhoto || '',
           levelImage: existingPlayer.levelImage || '',
         }));
@@ -154,18 +166,14 @@ export default function PlayerForm({ player, kingdomId, allianceId, alliances, o
 
       try {
         const kingshotData = await fetchPlayerFromKingshot(formData.playerId);
-        setFormData((prev) => {
-          const name = kingshotData.name || '';
-          return {
-            ...prev,
-            name,
-            aliasName: prev.aliasName || name,
-            profilePhoto: kingshotData.profilePhoto || prev.profilePhoto,
-            levelImage: kingshotData.levelImage || prev.levelImage,
-          };
-        });
+        setFormData((prev) => mergeKingshotData(prev, kingshotData));
         setDataSource('api');
-        setInfoMessage('Player found via the Kingshot API.');
+        const matchedAlliance = findMatchingAlliance(alliances, kingdomId, kingshotData.alliance);
+        setInfoMessage(
+          matchedAlliance
+            ? `Player found via the Kingshot API (alliance ${formatAllianceLabel(matchedAlliance)}).`
+            : 'Player found via the Kingshot API.'
+        );
       } catch {
         setDataSource('manual');
         setInfoMessage('Player not found. Please enter the details manually.');
@@ -193,9 +201,10 @@ export default function PlayerForm({ player, kingdomId, allianceId, alliances, o
       return;
     }
 
-    // Add mode always targets the alliance being added to; edit mode uses the
-    // (possibly changed) alliance selected in the dropdown below.
-    const targetAllianceId = isEditMode ? formData.allianceId : allianceId;
+    // Edit mode uses the (possibly changed) alliance selected in the dropdown
+    // below; add mode uses the alliance matched from the Kingshot API, falling
+    // back to the alliance being added to.
+    const targetAllianceId = isEditMode ? formData.allianceId : formData.allianceId || allianceId;
     onSubmit({ ...formData, kingdomId, allianceId: targetAllianceId }, foundPlayerId ?? undefined);
   };
 
@@ -539,6 +548,7 @@ export default function PlayerForm({ player, kingdomId, allianceId, alliances, o
               type="button"
               onClick={() => {
                 setDetailsStage(false);
+                setFormData((prev) => ({ ...prev, allianceId: '' }));
                 setDataSource(null);
                 setFoundPlayerId(null);
                 setError(null);

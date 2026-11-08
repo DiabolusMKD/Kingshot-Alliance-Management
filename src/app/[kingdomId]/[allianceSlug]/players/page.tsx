@@ -10,9 +10,12 @@ import PlayerForm from '@/components/PlayerForm';
 import Dialog from '@/components/Dialog';
 import { useToast } from '@/components/Toast';
 import { getPlayers, createPlayer, updatePlayer, removePlayerFromAlliance } from '@/utils/playerService';
-import { getSessionPlayers, setSessionPlayers, upsertSessionPlayer, removeSessionPlayer } from '@/utils/sessionStorageService';
+import { getSessionPlayers, setSessionPlayers, removeSessionPlayer } from '@/utils/sessionStorageService';
 import { getAlliancesByKingdomId } from '@/utils/allianceService';
 import { findAllianceBySlug } from '@/utils/allianceSlug';
+import { fetchPlayerFromKingshot, findMatchingAlliance } from '@/utils/kingshotApi';
+import { formatAllianceLabel } from '@/utils/allianceLabel';
+import { formatNumbers } from '@/utils/formatNumbers';
 import styles from './page.module.css';
 
 interface PlayersPageProps {
@@ -47,6 +50,7 @@ export default function PlayersPage({ params }: PlayersPageProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'table' | 'card'>('table');
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [updateProgress, setUpdateProgress] = useState<{ current: number; total: number } | null>(null);
   const [selectedColumns, setSelectedColumns] = useState<Record<string, boolean>>(
     () => Object.fromEntries(CSV_COLUMNS.map((column) => [column.key, true]))
   );
@@ -125,6 +129,39 @@ export default function PlayersPage({ params }: PlayersPageProps) {
     }
   };
 
+  const allianceLabelById = (allianceId?: string | null) => {
+    const match = kingdomAlliances.find((a) => String(a.id) === String(allianceId));
+    return match ? formatAllianceLabel(match) : '-';
+  };
+
+  // One "Label: old -> new" line per field shown in the edit form
+  const describePlayerChanges = (before: Player, after: Player) => {
+    const fields: [string, string, string][] = [
+      ['Name', before.name, after.name],
+      ['Alias', before.aliasName, after.aliasName],
+      ['Alliance', allianceLabelById(before.allianceId), allianceLabelById(after.allianceId)],
+      ['Power', formatNumbers(before.power), formatNumbers(after.power)],
+      ['Swordland', formatNumbers(before.swordlandPower), formatNumbers(after.swordlandPower)],
+      ['Tri Alliance', formatNumbers(before.trialliancePower), formatNumbers(after.trialliancePower)],
+      ['Level Image', before.levelImage || '-', after.levelImage || '-'],
+    ];
+    return (
+      <>
+        <div className={styles.changesTitle}>Updated {after.aliasName || after.name}</div>
+        {fields.map(([label, oldValue, newValue]) => (
+          <div key={label} className={styles.changeRow}>
+            <span className={styles.changeLabel}>{label}</span>
+            <span className={styles.changeValues}>
+              <span className={styles.changeValue} title={oldValue || '-'}>{oldValue || '-'}</span>
+              <span className={styles.changeArrow}>→</span>
+              <span className={styles.changeValue} title={newValue || '-'}>{newValue || '-'}</span>
+            </span>
+          </div>
+        ))}
+      </>
+    );
+  };
+
   const handleFormSubmit = async (
     formData: Omit<Player, 'id' | 'created_at' | 'updated_at'>,
     existingPlayerId?: string
@@ -135,41 +172,70 @@ export default function PlayersPage({ params }: PlayersPageProps) {
       setIsLoading(true);
 
       if (selectedPlayer) {
-        // Update existing player
         const updatedPlayer = await updatePlayer(selectedPlayer.id, formData);
-        const movedToAnotherAlliance = String(updatedPlayer.allianceId) !== String(alliance.id);
-
-        if (movedToAnotherAlliance) {
-          // Player was moved to a different alliance, so it no longer belongs on this page
-          setPlayers((prev) => prev.filter((p) => p.id !== selectedPlayer.id));
-          removeSessionPlayer(updatedPlayer.id);
-        } else {
-          setPlayers((prev) =>
-            prev.map((p) =>
-              p.id === selectedPlayer.id ? updatedPlayer : p
-            )
-          );
-          upsertSessionPlayer(updatedPlayer);
-        }
+        toast.success(describePlayerChanges(selectedPlayer, updatedPlayer), 10000);
       } else if (existingPlayerId) {
         // Player already exists in the database under another alliance/kingdom —
         // move that row here instead of inserting a duplicate (playerId is unique).
-        const movedPlayer = await updatePlayer(existingPlayerId, formData);
-        setPlayers((prev) => [...prev, movedPlayer].sort((a, b) => b.power - a.power));
-        upsertSessionPlayer(movedPlayer);
+        await updatePlayer(existingPlayerId, formData);
       } else {
-        const newPlayer = await createPlayer(formData);
-        setPlayers((prev) => [...prev, newPlayer].sort((a, b) => b.power - a.power));
-        upsertSessionPlayer(newPlayer);
+        await createPlayer(formData);
       }
 
       setIsDialogOpen(false);
       setSelectedPlayer(undefined);
+      // Reload from the database so the view reflects alliance moves, sorting, etc.
+      await loadPlayers(alliance.id);
     } catch (error) {
       console.error('Failed to save player:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to save player');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleUpdateAllPlayers = async () => {
+    if (!alliance || players.length === 0) return;
+
+    setUpdateProgress({ current: 0, total: players.length });
+    const updatedNames: string[] = [];
+    const failedNames: string[] = [];
+
+    // Sequential on purpose, to avoid hammering the Kingshot lookup
+    for (const [index, player] of players.entries()) {
+      setUpdateProgress({ current: index + 1, total: players.length });
+      try {
+        const kingshotData = await fetchPlayerFromKingshot(player.playerId);
+        const matchedAlliance = findMatchingAlliance(kingdomAlliances, kingdomIdNumber, kingshotData.alliance);
+        const power = kingshotData.power ?? player.power;
+
+        await updatePlayer(player.id, {
+          playerId: player.playerId,
+          swordlandPower: player.swordlandPower,
+          kingdomId: player.kingdomId,
+          name: kingshotData.name || player.name,
+          aliasName: player.aliasName || kingshotData.name,
+          power,
+          trialliancePower: power,
+          profilePhoto: kingshotData.profilePhoto || player.profilePhoto,
+          levelImage: kingshotData.levelImage || player.levelImage,
+          allianceId: matchedAlliance ? String(matchedAlliance.id) : player.allianceId,
+        });
+        updatedNames.push(player.aliasName || player.name);
+      } catch (error) {
+        console.error(`Failed to update player ${player.playerId}:`, error);
+        failedNames.push(player.aliasName || player.name);
+      }
+    }
+
+    setUpdateProgress(null);
+    await loadPlayers(alliance.id);
+
+    if (updatedNames.length > 0) {
+      toast.info(`Updated ${updatedNames.length} player(s):\n${updatedNames.join('\n')}`, 15000);
+    }
+    if (failedNames.length > 0) {
+      toast.error(`Failed to update ${failedNames.length} player(s):\n${failedNames.join('\n')}`, 15000);
     }
   };
 
@@ -261,6 +327,13 @@ export default function PlayersPage({ params }: PlayersPageProps) {
               <button onClick={handleAddPlayer} className={styles.addButton}>
                 + Add Player
               </button>
+              <button
+                onClick={handleUpdateAllPlayers}
+                className={styles.secondaryButton}
+                disabled={!!updateProgress || players.length === 0}
+              >
+                {updateProgress ? 'Updating...' : 'Update All Players'}
+              </button>
             </div>
           </div>
 
@@ -285,6 +358,15 @@ export default function PlayersPage({ params }: PlayersPageProps) {
           </button>
         </div>
       </main>
+
+      {updateProgress && (
+        <div className={styles.loadingOverlay} role="status" aria-live="polite">
+          <div className={styles.spinner} aria-hidden="true" />
+          <p className={styles.loadingText}>
+            Updating players {updateProgress.current}/{updateProgress.total}...
+          </p>
+        </div>
+      )}
 
       <Dialog
         isOpen={isDialogOpen}
