@@ -71,10 +71,33 @@
   transition: color 0.2s ease;
 }
 
-.closeButton:hover {
+.closeButton:hover:not(:disabled) {
   color: var(--text-primary);
+}
+
+.closeButton:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .body {
   padding: 0 20px 20px 20px;
+}
+
+/* Almost full screen; children get a flex column that fills the remaining height */
+.large {
+  max-width: 760px;
+  width: 95%;
+  height: 90vh;
+}
+
+.large .content {
+  height: 100%;
+}
+
+.large .body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }

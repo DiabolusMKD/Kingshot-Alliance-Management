@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useEffect, useState } from 'react';
+import { use, useEffect, useRef, useState } from 'react';
 import { Alliance, Player } from '@/types';
 import Navigation from '@/components/Navigation';
 import BackLink from '@/components/BackLink';
@@ -28,6 +28,22 @@ interface CsvColumn {
   getValue: (player: Player) => string | number;
 }
 
+type PlayerUpdateStatus = 'pending' | 'updating' | 'updated' | 'failed';
+
+interface PlayerUpdateRow {
+  id: Player['id'];
+  name: string;
+  status: PlayerUpdateStatus;
+  error?: string;
+}
+
+const UPDATE_STATUS_LABELS: Record<PlayerUpdateStatus, string> = {
+  pending: 'Not started',
+  updating: 'Updating',
+  updated: 'Updated',
+  failed: 'Failed',
+};
+
 const CSV_COLUMNS: CsvColumn[] = [
   { key: 'playerId', label: 'Player ID', getValue: (p) => p.playerId },
   { key: 'name', label: 'Name', getValue: (p) => p.name },
@@ -50,7 +66,10 @@ export default function PlayersPage({ params }: PlayersPageProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'table' | 'card'>('table');
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
-  const [updateProgress, setUpdateProgress] = useState<{ current: number; total: number } | null>(null);
+  // null = progress modal closed
+  const [updateRows, setUpdateRows] = useState<PlayerUpdateRow[] | null>(null);
+  const [isUpdatingPlayers, setIsUpdatingPlayers] = useState(false);
+  const activeUpdateRowRef = useRef<HTMLLIElement>(null);
   const [selectedColumns, setSelectedColumns] = useState<Record<string, boolean>>(
     () => Object.fromEntries(CSV_COLUMNS.map((column) => [column.key, true]))
   );
@@ -194,16 +213,22 @@ export default function PlayersPage({ params }: PlayersPageProps) {
     }
   };
 
+  const setUpdateRowStatus = (index: number, status: PlayerUpdateStatus, error?: string) => {
+    setUpdateRows((rows) => rows && rows.map((row, i) => (i === index ? { ...row, status, error } : row)));
+  };
+
   const handleUpdateAllPlayers = async () => {
     if (!alliance || players.length === 0) return;
 
-    setUpdateProgress({ current: 0, total: players.length });
-    const updatedNames: string[] = [];
-    const failedNames: string[] = [];
+    const playersToUpdate = [...players];
+    setUpdateRows(
+      playersToUpdate.map((p) => ({ id: p.id, name: p.aliasName || p.name, status: 'pending' }))
+    );
+    setIsUpdatingPlayers(true);
 
     // Sequential on purpose, to avoid hammering the Kingshot lookup
-    for (const [index, player] of players.entries()) {
-      setUpdateProgress({ current: index + 1, total: players.length });
+    for (const [index, player] of playersToUpdate.entries()) {
+      setUpdateRowStatus(index, 'updating');
       try {
         const kingshotData = await fetchPlayerFromKingshot(player.playerId);
         const matchedAlliance = findMatchingAlliance(kingdomAlliances, kingdomIdNumber, kingshotData.alliance);
@@ -221,23 +246,29 @@ export default function PlayersPage({ params }: PlayersPageProps) {
           levelImage: kingshotData.levelImage || player.levelImage,
           allianceId: matchedAlliance ? String(matchedAlliance.id) : player.allianceId,
         });
-        updatedNames.push(player.aliasName || player.name);
+        setUpdateRowStatus(index, 'updated');
       } catch (error) {
         console.error(`Failed to update player ${player.playerId}:`, error);
-        failedNames.push(player.aliasName || player.name);
+        setUpdateRowStatus(index, 'failed', error instanceof Error ? error.message : 'Update failed');
       }
     }
 
-    setUpdateProgress(null);
     await loadPlayers(alliance.id);
-
-    if (updatedNames.length > 0) {
-      toast.info(`Updated ${updatedNames.length} player(s):\n${updatedNames.join('\n')}`, 15000);
-    }
-    if (failedNames.length > 0) {
-      toast.error(`Failed to update ${failedNames.length} player(s):\n${failedNames.join('\n')}`, 15000);
-    }
+    setIsUpdatingPlayers(false);
   };
+
+  // Keep the row being updated in view as the list progresses
+  useEffect(() => {
+    activeUpdateRowRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [updateRows]);
+
+  const closeUpdateDialog = () => {
+    if (!isUpdatingPlayers) setUpdateRows(null);
+  };
+
+  const updatedCount = updateRows?.filter((r) => r.status === 'updated').length ?? 0;
+  const failedCount = updateRows?.filter((r) => r.status === 'failed').length ?? 0;
+  const finishedCount = updatedCount + failedCount;
 
   const handleFormCancel = () => {
     setIsDialogOpen(false);
@@ -330,9 +361,9 @@ export default function PlayersPage({ params }: PlayersPageProps) {
               <button
                 onClick={handleUpdateAllPlayers}
                 className={styles.secondaryButton}
-                disabled={!!updateProgress || players.length === 0}
+                disabled={isUpdatingPlayers || players.length === 0}
               >
-                {updateProgress ? 'Updating...' : 'Update All Players'}
+                {isUpdatingPlayers ? 'Updating...' : 'Update All Players'}
               </button>
             </div>
           </div>
@@ -359,14 +390,48 @@ export default function PlayersPage({ params }: PlayersPageProps) {
         </div>
       </main>
 
-      {updateProgress && (
-        <div className={styles.loadingOverlay} role="status" aria-live="polite">
-          <div className={styles.spinner} aria-hidden="true" />
-          <p className={styles.loadingText}>
-            Updating players {updateProgress.current}/{updateProgress.total}...
-          </p>
-        </div>
-      )}
+      <Dialog
+        isOpen={updateRows !== null}
+        title="Updating Players"
+        onClose={closeUpdateDialog}
+        closeDisabled={isUpdatingPlayers}
+        size="large"
+      >
+        {updateRows && (
+          <div className={styles.updateProgress}>
+            <p className={styles.updateCounter} aria-live="polite">
+              {finishedCount} / {updateRows.length} processed
+            </p>
+            <ul className={styles.updateList}>
+              {updateRows.map((row) => (
+                <li
+                  key={row.id}
+                  ref={row.status === 'updating' ? activeUpdateRowRef : undefined}
+                  className={styles.updateRow}
+                  title={row.error}
+                >
+                  <span className={styles.updateName}>{row.name}</span>
+                  <span className={styles.updateDots} aria-hidden="true" />
+                  <span className={`${styles.updateStatus} ${styles[`status_${row.status}`]}`}>
+                    {row.status === 'updating' && <span className={styles.miniSpinner} aria-hidden="true" />}
+                    {UPDATE_STATUS_LABELS[row.status]}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {!isUpdatingPlayers && (
+              <div
+                className={`${styles.updateResult} ${failedCount > 0 ? styles.updateResultWarning : styles.updateResultSuccess}`}
+                role="status"
+              >
+                {failedCount === 0
+                  ? `Success! All ${updatedCount} player(s) updated.`
+                  : `Finished: ${updatedCount} updated, ${failedCount} failed.`}
+              </div>
+            )}
+          </div>
+        )}
+      </Dialog>
 
       <Dialog
         isOpen={isDialogOpen}

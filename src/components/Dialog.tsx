@@ -8,9 +8,13 @@ interface DialogProps {
   title: string;
   onClose: () => void;
   children: ReactNode;
+  /** Blocks every way of closing (X button, backdrop click, Esc) while true. */
+  closeDisabled?: boolean;
+  /** `large` = almost full screen, with the body filling the available height. */
+  size?: 'default' | 'large';
 }
 
-export default function Dialog({ isOpen, title, onClose, children }: DialogProps) {
+export default function Dialog({ isOpen, title, onClose, children, closeDisabled = false, size = 'default' }: DialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -22,16 +26,24 @@ export default function Dialog({ isOpen, title, onClose, children }: DialogProps
   }, [isOpen]);
 
   const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === dialogRef.current) {
+    if (e.target === dialogRef.current && !closeDisabled) {
       onClose();
     }
+  };
+
+  // Esc fires a native `cancel` event; keep the dialog open when closing is disabled,
+  // and otherwise route it through onClose so parent state stays in sync.
+  const handleCancel = (e: React.SyntheticEvent<HTMLDialogElement>) => {
+    e.preventDefault();
+    if (!closeDisabled) onClose();
   };
 
   return (
     <dialog
       ref={dialogRef}
-      className={styles.dialog}
+      className={size === 'large' ? `${styles.dialog} ${styles.large}` : styles.dialog}
       onClick={handleBackdropClick}
+      onCancel={handleCancel}
     >
       <div className={styles.content}>
         <div className={styles.header}>
@@ -39,6 +51,7 @@ export default function Dialog({ isOpen, title, onClose, children }: DialogProps
           <button
             onClick={onClose}
             className={styles.closeButton}
+            disabled={closeDisabled}
             aria-label="Close dialog"
           >
             ✕

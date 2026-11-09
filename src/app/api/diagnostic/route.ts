@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { KINGSHOT_REDEEM_ACTION_ID, KINGSHOT_REDEEM_URL, fetchKingshotPlayerViaRedeem } from '@/utils/kingshotRedeem';
+import { KINGSHOT_REDEEM_URL, fetchKingshotPlayerViaRedeem } from '@/utils/kingshotRedeem';
 
 /**
  * Diagnostic endpoint to check external API connectivity and configuration
@@ -12,8 +12,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV,
     kingshotRedeemUrl: KINGSHOT_REDEEM_URL,
-    kingshotRedeemActionId: KINGSHOT_REDEEM_ACTION_ID,
-    actionIdSource: process.env.KINGSHOT_REDEEM_ACTION_ID ? 'env' : 'default',
     testPlayerId,
   };
 
@@ -22,10 +20,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10000);
 
-    const { httpResponse, rawText, parsed } = await fetchKingshotPlayerViaRedeem(testPlayerId);
+    const { httpResponse, rawText, parsed, actionId, actionIdSource } = await fetchKingshotPlayerViaRedeem(testPlayerId);
 
     clearTimeout(timeout);
 
+    diagnostics.kingshotRedeemActionId = actionId;
+    diagnostics.actionIdSource = actionIdSource;
     diagnostics.httpStatus = httpResponse.status;
     diagnostics.httpStatusText = httpResponse.statusText;
     diagnostics.contentType = httpResponse.headers.get('content-type');
