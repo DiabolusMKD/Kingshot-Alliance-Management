@@ -192,3 +192,69 @@ export async function deletePlayer(id: string): Promise<void> {
     throw error;
   }
 }
+
+export interface AllianceStats {
+  power: number;
+  count: number;
+}
+
+/**
+ * Total power and player count per alliance for a whole kingdom, keyed by allianceId.
+ * Only fetches the two columns needed, paging past Supabase's 1000-row limit.
+ */
+export async function getAllianceStats(kingdomId: number): Promise<Map<string, AllianceStats>> {
+  const PAGE_SIZE = 1000;
+  const stats = new Map<string, AllianceStats>();
+
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from('player')
+      .select('allianceId, power')
+      .eq('kingdomId', kingdomId)
+      .not('allianceId', 'is', null)
+      .order('id')
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (error) {
+      throw new Error(`Failed to fetch alliance stats: ${error.message}`);
+    }
+
+    for (const row of data ?? []) {
+      const key = String(row.allianceId);
+      const current = stats.get(key) ?? { power: 0, count: 0 };
+      stats.set(key, { power: current.power + (Number(row.power) || 0), count: current.count + 1 });
+    }
+
+    if (!data || data.length < PAGE_SIZE) break;
+  }
+
+  return stats;
+}
+
+/**
+ * Players in the kingdom that are not in any alliance, strongest first.
+ */
+export async function getUnassignedPlayers(kingdomId: number): Promise<Player[]> {
+  const PAGE_SIZE = 1000;
+  const players: Player[] = [];
+
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from('player')
+      .select('*')
+      .eq('kingdomId', kingdomId)
+      .is('allianceId', null)
+      .order('power', { ascending: false })
+      .order('id')
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (error) {
+      throw new Error(`Failed to fetch players without alliance: ${error.message}`);
+    }
+
+    players.push(...(data ?? []));
+    if (!data || data.length < PAGE_SIZE) break;
+  }
+
+  return players;
+}

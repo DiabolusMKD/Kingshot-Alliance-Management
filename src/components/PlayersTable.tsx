@@ -15,10 +15,23 @@ interface PlayersTableProps {
   players: Player[];
   alliances: Alliance[];
   onEdit: (player: Player) => void;
-  onDelete: (id: string) => void;
+  /** Omit to hide the "remove from alliance" action */
+  onDelete?: (id: string) => void;
+  showAllianceColumn?: boolean;
+  /** The x/100 alliance capacity counter next to the search */
+  showPlayerCount?: boolean;
+  emptyMessage?: string;
 }
 
-export default function PlayersTable({ players, alliances, onEdit, onDelete }: PlayersTableProps) {
+export default function PlayersTable({
+  players,
+  alliances,
+  onEdit,
+  onDelete,
+  showAllianceColumn = true,
+  showPlayerCount = true,
+  emptyMessage = 'No players found. Add a new player to get started!',
+}: PlayersTableProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [viewedPlayer, setViewedPlayer] = useState<Player | null>(null);
 
@@ -34,7 +47,7 @@ export default function PlayersTable({ players, alliances, onEdit, onDelete }: P
 
   const handleViewDelete = (id: string) => {
     setViewedPlayer(null);
-    onDelete(id);
+    onDelete?.(id);
   };
 
   const filteredPlayers = players.filter(
@@ -57,12 +70,14 @@ export default function PlayersTable({ players, alliances, onEdit, onDelete }: P
         <button className={styles.clearButton} onClick={() => setSearchTerm('')} title="Clear search">
           ✕
         </button>
-        <span
-          className={`${styles.playerCount} ${players.length >= MAX_ALLIANCE_PLAYERS ? styles.playerCountFull : ''}`}
-          title={`${players.length} of ${MAX_ALLIANCE_PLAYERS} alliance slots used`}
-        >
-          {players.length}/{MAX_ALLIANCE_PLAYERS} players
-        </span>
+        {showPlayerCount && (
+          <span
+            className={`${styles.playerCount} ${players.length >= MAX_ALLIANCE_PLAYERS ? styles.playerCountFull : ''}`}
+            title={`${players.length} of ${MAX_ALLIANCE_PLAYERS} alliance slots used`}
+          >
+            {players.length}/{MAX_ALLIANCE_PLAYERS} players
+          </span>
+        )}
       </div>
       <div className={styles.tableWrapper}>
         <table className={styles.table}>
@@ -74,7 +89,7 @@ export default function PlayersTable({ players, alliances, onEdit, onDelete }: P
               <th>Alias</th>
               <th>Player ID</th>
               <th>Power</th>
-              <th>Alliance</th>
+              {showAllianceColumn && <th>Alliance</th>}
               <th>Actions</th>
             </tr>
           </thead>
@@ -111,7 +126,7 @@ export default function PlayersTable({ players, alliances, onEdit, onDelete }: P
                 <td>{player.aliasName}</td>
                 <td>{player.playerId}</td>
                 <td>{formatNumbers(player.power)}</td>
-                <td>{getAllianceLabel(player) ?? '—'}</td>
+                {showAllianceColumn && <td>{getAllianceLabel(player) ?? '—'}</td>}
                 <td>
                   <div className={styles.actions}>
                     <button
@@ -141,13 +156,15 @@ export default function PlayersTable({ players, alliances, onEdit, onDelete }: P
                     >
                       ✎
                     </button>
-                    <button
-                      onClick={() => onDelete(player.id)}
-                      className={styles.deleteButton}
-                      title="Remove player from alliance"
-                    >
-                      ✕
-                    </button>
+                    {onDelete && (
+                      <button
+                        onClick={() => onDelete(player.id)}
+                        className={styles.deleteButton}
+                        title="Remove player from alliance"
+                      >
+                        ✕
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -156,7 +173,7 @@ export default function PlayersTable({ players, alliances, onEdit, onDelete }: P
         </table>
         {filteredPlayers.length === 0 && (
           <div className={styles.empty}>
-            <p>{searchTerm ? 'No players match your search.' : 'No players found. Add a new player to get started!'}</p>
+            <p>{searchTerm ? 'No players match your search.' : emptyMessage}</p>
           </div>
         )}
       </div>
@@ -170,7 +187,7 @@ export default function PlayersTable({ players, alliances, onEdit, onDelete }: P
           <PlayerCard
             player={viewedPlayer}
             onEdit={handleViewEdit}
-            onDelete={handleViewDelete}
+            onDelete={onDelete ? handleViewDelete : undefined}
             allianceLabel={getAllianceLabel(viewedPlayer)}
           />
         )}

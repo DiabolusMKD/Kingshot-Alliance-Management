@@ -74,13 +74,15 @@ export default function PlayerCard({ player, onEdit, onDelete, readOnly = false,
           >
             ✎ Edit
           </button>
-          <button
-            onClick={() => onDelete?.(player.id)}
-            className={styles.deleteButton}
-            title="Delete player"
-          >
-            ✕ Remove
-          </button>
+          {onDelete && (
+            <button
+              onClick={() => onDelete(player.id)}
+              className={styles.deleteButton}
+              title="Delete player"
+            >
+              ✕ Remove
+            </button>
+          )}
         </div>
       )}
     </div>

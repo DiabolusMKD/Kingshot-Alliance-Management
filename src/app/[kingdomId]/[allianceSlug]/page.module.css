@@ -112,6 +112,37 @@
   margin-bottom: 20px;
 }
 
+.playersCount {
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.playersCountFull {
+  color: var(--danger-color);
+}
+
+.updatePlayersButton {
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.updatePlayersButton:hover:not(:disabled) {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+.updatePlayersButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .playersSectionTitle {
   font-size: 24px;
   font-weight: 700;
@@ -123,6 +154,50 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 20px;
+}
+
+/* Same frame as PlayerCard, shown in the grid when there are free preview slots */
+.addPlayerCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 180px;
+  padding: 16px;
+  border: 1px dashed var(--border-color);
+  border-radius: 8px;
+  background-color: var(--bg-primary);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.addPlayerCard:hover {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.addPlayerIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 6px;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  font-size: 32px;
+  line-height: 1;
+}
+
+.addPlayerCard:hover .addPlayerIcon {
+  border-color: var(--accent-color);
 }
 
 .viewAllButton {

@@ -9,12 +9,13 @@ import Dialog from '@/components/Dialog';
 import AllianceForm from '@/components/AllianceForm';
 import PlayerForm from '@/components/PlayerForm';
 import { useToast } from '@/components/Toast';
+import { usePlayersUpdater } from '@/components/usePlayersUpdater';
 import PlayerCard from '@/components/PlayerCard';
 import { Alliance, Player } from '@/types';
 import { getAlliancesByKingdomId, updateAlliance } from '@/utils/allianceService';
 import { createPlayer, getPlayers, updatePlayer } from '@/utils/playerService';
 import { findAllianceBySlug } from '@/utils/allianceSlug';
-import { DEFAULT_ALLIANCE_IMAGE_URL } from '@/utils/constants';
+import { DEFAULT_ALLIANCE_IMAGE_URL, MAX_ALLIANCE_PLAYERS } from '@/utils/constants';
 import styles from './page.module.css';
 
 const PLAYERS_PREVIEW_LIMIT = 6;
@@ -89,6 +90,14 @@ export default function AlliancePage({ params }: AlliancePageProps) {
     setAlliance(updated);
     closeEditDialog();
   };
+
+  const { startUpdate, isUpdating, dialog: updatePlayersDialog } = usePlayersUpdater({
+    kingdomId: kingdomIdNumber,
+    kingdomAlliances,
+    onFinished: async () => {
+      if (alliance) setPlayers(await loadPlayers(alliance.id));
+    },
+  });
 
   const closeAddPlayerDialog = () => setIsAddPlayerDialogOpen(false);
 
@@ -190,12 +199,39 @@ export default function AlliancePage({ params }: AlliancePageProps) {
           {previewPlayers.length > 0 && (
             <div className={styles.playersSection}>
               <div className={styles.playersSectionHeader}>
-                <h2 className={styles.playersSectionTitle}>Players</h2>
+                <h2 className={styles.playersSectionTitle}>
+                  Players{' '}
+                  <span
+                    className={`${styles.playersCount} ${players.length >= MAX_ALLIANCE_PLAYERS ? styles.playersCountFull : ''}`}
+                    title={`${players.length} of ${MAX_ALLIANCE_PLAYERS} alliance slots used`}
+                  >
+                    ({players.length}/{MAX_ALLIANCE_PLAYERS})
+                  </span>
+                </h2>
+                <button
+                  type="button"
+                  className={styles.updatePlayersButton}
+                  onClick={() => startUpdate(players)}
+                  disabled={isUpdating}
+                  title={`Refresh all ${players.length} player(s) from the game`}
+                >
+                  {isUpdating ? 'Updating...' : 'Update Players'}
+                </button>
               </div>
               <div className={styles.playersGrid}>
                 {previewPlayers.map((player) => (
                   <PlayerCard key={player.id} player={player} readOnly />
                 ))}
+                {players.length < PLAYERS_PREVIEW_LIMIT && (
+                  <button
+                    type="button"
+                    className={styles.addPlayerCard}
+                    onClick={() => setIsAddPlayerDialogOpen(true)}
+                  >
+                    <span className={styles.addPlayerIcon} aria-hidden="true">+</span>
+                    Add New Player
+                  </button>
+                )}
               </div>
               <Link href={`/${kingdomId}/${allianceSlug}/players`} className={styles.viewAllButton}>
                 View All
@@ -214,6 +250,8 @@ export default function AlliancePage({ params }: AlliancePageProps) {
           onCancel={closeEditDialog}
         />
       </Dialog>
+
+      {updatePlayersDialog}
 
       <Dialog isOpen={isAddPlayerDialogOpen} title="Add New Player" onClose={closeAddPlayerDialog}>
         {isAddPlayerDialogOpen && (

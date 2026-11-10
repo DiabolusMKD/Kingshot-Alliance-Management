@@ -69,3 +69,19 @@
     font-size: 12px;
   }
 }
+
+.powerCell {
+  text-align: right !important;
+  white-space: nowrap;
+}
+
+.powerValue {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.full {
+  color: var(--danger-color);
+  font-weight: 600;
+}
