@@ -115,3 +115,34 @@ export interface LegionBuildingData {
   buildings: Record<string, BuildingAssignment>;
   substitutes: Player[];
 }
+
+// Gift codes
+export type GiftCodeStatus = "active" | "inactive";
+
+export interface GiftCode {
+  id: number;
+  code: string;
+  status: GiftCodeStatus;
+  expires_at: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface GiftCodeRedemption {
+  id: number;
+  giftCodeId: number;
+  playerId: number; // player.id (NOT the in-game player.playerId)
+  status: "redeemed" | null;
+  reason: string | null;
+  redeemed_at: string | null;
+  last_attempt_at: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+/** Result of redeeming one code for one player (see /api/gift-codes/redemptions) */
+export interface GiftCodeRedeemResult {
+  giftCodeId: number;
+  outcome: "redeemed" | "failed" | "retry";
+  reason: string | null; // e.g. RECEIVED, TIME_ERROR, CDK_NOT_FOUND, RATE_LIMITED
+}

@@ -87,6 +87,24 @@
   margin-right: auto;
 }
 
+.emptyPlayers {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 40px 20px;
+  text-align: center;
+  background-color: var(--bg-secondary);
+  border: 1px dashed var(--border-color);
+  border-radius: 12px;
+}
+
+.emptyPlayersText {
+  margin: 0;
+  font-size: 16px;
+  color: var(--text-secondary);
+}
+
 .playersSectionHeader {
   display: flex;
   justify-content: space-between;

@@ -7,6 +7,7 @@ import styles from './PlayersTable.module.css';
 import { formatNumbers } from '@/utils/formatNumbers';
 import { isImageUrl, truncateLevelLabel } from '@/utils/isImageUrl';
 import { formatAllianceLabel } from '@/utils/allianceLabel';
+import { MAX_ALLIANCE_PLAYERS } from '@/utils/constants';
 import Dialog from './Dialog';
 import PlayerCard from './PlayerCard';
 
@@ -56,6 +57,12 @@ export default function PlayersTable({ players, alliances, onEdit, onDelete }: P
         <button className={styles.clearButton} onClick={() => setSearchTerm('')} title="Clear search">
           ✕
         </button>
+        <span
+          className={`${styles.playerCount} ${players.length >= MAX_ALLIANCE_PLAYERS ? styles.playerCountFull : ''}`}
+          title={`${players.length} of ${MAX_ALLIANCE_PLAYERS} alliance slots used`}
+        >
+          {players.length}/{MAX_ALLIANCE_PLAYERS} players
+        </span>
       </div>
       <div className={styles.tableWrapper}>
         <table className={styles.table}>

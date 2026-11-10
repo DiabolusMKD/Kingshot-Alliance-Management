@@ -7,15 +7,19 @@ import Navigation from '@/components/Navigation';
 import BackLink from '@/components/BackLink';
 import Dialog from '@/components/Dialog';
 import AllianceForm from '@/components/AllianceForm';
+import PlayerForm from '@/components/PlayerForm';
+import { useToast } from '@/components/Toast';
 import PlayerCard from '@/components/PlayerCard';
 import { Alliance, Player } from '@/types';
 import { getAlliancesByKingdomId, updateAlliance } from '@/utils/allianceService';
-import { getPlayers } from '@/utils/playerService';
+import { createPlayer, getPlayers, updatePlayer } from '@/utils/playerService';
 import { findAllianceBySlug } from '@/utils/allianceSlug';
 import { DEFAULT_ALLIANCE_IMAGE_URL } from '@/utils/constants';
 import styles from './page.module.css';
 
 const PLAYERS_PREVIEW_LIMIT = 6;
+
+const sortByPower = (players: Player[]) => [...players].sort((a, b) => b.power - a.power);
 
 interface AlliancePageProps {
   params: Promise<{ kingdomId: string; allianceSlug: string }>;
@@ -25,16 +29,23 @@ export default function AlliancePage({ params }: AlliancePageProps) {
   const { kingdomId, allianceSlug } = use(params);
   const kingdomIdNumber = Number(kingdomId);
 
+  const toast = useToast();
   const [alliance, setAlliance] = useState<Alliance | null | undefined>(undefined);
+  const [kingdomAlliances, setKingdomAlliances] = useState<Alliance[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
+  // Avoids flashing the "no players" message before the first load finishes
+  const [hasLoadedPlayers, setHasLoadedPlayers] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isAddPlayerDialogOpen, setIsAddPlayerDialogOpen] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
 
     getAlliancesByKingdomId(kingdomIdNumber)
       .then((alliances) => {
-        if (isMounted) setAlliance(findAllianceBySlug(alliances, allianceSlug) || null);
+        if (!isMounted) return;
+        setKingdomAlliances(alliances);
+        setAlliance(findAllianceBySlug(alliances, allianceSlug) || null);
       })
       .catch((error) => {
         console.error('Failed to load alliance:', error);
@@ -46,6 +57,8 @@ export default function AlliancePage({ params }: AlliancePageProps) {
     };
   }, [kingdomId, allianceSlug]);
 
+  const loadPlayers = (allianceId: number) => getPlayers(allianceId, kingdomIdNumber).then(sortByPower);
+
   useEffect(() => {
     if (!alliance) return;
 
@@ -53,10 +66,13 @@ export default function AlliancePage({ params }: AlliancePageProps) {
 
     getPlayers(alliance.id, kingdomIdNumber)
       .then((allPlayers) => {
-        if (isMounted) setPlayers(allPlayers.sort((a, b) => b.power - a.power));
+        if (isMounted) setPlayers(sortByPower(allPlayers));
       })
       .catch((error) => {
         console.error('Failed to load players:', error);
+      })
+      .finally(() => {
+        if (isMounted) setHasLoadedPlayers(true);
       });
 
     return () => {
@@ -72,6 +88,30 @@ export default function AlliancePage({ params }: AlliancePageProps) {
     const updated = await updateAlliance(alliance.id, allianceData);
     setAlliance(updated);
     closeEditDialog();
+  };
+
+  const closeAddPlayerDialog = () => setIsAddPlayerDialogOpen(false);
+
+  const handleAddPlayer = async (
+    formData: Omit<Player, 'id' | 'created_at' | 'updated_at'>,
+    existingPlayerId?: string
+  ) => {
+    if (!alliance) return;
+    try {
+      if (existingPlayerId) {
+        // Player already exists under another alliance/kingdom: move that row here
+        // instead of inserting a duplicate (playerId is unique)
+        await updatePlayer(existingPlayerId, formData);
+      } else {
+        await createPlayer(formData);
+      }
+      closeAddPlayerDialog();
+      toast.success(`Added ${formData.aliasName || formData.name}`);
+      setPlayers(await loadPlayers(alliance.id));
+    } catch (error) {
+      console.error('Failed to add player:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to add player');
+    }
   };
 
   if (alliance === undefined) {
@@ -104,7 +144,6 @@ export default function AlliancePage({ params }: AlliancePageProps) {
   }
 
   const previewPlayers = players.slice(0, PLAYERS_PREVIEW_LIMIT);
-  const hasMorePlayers = players.length > PLAYERS_PREVIEW_LIMIT;
 
   return (
     <>
@@ -131,8 +170,22 @@ export default function AlliancePage({ params }: AlliancePageProps) {
               <Link href={`/${kingdomId}/${allianceSlug}/events`} className={styles.ctaButton}>
                 Events
               </Link>
+              <Link href={`/${kingdomId}/${allianceSlug}/gift-codes`} className={styles.ctaButton}>
+                Redeem Gift Codes
+              </Link>
             </div>
           </div>
+
+          {hasLoadedPlayers && previewPlayers.length === 0 && (
+            <div className={styles.playersSection}>
+              <div className={styles.emptyPlayers}>
+                <p className={styles.emptyPlayersText}>No players added to this alliance yet.</p>
+                <button className={styles.ctaButton} onClick={() => setIsAddPlayerDialogOpen(true)}>
+                  + Add Player
+                </button>
+              </div>
+            </div>
+          )}
 
           {previewPlayers.length > 0 && (
             <div className={styles.playersSection}>
@@ -144,11 +197,9 @@ export default function AlliancePage({ params }: AlliancePageProps) {
                   <PlayerCard key={player.id} player={player} readOnly />
                 ))}
               </div>
-              {hasMorePlayers && (
-                <Link href={`/${kingdomId}/${allianceSlug}/players`} className={styles.viewAllButton}>
-                  View All
-                </Link>
-              )}
+              <Link href={`/${kingdomId}/${allianceSlug}/players`} className={styles.viewAllButton}>
+                View All
+              </Link>
             </div>
           )}
         </div>
@@ -162,6 +213,18 @@ export default function AlliancePage({ params }: AlliancePageProps) {
           onSubmit={handleUpdateAlliance}
           onCancel={closeEditDialog}
         />
+      </Dialog>
+
+      <Dialog isOpen={isAddPlayerDialogOpen} title="Add New Player" onClose={closeAddPlayerDialog}>
+        {isAddPlayerDialogOpen && (
+          <PlayerForm
+            kingdomId={kingdomIdNumber}
+            allianceId={String(alliance.id)}
+            alliances={kingdomAlliances}
+            onSubmit={handleAddPlayer}
+            onCancel={closeAddPlayerDialog}
+          />
+        )}
       </Dialog>
     </>
   );

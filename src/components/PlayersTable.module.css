@@ -9,6 +9,19 @@
   gap: 12px;
 }
 
+.playerCount {
+  margin-left: auto;
+  align-self: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.playerCountFull {
+  color: var(--danger-color);
+}
+
 .searchInput {
   flex: 1;
   max-width: 400px;
