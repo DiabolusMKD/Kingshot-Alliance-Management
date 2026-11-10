@@ -4,7 +4,7 @@ import { use, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Alliance, Player, AllianceEvent, PlayerAssignment, EventStatus, EventResults } from "@/types";
 import Navigation from "@/components/Navigation";
-import BackLink from "@/components/BackLink";
+import Breadcrumbs from "@/components/Breadcrumbs";
 import EventHero from "@/components/EventHero";
 import SwordlandEventLayout from "@/components/SwordlandEventLayout";
 import EventList from "@/components/EventList";
@@ -217,8 +217,8 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
       <>
         <Navigation />
         <main className={styles.main}>
-          <BackLink href={`/${kingdomId}/${allianceSlug}/events`}>Back to Events</BackLink>
           <div className={styles.container}>
+            <Breadcrumbs />
             <p>Alliance not found.</p>
           </div>
         </main>
@@ -231,6 +231,7 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
       <Navigation />
       <main className={styles.main}>
         <div className={styles.container}>
+          <Breadcrumbs />
           {showCreateForm ? (
             // Create Event Form
             <div className={styles.formModal}>

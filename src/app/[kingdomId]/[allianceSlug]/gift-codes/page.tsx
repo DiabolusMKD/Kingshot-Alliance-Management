@@ -2,7 +2,7 @@
 
 import { use, useEffect, useState } from 'react';
 import Navigation from '@/components/Navigation';
-import BackLink from '@/components/BackLink';
+import Breadcrumbs from '@/components/Breadcrumbs';
 import GiftCodesManager from '@/components/GiftCodesManager';
 import { Alliance } from '@/types';
 import { getAlliancesByKingdomId } from '@/utils/allianceService';
@@ -40,8 +40,8 @@ export default function AllianceGiftCodesPage({ params }: GiftCodesPageProps) {
       <>
         <Navigation />
         <main className={styles.main}>
-          <BackLink href={`/${kingdomId}`}>Back to Kingdom {kingdomId}</BackLink>
           <div className={styles.container}>
+            <Breadcrumbs />
             <p className={styles.muted}>{alliance === undefined ? 'Loading gift codes...' : 'Alliance not found.'}</p>
           </div>
         </main>
@@ -55,8 +55,6 @@ export default function AllianceGiftCodesPage({ params }: GiftCodesPageProps) {
       loadPlayers={() => getPlayers(alliance.id, kingdomIdNumber)}
       loadKey={`alliance:${alliance.id}`}
       groupLabel={label}
-      backHref={`/${kingdomId}/${allianceSlug}`}
-      backLabel={`Back to ${label}`}
       emptyPlayersText="This alliance has no players yet."
     />
   );

@@ -4,7 +4,7 @@ import { use, useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import Navigation from '@/components/Navigation';
-import BackLink from '@/components/BackLink';
+import Breadcrumbs from '@/components/Breadcrumbs';
 import Dialog from '@/components/Dialog';
 import AllianceForm from '@/components/AllianceForm';
 import PlayerForm from '@/components/PlayerForm';
@@ -129,6 +129,7 @@ export default function AlliancePage({ params }: AlliancePageProps) {
         <Navigation />
         <main className={styles.main}>
           <div className={styles.container}>
+            <Breadcrumbs />
             <p>Loading alliance...</p>
           </div>
         </main>
@@ -141,8 +142,8 @@ export default function AlliancePage({ params }: AlliancePageProps) {
       <>
         <Navigation />
         <main className={styles.main}>
-          <BackLink href={`/${kingdomId}`}>Back to Kingdom {kingdomId}</BackLink>
           <div className={styles.container}>
+            <Breadcrumbs />
             <div className={styles.content}>
               <p className={styles.description}>Alliance not found.</p>
             </div>
@@ -158,8 +159,8 @@ export default function AlliancePage({ params }: AlliancePageProps) {
     <>
       <Navigation />
       <main className={styles.main}>
-        <BackLink href={`/${kingdomId}`}>Back to Kingdom {kingdomId}</BackLink>
         <div className={styles.container}>
+          <Breadcrumbs />
           <div className={styles.content}>
             <Image
               src={alliance.allianceImageUrl || DEFAULT_ALLIANCE_IMAGE_URL}

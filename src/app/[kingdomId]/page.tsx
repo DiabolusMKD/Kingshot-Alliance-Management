@@ -3,6 +3,7 @@
 import { use, useEffect, useState } from 'react';
 import Link from 'next/link';
 import Navigation from '@/components/Navigation';
+import Breadcrumbs from '@/components/Breadcrumbs';
 import Dialog from '@/components/Dialog';
 import AllianceForm from '@/components/AllianceForm';
 import AllianceTable from '@/components/AllianceTable';
@@ -113,6 +114,7 @@ export default function KingdomPage({ params }: KingdomPageProps) {
       <Navigation />
       <main className={styles.main}>
         <div className={styles.container}>
+          <Breadcrumbs />
           <div className={styles.header}>
             <h1 className={styles.title}>Welcome to Kingdom {kingdomId}</h1>
 
@@ -141,15 +143,27 @@ export default function KingdomPage({ params }: KingdomPageProps) {
             </div>
           </div>
 
-          {isLoading ? (
-            <p>Loading alliances...</p>
-          ) : alliances.length === 0 ? (
-            <span className={styles.noAlliances}>No alliances</span>
-          ) : viewMode === 'table' ? (
-            <AllianceTable alliances={sortedAlliances} kingdomId={kingdomIdNumber} getStats={getStats} />
-          ) : (
-            <AllianceCards alliances={sortedAlliances} kingdomId={kingdomIdNumber} />
-          )}
+          <section>
+            <div className={styles.sectionHeader}>
+              <div>
+                <h2 className={styles.sectionTitle}>
+                  Alliances{' '}
+                  {!isLoading && <span className={styles.sectionCount}>({alliances.length})</span>}
+                </h2>
+                <p className={styles.sectionHint}>Ranked by total power of their players.</p>
+              </div>
+            </div>
+
+            {isLoading ? (
+              <p>Loading alliances...</p>
+            ) : alliances.length === 0 ? (
+              <span className={styles.noAlliances}>No alliances</span>
+            ) : viewMode === 'table' ? (
+              <AllianceTable alliances={sortedAlliances} kingdomId={kingdomIdNumber} getStats={getStats} />
+            ) : (
+              <AllianceCards alliances={sortedAlliances} kingdomId={kingdomIdNumber} />
+            )}
+          </section>
 
           {!isLoading && (
             <section className={styles.unassignedSection}>
@@ -191,7 +205,7 @@ export default function KingdomPage({ params }: KingdomPageProps) {
                 onEdit={setEditingPlayer}
                 showAllianceColumn={false}
                 showPlayerCount={false}
-                emptyMessage="Every player in this kingdom is in an alliance."
+                emptyMessage="Every registered player in this kingdom is in an alliance."
               />
             </section>
           )}

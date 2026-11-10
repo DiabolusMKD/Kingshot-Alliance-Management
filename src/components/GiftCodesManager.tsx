@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Navigation from '@/components/Navigation';
-import BackLink from '@/components/BackLink';
+import Breadcrumbs from '@/components/Breadcrumbs';
 import { useToast } from '@/components/Toast';
 import { GiftCode, GiftCodeRedemption, GiftCodeRedeemResult, Player } from '@/types';
 import {
@@ -22,8 +22,6 @@ interface GiftCodesManagerProps {
   loadKey: string;
   /** Who the players are, e.g. "[ABC]Alliance" or "Kingdom 1010 without an alliance" */
   groupLabel: string;
-  backHref: string;
-  backLabel: string;
   emptyPlayersText: string;
 }
 
@@ -66,8 +64,6 @@ export default function GiftCodesManager({
   loadPlayers,
   loadKey,
   groupLabel,
-  backHref,
-  backLabel,
   emptyPlayersText,
 }: GiftCodesManagerProps) {
   const toast = useToast();
@@ -300,8 +296,8 @@ export default function GiftCodesManager({
       <>
         <Navigation />
         <main className={styles.main}>
-          <BackLink href={backHref}>{backLabel}</BackLink>
           <div className={styles.container}>
+            <Breadcrumbs />
             <p className={styles.muted}>Loading gift codes...</p>
           </div>
         </main>
@@ -313,8 +309,8 @@ export default function GiftCodesManager({
     <>
       <Navigation />
       <main className={styles.main}>
-        <BackLink href={backHref}>{backLabel}</BackLink>
         <div className={styles.container}>
+          <Breadcrumbs />
           <div className={styles.header}>
             <div>
               <h1 className={styles.title}>Gift Codes</h1>

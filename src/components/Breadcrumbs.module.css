@@ -1,0 +1,53 @@
+.breadcrumbs {
+  margin-bottom: 24px;
+  font-size: 14px;
+}
+
+.list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.link,
+.text,
+.current {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.link {
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.link:hover {
+  color: var(--accent-color);
+}
+
+.text {
+  color: var(--text-secondary);
+}
+
+.current {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.separator {
+  color: var(--border-color);
+}

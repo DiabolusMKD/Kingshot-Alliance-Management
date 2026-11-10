@@ -18,9 +18,7 @@ export default function NoAllianceGiftCodesPage({ params }: NoAllianceGiftCodesP
       loadPlayers={() => getUnassignedPlayers(kingdomIdNumber)}
       loadKey={`no-alliance:${kingdomIdNumber}`}
       groupLabel={`Kingdom ${kingdomId} players without an alliance`}
-      backHref={`/${kingdomId}`}
-      backLabel={`Back to Kingdom ${kingdomId}`}
-      emptyPlayersText="Every player in this kingdom is in an alliance."
+      emptyPlayersText="Every registered player in this kingdom is in an alliance."
     />
   );
 }

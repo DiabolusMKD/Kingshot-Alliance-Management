@@ -3,7 +3,7 @@
 import { use, useEffect, useState } from 'react';
 import { Alliance, Player } from '@/types';
 import Navigation from '@/components/Navigation';
-import BackLink from '@/components/BackLink';
+import Breadcrumbs from '@/components/Breadcrumbs';
 import PlayersTable from '@/components/PlayersTable';
 import PlayersCard from '@/components/PlayersCard';
 import PlayerForm from '@/components/PlayerForm';
@@ -240,8 +240,8 @@ export default function PlayersPage({ params }: PlayersPageProps) {
       <>
         <Navigation />
         <main className={styles.main}>
-          <BackLink href={`/${kingdomId}`}>Back to Kingdom {kingdomId}</BackLink>
           <div className={styles.container}>
+            <Breadcrumbs />
             <p>Alliance not found.</p>
           </div>
         </main>
@@ -255,6 +255,7 @@ export default function PlayersPage({ params }: PlayersPageProps) {
         <Navigation />
         <main className={styles.main}>
           <div className={styles.container}>
+            <Breadcrumbs />
             <p>Loading players...</p>
           </div>
         </main>
@@ -266,8 +267,8 @@ export default function PlayersPage({ params }: PlayersPageProps) {
     <>
       <Navigation />
       <main className={styles.main}>
-        <BackLink href={`/${kingdomId}/${allianceSlug}`}>Back to {alliance?.name}</BackLink>
         <div className={styles.container}>
+          <Breadcrumbs />
           <div className={styles.header}>
             <div className={styles.headerActions}>
               <div className={styles.viewSwitcher}>

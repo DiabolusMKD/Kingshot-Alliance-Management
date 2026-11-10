@@ -3,7 +3,7 @@
 import { use } from 'react';
 import Link from 'next/link';
 import Navigation from '@/components/Navigation';
-import BackLink from '@/components/BackLink';
+import Breadcrumbs from '@/components/Breadcrumbs';
 import styles from './page.module.css';
 
 interface EventsPageProps {
@@ -17,8 +17,8 @@ export default function EventsPage({ params }: EventsPageProps) {
     <>
       <Navigation />
       <main className={styles.main}>
-        <BackLink href={`/${kingdomId}/${allianceSlug}`}>Back to Alliance</BackLink>
         <div className={styles.container}>
+          <Breadcrumbs />
           <h1 className={styles.title}>Events</h1>
 
           <div className={styles.eventsGrid}>
