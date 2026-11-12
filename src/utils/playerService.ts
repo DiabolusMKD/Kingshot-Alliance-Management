@@ -258,3 +258,27 @@ export async function getUnassignedPlayers(kingdomId: number): Promise<Player[]>
 
   return players;
 }
+
+/**
+ * One page of the kingdom's players across all alliances (and none), strongest first,
+ * plus the total count (for "View more").
+ */
+export async function getKingdomPlayers(
+  kingdomId: number,
+  offset: number,
+  limit: number
+): Promise<{ players: Player[]; total: number }> {
+  const { data, error, count } = await supabase
+    .from('player')
+    .select('*', { count: 'exact' })
+    .eq('kingdomId', kingdomId)
+    .order('power', { ascending: false })
+    .order('id')
+    .range(offset, offset + limit - 1);
+
+  if (error) {
+    throw new Error(`Failed to fetch kingdom players: ${error.message}`);
+  }
+
+  return { players: data ?? [], total: count ?? data?.length ?? 0 };
+}

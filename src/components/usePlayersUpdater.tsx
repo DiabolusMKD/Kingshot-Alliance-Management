@@ -93,7 +93,7 @@ interface UsePlayersUpdaterOptions {
   kingdomAlliances: Alliance[];
   /** Runs after every player was processed, before the result is shown (e.g. reload the list) */
   onFinished?: () => Promise<void> | void;
-  /** Create alliances that exist in the game but not in the app, from the game's tag + name */
+  /** Create alliances that exist in the game but not in the app, from the game's tag + name (default on) */
   createMissingAlliances?: boolean;
 }
 
@@ -106,7 +106,7 @@ export function usePlayersUpdater({
   kingdomId,
   kingdomAlliances,
   onFinished,
-  createMissingAlliances = false,
+  createMissingAlliances = true,
 }: UsePlayersUpdaterOptions) {
   // null = progress modal closed
   const [rows, setRows] = useState<PlayerUpdateRow[] | null>(null);

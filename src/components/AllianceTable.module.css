@@ -3,6 +3,8 @@
   overflow: auto;
   border: 1px solid var(--border-color);
   border-radius: 8px;
+  /* Same scroll box as the players tables */
+  max-height: calc(100vh - 400px);
 }
 
 .table {
@@ -44,13 +46,6 @@
 
 .row:hover td {
   color: var(--text-primary);
-}
-
-.descriptionCell {
-  max-width: 320px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .allianceImage {

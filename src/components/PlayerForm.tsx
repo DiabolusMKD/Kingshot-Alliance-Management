@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Alliance, Player } from '@/types';
 import { fetchPlayerFromKingshot, findMatchingAlliance, KingshotPlayerData } from '@/utils/kingshotApi';
 import { getPlayerByPlayerId } from '@/utils/playerService';
+import { createAlliance } from '@/utils/allianceService';
 import { formatAllianceLabel } from '@/utils/allianceLabel';
 import styles from './PlayerForm.module.css';
 
@@ -12,9 +13,20 @@ interface PlayerFormProps {
   kingdomId: number;
   allianceId: string;
   alliances: Alliance[];
-  onSubmit: (player: Omit<Player, 'id' | 'created_at' | 'updated_at'>, existingPlayerId?: string) => void;
+  onSubmit: (
+    player: Omit<Player, 'id' | 'created_at' | 'updated_at'>,
+    existingPlayerId?: string,
+    meta?: PlayerFormSubmitMeta
+  ) => void;
   onCancel: () => void;
 }
+
+export interface PlayerFormSubmitMeta {
+  /** Alliance that was created on submit because the player's in-game alliance wasn't in the app */
+  createdAlliance?: Alliance;
+}
+
+type GameAlliance = NonNullable<KingshotPlayerData['alliance']>;
 
 const EMPTY_FORM_DATA: FormData = {
   playerId: '',
@@ -50,7 +62,13 @@ export default function PlayerForm({ player, kingdomId, allianceId, alliances, o
   const [dataSource, setDataSource] = useState<DataSource>(null);
   const [detailsStage, setDetailsStage] = useState(false);
   const [foundPlayerId, setFoundPlayerId] = useState<string | null>(null);
+  // In-game alliance that doesn't exist in the app yet; created on submit
+  const [pendingAlliance, setPendingAlliance] = useState<GameAlliance | null>(null);
+  // Kingdom the game reports when it differs from this form's kingdom
+  const [otherKingdom, setOtherKingdom] = useState<number | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const isEditMode = !!player;
+  const kingdomAlliances = alliances.filter((a) => a.kingdomId === kingdomId);
 
   useEffect(() => {
     if (player) {
@@ -72,13 +90,15 @@ export default function PlayerForm({ player, kingdomId, allianceId, alliances, o
       setError(null);
       setInfoMessage(null);
     } else {
-      setFormData(EMPTY_FORM_DATA);
+      setFormData({ ...EMPTY_FORM_DATA, allianceId });
       setDataSource(null);
       setDetailsStage(false);
       setFoundPlayerId(null);
       setError(null);
       setInfoMessage(null);
     }
+    setPendingAlliance(null);
+    setOtherKingdom(null);
   }, [player]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -97,9 +117,39 @@ export default function PlayerForm({ player, kingdomId, allianceId, alliances, o
     setError(null);
   };
 
+  /**
+   * Applies the game's alliance: preselect it when it's in the app, otherwise remember it
+   * so it's created on submit. A player shown in another kingdom keeps the current choice.
+   * Returns a short description for the info message.
+   */
+  const applyGameAlliance = (kingshotData: KingshotPlayerData): string => {
+    const gameKingdom = kingshotData.kingdom;
+    if (gameKingdom > 0 && gameKingdom !== kingdomId) {
+      setPendingAlliance(null);
+      setOtherKingdom(gameKingdom);
+      return `the game shows this player in Kingdom ${gameKingdom}`;
+    }
+    setOtherKingdom(null);
+
+    const gameAlliance = kingshotData.alliance;
+    if (!gameAlliance) {
+      setPendingAlliance(null);
+      setFormData((prev) => ({ ...prev, allianceId: '' }));
+      return 'not in an alliance';
+    }
+
+    const matched = findMatchingAlliance(alliances, kingdomId, gameAlliance);
+    if (matched) {
+      setPendingAlliance(null);
+      setFormData((prev) => ({ ...prev, allianceId: String(matched.id) }));
+      return `alliance ${formatAllianceLabel(matched)}`;
+    }
+    setPendingAlliance(gameAlliance);
+    return `alliance [${gameAlliance.tag}]${gameAlliance.name}, which will be created`;
+  };
+
   const mergeKingshotData = (prev: FormData, kingshotData: KingshotPlayerData): FormData => {
     const name = kingshotData.name || prev.name;
-    const matchedAlliance = findMatchingAlliance(alliances, kingdomId, kingshotData.alliance);
     const power = kingshotData.power ?? prev.power;
     return {
       ...prev,
@@ -109,7 +159,6 @@ export default function PlayerForm({ player, kingdomId, allianceId, alliances, o
       trialliancePower: power,
       profilePhoto: kingshotData.profilePhoto || prev.profilePhoto,
       levelImage: kingshotData.levelImage || prev.levelImage,
-      allianceId: matchedAlliance ? String(matchedAlliance.id) : prev.allianceId,
     };
   };
 
@@ -126,6 +175,7 @@ export default function PlayerForm({ player, kingdomId, allianceId, alliances, o
       const playerData = await fetchPlayerFromKingshot(formData.playerId);
       setFormData((prev) => mergeKingshotData(prev, playerData));
       setDataSource('api');
+      setInfoMessage(`Refreshed from the game: ${applyGameAlliance(playerData)}.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch player data');
     } finally {
@@ -159,8 +209,16 @@ export default function PlayerForm({ player, kingdomId, allianceId, alliances, o
         }));
         setDataSource('database');
         setFoundPlayerId(existingPlayer.id);
-        setInfoMessage('Existing player found. Fields are editable below.');
         setDetailsStage(true);
+
+        // Still ask the game for fresh power + current alliance
+        try {
+          const kingshotData = await fetchPlayerFromKingshot(formData.playerId);
+          setFormData((prev) => ({ ...prev, power: kingshotData.power ?? prev.power, trialliancePower: kingshotData.power ?? prev.trialliancePower }));
+          setInfoMessage(`Existing player found; in game: ${applyGameAlliance(kingshotData)}.`);
+        } catch {
+          setInfoMessage('Existing player found. Fields are editable below.');
+        }
         return;
       }
 
@@ -168,12 +226,7 @@ export default function PlayerForm({ player, kingdomId, allianceId, alliances, o
         const kingshotData = await fetchPlayerFromKingshot(formData.playerId);
         setFormData((prev) => mergeKingshotData(prev, kingshotData));
         setDataSource('api');
-        const matchedAlliance = findMatchingAlliance(alliances, kingdomId, kingshotData.alliance);
-        setInfoMessage(
-          matchedAlliance
-            ? `Player found via the Kingshot API (alliance ${formatAllianceLabel(matchedAlliance)}).`
-            : 'Player found via the Kingshot API.'
-        );
+        setInfoMessage(`Player found via the Kingshot API: ${applyGameAlliance(kingshotData)}.`);
       } catch {
         setDataSource('manual');
         setInfoMessage('Player not found. Please enter the details manually.');
@@ -201,12 +254,60 @@ export default function PlayerForm({ player, kingdomId, allianceId, alliances, o
       return;
     }
 
-    // Edit mode uses the (possibly changed) alliance selected in the dropdown
-    // below; add mode uses the alliance matched from the Kingshot API, falling
-    // back to the alliance being added to.
-    const targetAllianceId = isEditMode ? formData.allianceId : formData.allianceId || allianceId;
-    onSubmit({ ...formData, kingdomId, allianceId: targetAllianceId }, foundPlayerId ?? undefined);
+    // The dropdown holds the alliance (preselected from the game); when the game's
+    // alliance isn't in the app yet, create it now and use that.
+    let targetAllianceId: string | null = formData.allianceId || null;
+    let createdAlliance: Alliance | undefined;
+    if (pendingAlliance) {
+      setIsSaving(true);
+      try {
+        createdAlliance = await createAlliance({ name: pendingAlliance.name, nameTag: pendingAlliance.tag, kingdomId });
+        targetAllianceId = String(createdAlliance.id);
+        setPendingAlliance(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to create the alliance');
+        setIsSaving(false);
+        return;
+      }
+      setIsSaving(false);
+    }
+
+    onSubmit({ ...formData, kingdomId, allianceId: targetAllianceId }, foundPlayerId ?? undefined, { createdAlliance });
   };
+
+  const allianceField = pendingAlliance ? (
+    <div className={styles.formGroup}>
+      <span className={styles.label}>Alliance</span>
+      <div className={styles.infoMessage}>
+        [{pendingAlliance.tag}]{pendingAlliance.name} isn&apos;t in the app yet. It will be created when you save.
+      </div>
+    </div>
+  ) : (
+    <div className={styles.formGroup}>
+      <label htmlFor="allianceId" className={styles.label}>
+        Alliance
+      </label>
+      <select
+        id="allianceId"
+        name="allianceId"
+        value={formData.allianceId}
+        onChange={(e) => setFormData((prev) => ({ ...prev, allianceId: e.target.value }))}
+        className={styles.input}
+      >
+        <option value="">No alliance</option>
+        {kingdomAlliances.map((a) => (
+          <option key={a.id} value={String(a.id)}>
+            {formatAllianceLabel(a)}
+          </option>
+        ))}
+      </select>
+      {otherKingdom && (
+        <small className={styles.readOnlyHint}>
+          The game shows this player in Kingdom {otherKingdom}; their alliance there isn&apos;t applied.
+        </small>
+      )}
+    </div>
+  );
 
   const lockedFromApi = dataSource === 'api';
 
@@ -214,6 +315,7 @@ export default function PlayerForm({ player, kingdomId, allianceId, alliances, o
     return (
       <form className={styles.form} onSubmit={handleSubmit}>
         {error && <div className={styles.errorMessage}>{error}</div>}
+        {infoMessage && <div className={styles.infoMessage}>{infoMessage}</div>}
 
         <div className={styles.formGroup}>
           <label htmlFor="playerId" className={styles.label}>
@@ -271,26 +373,7 @@ export default function PlayerForm({ player, kingdomId, allianceId, alliances, o
           />
         </div>
 
-        <div className={styles.formGroup}>
-          <label htmlFor="allianceId" className={styles.label}>
-            Alliance
-          </label>
-          <select
-            id="allianceId"
-            name="allianceId"
-            value={formData.allianceId}
-            onChange={(e) => setFormData((prev) => ({ ...prev, allianceId: e.target.value }))}
-            className={styles.input}
-          >
-            {alliances
-              .filter((a) => a.kingdomId === kingdomId)
-              .map((a) => (
-                <option key={a.id} value={String(a.id)}>
-                  {formatAllianceLabel(a)}
-                </option>
-              ))}
-          </select>
-        </div>
+        {allianceField}
 
         <div className={styles.formGroup}>
           <label htmlFor="power" className={styles.label}>
@@ -363,8 +446,8 @@ export default function PlayerForm({ player, kingdomId, allianceId, alliances, o
           <button type="button" onClick={onCancel} className={styles.cancelButton}>
             Cancel
           </button>
-          <button type="submit" className={styles.submitButton} disabled={isLoading}>
-            {isLoading ? 'Updating...' : 'Update Player'}
+          <button type="submit" className={styles.submitButton} disabled={isLoading || isSaving}>
+            {isLoading || isSaving ? 'Updating...' : 'Update Player'}
           </button>
         </div>
       </form>
@@ -465,6 +548,8 @@ export default function PlayerForm({ player, kingdomId, allianceId, alliances, o
             />
           </div>
 
+          {allianceField}
+
           <div className={styles.formGroup}>
             <label htmlFor="power" className={styles.label}>
               Power
@@ -548,7 +633,9 @@ export default function PlayerForm({ player, kingdomId, allianceId, alliances, o
               type="button"
               onClick={() => {
                 setDetailsStage(false);
-                setFormData((prev) => ({ ...prev, allianceId: '' }));
+                setFormData((prev) => ({ ...prev, allianceId }));
+                setPendingAlliance(null);
+                setOtherKingdom(null);
                 setDataSource(null);
                 setFoundPlayerId(null);
                 setError(null);
@@ -561,8 +648,8 @@ export default function PlayerForm({ player, kingdomId, allianceId, alliances, o
             <button type="button" onClick={onCancel} className={styles.cancelButton}>
               Cancel
             </button>
-            <button type="submit" className={styles.submitButton} disabled={isLoading}>
-              {isLoading ? 'Adding...' : 'Add Player'}
+            <button type="submit" className={styles.submitButton} disabled={isLoading || isSaving}>
+              {isLoading || isSaving ? 'Adding...' : 'Add Player'}
             </button>
           </div>
         </>

@@ -50,7 +50,11 @@ function mapLevelImageToIconUrl(levelImage?: string): string | undefined {
 /**
  * Find the local alliance matching the player's in-game alliance within the
  * given kingdom. Prefers an exact tag + name match, then falls back to the tag
- * alone (tags are unique per kingdom), then a case-insensitive tag match.
+ * alone (an alliance may have been renamed in game).
+ *
+ * Tags are case-sensitive in game: fKn, FKN and Fkn are three different alliances,
+ * so there is deliberately no case-insensitive fallback. A tag that only differs in
+ * case is "not in the app" and gets created instead of joining the wrong alliance.
  */
 export function findMatchingAlliance(
   alliances: Alliance[],
@@ -64,8 +68,7 @@ export function findMatchingAlliance(
 
   return (
     inKingdom.find((a) => a.nameTag === tag && a.name === name) ??
-    inKingdom.find((a) => a.nameTag === tag) ??
-    inKingdom.find((a) => a.nameTag.toLowerCase() === tag.toLowerCase())
+    inKingdom.find((a) => a.nameTag === tag)
   );
 }
 

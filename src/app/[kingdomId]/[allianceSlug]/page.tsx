@@ -7,7 +7,8 @@ import Navigation from '@/components/Navigation';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import Dialog from '@/components/Dialog';
 import AllianceForm from '@/components/AllianceForm';
-import PlayerForm from '@/components/PlayerForm';
+import PlayerForm, { PlayerFormSubmitMeta } from '@/components/PlayerForm';
+import { describeSavedPlayer } from '@/utils/playerFeedback';
 import { useToast } from '@/components/Toast';
 import { usePlayersUpdater } from '@/components/usePlayersUpdater';
 import PlayerCard from '@/components/PlayerCard';
@@ -103,9 +104,12 @@ export default function AlliancePage({ params }: AlliancePageProps) {
 
   const handleAddPlayer = async (
     formData: Omit<Player, 'id' | 'created_at' | 'updated_at'>,
-    existingPlayerId?: string
+    existingPlayerId?: string,
+    meta?: PlayerFormSubmitMeta
   ) => {
     if (!alliance) return;
+    const createdAlliance = meta?.createdAlliance;
+    if (createdAlliance) setKingdomAlliances((prev) => [...prev, createdAlliance]);
     try {
       if (existingPlayerId) {
         // Player already exists under another alliance/kingdom: move that row here
@@ -115,7 +119,7 @@ export default function AlliancePage({ params }: AlliancePageProps) {
         await createPlayer(formData);
       }
       closeAddPlayerDialog();
-      toast.success(`Added ${formData.aliasName || formData.name}`);
+      toast.success(describeSavedPlayer('Added', formData, kingdomAlliances, createdAlliance));
       setPlayers(await loadPlayers(alliance.id));
     } catch (error) {
       console.error('Failed to add player:', error);

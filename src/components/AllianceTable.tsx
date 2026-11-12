@@ -26,7 +26,6 @@ export default function AllianceTable({ alliances, kingdomId, getStats }: Allian
             <th>No.</th>
             <th>Image</th>
             <th>Name</th>
-            <th>Description</th>
             <th className={styles.powerCell}>Players</th>
             <th className={styles.powerCell}>Total Power</th>
           </tr>
@@ -45,9 +44,6 @@ export default function AllianceTable({ alliances, kingdomId, getStats }: Allian
                 <AllianceAvatar alliance={alliance} className={styles.allianceImage} />
               </td>
               <td>[{alliance.nameTag}]{alliance.name}</td>
-              <td className={styles.descriptionCell} title={alliance.description || undefined}>
-                {alliance.description || '—'}
-              </td>
               <td
                 className={`${styles.powerCell} ${count >= MAX_ALLIANCE_PLAYERS ? styles.full : ''}`}
                 title={`${count} of ${MAX_ALLIANCE_PLAYERS} alliance slots used`}

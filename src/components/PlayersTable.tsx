@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import Image from 'next/image';
+import ZoomableImage from './ZoomableImage';
 import { Alliance, Player } from '@/types';
 import styles from './PlayersTable.module.css';
 import { formatNumbers } from '@/utils/formatNumbers';
@@ -18,6 +18,8 @@ interface PlayersTableProps {
   /** Omit to hide the "remove from alliance" action */
   onDelete?: (id: string) => void;
   showAllianceColumn?: boolean;
+  showAliasColumn?: boolean;
+  showPlayerIdColumn?: boolean;
   /** The x/100 alliance capacity counter next to the search */
   showPlayerCount?: boolean;
   emptyMessage?: string;
@@ -29,6 +31,8 @@ export default function PlayersTable({
   onEdit,
   onDelete,
   showAllianceColumn = true,
+  showAliasColumn = true,
+  showPlayerIdColumn = true,
   showPlayerCount = true,
   emptyMessage = 'No players found. Add a new player to get started!',
 }: PlayersTableProps) {
@@ -86,8 +90,8 @@ export default function PlayersTable({
               <th>No.</th>
               <th>Photo</th>
               <th>Name</th>
-              <th>Alias</th>
-              <th>Player ID</th>
+              {showAliasColumn && <th>Alias</th>}
+              {showPlayerIdColumn && <th>Player ID</th>}
               <th>Power</th>
               {showAllianceColumn && <th>Alliance</th>}
               <th>Actions</th>
@@ -100,11 +104,10 @@ export default function PlayersTable({
                 <td>
                   <div className={styles.photoWrapper}>
                     {player.profilePhoto ? (
-                      <Image
+                      <ZoomableImage
                         src={player.profilePhoto}
                         alt={player.name}
                         className={styles.playerPhoto}
-                        title={player.name}
                         width={40}
                         height={40}
                       />
@@ -114,7 +117,7 @@ export default function PlayersTable({
                     {player.levelImage && (
                       <div className={styles.levelBadge} title="Level">
                         {isImageUrl(player.levelImage) ? (
-                          <Image src={player.levelImage} alt="Level" width={24} height={24} />
+                          <ZoomableImage src={player.levelImage} alt={`${player.name} level`} width={24} height={24} />
                         ) : (
                           <span>{truncateLevelLabel(player.levelImage)}</span>
                         )}
@@ -123,8 +126,8 @@ export default function PlayersTable({
                   </div>
                 </td>
                 <td>{player.name}</td>
-                <td>{player.aliasName}</td>
-                <td>{player.playerId}</td>
+                {showAliasColumn && <td>{player.aliasName}</td>}
+                {showPlayerIdColumn && <td>{player.playerId}</td>}
                 <td>{formatNumbers(player.power)}</td>
                 {showAllianceColumn && <td>{getAllianceLabel(player) ?? '—'}</td>}
                 <td>

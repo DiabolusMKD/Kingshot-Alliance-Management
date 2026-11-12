@@ -1,6 +1,7 @@
 'use client';
 
 import { Alliance } from '@/types';
+import ZoomableImage from './ZoomableImage';
 import styles from './AllianceAvatar.module.css';
 
 interface AllianceAvatarProps {
@@ -19,7 +20,15 @@ function hashHue(value: string): number {
 
 export default function AllianceAvatar({ alliance, className }: AllianceAvatarProps) {
   if (alliance.allianceImageUrl) {
-    return <img src={alliance.allianceImageUrl} alt={alliance.name} className={className} />;
+    return (
+      <ZoomableImage
+        src={alliance.allianceImageUrl}
+        alt={`[${alliance.nameTag}]${alliance.name}`}
+        className={className}
+        width={160}
+        height={160}
+      />
+    );
   }
 
   const hue = hashHue(alliance.nameTag || alliance.name);

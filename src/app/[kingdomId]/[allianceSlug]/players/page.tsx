@@ -6,7 +6,8 @@ import Navigation from '@/components/Navigation';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import PlayersTable from '@/components/PlayersTable';
 import PlayersCard from '@/components/PlayersCard';
-import PlayerForm from '@/components/PlayerForm';
+import PlayerForm, { PlayerFormSubmitMeta } from '@/components/PlayerForm';
+import { describeSavedPlayer } from '@/utils/playerFeedback';
 import Dialog from '@/components/Dialog';
 import { useToast } from '@/components/Toast';
 import { usePlayersUpdater } from '@/components/usePlayersUpdater';
@@ -134,11 +135,14 @@ export default function PlayersPage({ params }: PlayersPageProps) {
   };
 
   // One "Label: old -> new" line per field shown in the edit form
-  const describePlayerChanges = (before: Player, after: Player) => {
+  const describePlayerChanges = (before: Player, after: Player, createdAlliance?: Alliance) => {
+    const afterAlliance = createdAlliance
+      ? `${formatAllianceLabel(createdAlliance)} (new alliance created)`
+      : allianceLabelById(after.allianceId);
     const fields: [string, string, string][] = [
       ['Name', before.name, after.name],
       ['Alias', before.aliasName, after.aliasName],
-      ['Alliance', allianceLabelById(before.allianceId), allianceLabelById(after.allianceId)],
+      ['Alliance', allianceLabelById(before.allianceId), afterAlliance],
       ['Power', formatNumbers(before.power), formatNumbers(after.power)],
       ['Swordland', formatNumbers(before.swordlandPower), formatNumbers(after.swordlandPower)],
       ['Tri Alliance', formatNumbers(before.trialliancePower), formatNumbers(after.trialliancePower)],
@@ -163,22 +167,28 @@ export default function PlayersPage({ params }: PlayersPageProps) {
 
   const handleFormSubmit = async (
     formData: Omit<Player, 'id' | 'created_at' | 'updated_at'>,
-    existingPlayerId?: string
+    existingPlayerId?: string,
+    meta?: PlayerFormSubmitMeta
   ) => {
     if (!alliance) return;
+    const createdAlliance = meta?.createdAlliance;
+    if (createdAlliance) setKingdomAlliances((prev) => [...prev, createdAlliance]);
 
     try {
       setIsLoading(true);
 
       if (selectedPlayer) {
         const updatedPlayer = await updatePlayer(selectedPlayer.id, formData);
-        toast.success(describePlayerChanges(selectedPlayer, updatedPlayer), 10000);
-      } else if (existingPlayerId) {
-        // Player already exists in the database under another alliance/kingdom —
-        // move that row here instead of inserting a duplicate (playerId is unique).
-        await updatePlayer(existingPlayerId, formData);
+        toast.success(describePlayerChanges(selectedPlayer, updatedPlayer, createdAlliance), 10000);
       } else {
-        await createPlayer(formData);
+        if (existingPlayerId) {
+          // Player already exists in the database under another alliance/kingdom —
+          // move that row here instead of inserting a duplicate (playerId is unique).
+          await updatePlayer(existingPlayerId, formData);
+        } else {
+          await createPlayer(formData);
+        }
+        toast.success(describeSavedPlayer('Added', formData, kingdomAlliances, createdAlliance));
       }
 
       setIsDialogOpen(false);

@@ -1,7 +1,7 @@
 'use client';
 
 import { Player } from '@/types';
-import Image from 'next/image';
+import ZoomableImage from './ZoomableImage';
 import styles from './PlayerCard.module.css';
 import { formatNumbers } from '@/utils/formatNumbers';
 import { isImageUrl, truncateLevelLabel } from '@/utils/isImageUrl';
@@ -19,7 +19,7 @@ export default function PlayerCard({ player, onEdit, onDelete, readOnly = false,
     <div className={styles.card}>
       <div className={styles.cardHeader}>
         {player.profilePhoto && (
-          <Image
+          <ZoomableImage
             src={player.profilePhoto}
             alt={player.name}
             className={styles.playerPhoto}
@@ -56,7 +56,7 @@ export default function PlayerCard({ player, onEdit, onDelete, readOnly = false,
             <span className={styles.label}>Level</span>
             <div className={styles.levelImage} title="Level">
               {isImageUrl(player.levelImage) ? (
-                <Image src={player.levelImage} alt="Level" width={48} height={48} />
+                <ZoomableImage src={player.levelImage} alt={`${player.name} level`} width={48} height={48} />
               ) : (
                 <span>{truncateLevelLabel(player.levelImage)}</span>
               )}

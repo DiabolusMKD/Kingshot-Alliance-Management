@@ -313,7 +313,27 @@ export default function GiftCodesManager({
           <Breadcrumbs />
           <div className={styles.header}>
             <div>
-              <h1 className={styles.title}>Gift Codes</h1>
+              <h1 className={styles.title}>
+                <svg
+                  className={styles.titleIcon}
+                  viewBox="0 0 24 24"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  {/* Red box + lid */}
+                  <path className={styles.giftBox} d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7" />
+                  <rect className={styles.giftBox} x="3" y="8" width="18" height="4" rx="1" />
+                  {/* Yellow ribbon + bow */}
+                  <path className={styles.giftRibbon} d="M12 8v13" />
+                  <path
+                    className={styles.giftRibbon}
+                    d="M7.5 8a2.5 2.5 0 0 1 0-5C10 3 12 8 12 8s2-5 4.5-5a2.5 2.5 0 0 1 0 5"
+                  />
+                </svg>
+                Gift Codes
+              </h1>
               <p className={styles.subtitle}>
                 {codes.length} active code(s) · {players.length} player(s) · {groupLabel}
               </p>

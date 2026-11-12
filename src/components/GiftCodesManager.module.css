@@ -23,6 +23,26 @@
   font-size: 32px;
   font-weight: 700;
   color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.titleIcon {
+  width: 1em;
+  height: 1em;
+  flex-shrink: 0;
+}
+
+/* Red present with yellow lines */
+.giftBox {
+  fill: #dc2626;
+  stroke: #facc15;
+}
+
+.giftRibbon {
+  fill: none;
+  stroke: #facc15;
 }
 
 .subtitle {
