@@ -51,6 +51,8 @@ export interface AllianceLegion {
 // Event Management Types
 export type EventType = "swordland" | "tri-alliance";
 export type EventStatus = "not-started" | "ongoing" | "completed";
+/** Swordland variant: standard (own alliance) or SLS - Swordland Summit League (whole kingdom) */
+export type EventVariant = "standard" | "sls";
 
 export interface AllianceEvent {
   id?: number;
@@ -59,6 +61,8 @@ export interface AllianceEvent {
   startsAt?: string;
   rules?: string;
   status: EventStatus;
+  /** Missing on rows created before the eventVariant column existed -> standard */
+  eventVariant?: EventVariant;
   notes?: string;
   assignments?: string; // JSON string of assignments
   createdAt?: string;

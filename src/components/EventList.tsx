@@ -12,6 +12,15 @@ const RESULT_LABELS: Record<string, string> = {
   '3rd': '3rd place',
 };
 
+// Badge colour per result: Swordland win/lose, Tri Alliance podium places
+const RESULT_STYLES: Record<string, string> = {
+  win: styles.resultWin,
+  lose: styles.resultLose,
+  '1st': styles.resultFirst,
+  '2nd': styles.resultSecond,
+  '3rd': styles.resultThird,
+};
+
 interface EventListProps {
   events: AllianceEvent[];
   onEventClick: (event: AllianceEvent) => void;
@@ -93,11 +102,16 @@ export default function EventList({
     return (
       <div className={styles.field}>
         <label>Results:</label>
-        <p>
-          {legions
-            .map(({ title, result }) => `${title}: ${RESULT_LABELS[result.status!] ?? result.status}`)
-            .join(' · ')}
-        </p>
+        <ul className={styles.resultList}>
+          {legions.map(({ title, result }) => (
+            <li key={title} className={styles.resultRow}>
+              <span className={styles.resultLegion}>{title}</span>
+              <span className={`${styles.resultBadge} ${RESULT_STYLES[result.status!] ?? ''}`}>
+                {RESULT_LABELS[result.status!] ?? result.status}
+              </span>
+            </li>
+          ))}
+        </ul>
       </div>
     );
   };
@@ -112,6 +126,11 @@ export default function EventList({
               <span className={`${styles.status} ${getStatusColor(event.status)}`}>
                 {event.status}
               </span>
+              {event.eventVariant === 'sls' && (
+                <span className={styles.variantBadge} title="Swordland Summit League">
+                  SLS
+                </span>
+              )}
             </div>
             <button
               onClick={() => onDeleteEvent(event.id!)}

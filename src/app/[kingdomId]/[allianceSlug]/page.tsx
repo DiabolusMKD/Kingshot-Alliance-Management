@@ -19,7 +19,9 @@ import { findAllianceBySlug } from '@/utils/allianceSlug';
 import { DEFAULT_ALLIANCE_IMAGE_URL, MAX_ALLIANCE_PLAYERS } from '@/utils/constants';
 import styles from './page.module.css';
 
-const PLAYERS_PREVIEW_LIMIT = 6;
+// Two full rows at the widest layout (4 columns). Smaller breakpoints show fewer
+// (6 / 4) by hiding the extra cards in CSS, see .playersGrid in page.module.css.
+const PLAYERS_PREVIEW_LIMIT = 8;
 
 const sortByPower = (players: Player[]) => [...players].sort((a, b) => b.power - a.power);
 

@@ -10,11 +10,16 @@
   --danger-color: #ef4444;
   /* Sticky header (Navigation) height; pages subtract it for full-height layouts */
   --header-height: 80px;
+  /* Shared content box: the navigation and every page's .container use exactly these,
+     so the logo and page content always line up */
+  --page-max-width: 1400px;
+  --page-gutter: 20px;
 }
 
 @media (max-width: 768px) {
   :root {
     --header-height: 64px;
+    --page-gutter: 16px;
   }
 }
 
@@ -63,4 +68,16 @@ a {
 
 a:hover {
   color: var(--accent-hover);
+}
+
+/* Native date/time inputs: draw the calendar icon (and the picker popup) for a dark UI,
+   so the icon is white instead of black on our dark fields */
+input[type="date"],
+input[type="datetime-local"],
+input[type="time"] {
+  color-scheme: dark;
+}
+
+input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
 }

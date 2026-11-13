@@ -1,11 +1,12 @@
 .main {
   flex: 1;
   min-height: calc(100vh - var(--header-height));
-  padding: 40px 20px;
+  padding: 40px 0;
 }
 
 .container {
-  max-width: 900px;
+  max-width: var(--page-max-width);
+  padding: 0 var(--page-gutter);
   margin: 0 auto;
 }
 
@@ -90,9 +91,6 @@
 
 .playersSection {
   margin-top: 50px;
-  max-width: 1200px;
-  margin-left: auto;
-  margin-right: auto;
 }
 
 .emptyPlayers {
@@ -158,10 +156,47 @@
   margin: 0;
 }
 
+/*
+ * Always exactly two rows of cards:
+ *   max (>= 1280px): 4 columns -> 8 cards
+ *   lg  (1024-1279): 3 columns -> 6 cards
+ *   md  (640-1023):  2 columns -> 4 cards
+ *   sm  (< 640px):   1 column  -> 4 cards (4 rows)
+ * The page renders up to 8; extra cards (and the "Add New Player" tile, which is
+ * always last) are hidden here, so it only shows when there's a free slot.
+ */
 .playersGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 20px;
+}
+
+@media (max-width: 1279px) {
+  .playersGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .playersGrid > :nth-child(n + 7) {
+    display: none;
+  }
+}
+
+@media (max-width: 1023px) {
+  .playersGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .playersGrid > :nth-child(n + 5) {
+    display: none;
+  }
+}
+
+/* sm: one card per row; the 4-card limit above still applies -> 4 rows */
+@media (max-width: 639px) {
+  .playersGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 /* Same frame as PlayerCard, shown in the grid when there are free preview slots */
@@ -231,8 +266,8 @@
 
 @media (max-width: 768px) {
   .main {
-    min-height: calc(100vh - 100px);
-    padding: 30px 15px;
+    min-height: calc(100vh - var(--header-height));
+    padding: 30px 0;
   }
 
   .title {
@@ -248,12 +283,6 @@
   }
 
   .ctas {
-    flex-direction: column;
     gap: 15px;
-  }
-
-  .ctaButton {
-    width: 100%;
-    max-width: 300px;
   }
 }

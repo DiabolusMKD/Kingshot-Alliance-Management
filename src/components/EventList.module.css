@@ -21,14 +21,22 @@
 
 .eventsGrid {
   display: grid;
-  grid-template-columns: 1fr;
+  /* Wide screens: 3 cards per row */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1.5rem;
-  padding: 0 2rem;
 }
 
-@media (max-width: 768px) {
+/* Medium screens: 2 per row */
+@media (max-width: 1099px) {
   .eventsGrid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Small screens: 1 per row, use the full width */
+@media (max-width: 699px) {
+  .eventsGrid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -166,4 +174,83 @@
 
 .section:last-child {
   margin-bottom: 0;
+}
+
+/* Swordland Summit League events */
+.variantBadge {
+  display: inline-block;
+  width: fit-content;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #e6b85c;
+  border: 1px solid rgba(230, 184, 92, 0.5);
+  background-color: rgba(230, 184, 92, 0.1);
+}
+
+/* Results: one legion per line with a coloured result badge */
+.resultList {
+  list-style: none;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.resultRow {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* Fixed width so the badges line up under each other */
+.resultLegion {
+  min-width: 4.5rem;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+.resultBadge {
+  display: inline-block;
+  padding: 0.15rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+}
+
+.resultWin {
+  color: #22c55e;
+  background-color: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.45);
+}
+
+.resultLose {
+  color: var(--danger-color);
+  background-color: color-mix(in srgb, var(--danger-color) 12%, transparent);
+  border-color: color-mix(in srgb, var(--danger-color) 45%, transparent);
+}
+
+.resultFirst {
+  color: #facc15;
+  background-color: rgba(250, 204, 21, 0.12);
+  border-color: rgba(250, 204, 21, 0.45);
+}
+
+.resultSecond {
+  color: #d1d5db;
+  background-color: rgba(209, 213, 219, 0.1);
+  border-color: rgba(209, 213, 219, 0.4);
+}
+
+.resultThird {
+  color: #d97706;
+  background-color: rgba(217, 119, 6, 0.12);
+  border-color: rgba(217, 119, 6, 0.45);
 }

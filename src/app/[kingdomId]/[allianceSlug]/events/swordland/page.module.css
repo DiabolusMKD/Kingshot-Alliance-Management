@@ -1,11 +1,12 @@
 .main {
   flex: 1;
-  padding: 40px 20px;
+  padding: 40px 0;
   min-height: calc(100vh - var(--header-height));
 }
 
 .container {
-  max-width: 1600px;
+  max-width: var(--page-max-width);
+  padding: 0 var(--page-gutter);
   margin: 0 auto;
 }
 
@@ -70,7 +71,7 @@
 
 @media (max-width: 768px) {
   .main {
-    padding: 20px 15px;
+    padding: 20px 0;
   }
 
   .header {
@@ -189,4 +190,30 @@
 
 .submitButton:hover {
   background-color: var(--accent-hover);
+}
+
+.formHint {
+  display: block;
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+/* Shown at the top of an SLS event */
+.variantBanner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin: 16px 0;
+  padding: 12px 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(230, 184, 92, 0.45);
+  background-color: rgba(230, 184, 92, 0.08);
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.variantBanner strong {
+  color: #e6b85c;
 }

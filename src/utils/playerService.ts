@@ -282,3 +282,42 @@ export async function getKingdomPlayers(
 
   return { players: data ?? [], total: count ?? data?.length ?? 0 };
 }
+
+/**
+ * Players by their database ids (e.g. other-alliance players saved in an SLS event).
+ */
+export async function getPlayersByIds(ids: (string | number)[]): Promise<Player[]> {
+  if (ids.length === 0) return [];
+  const { data, error } = await supabase.from('player').select('*').in('id', ids);
+  if (error) {
+    throw new Error(`Failed to fetch players: ${error.message}`);
+  }
+  return data ?? [];
+}
+
+/**
+ * One page of the kingdom's players that are NOT in the given alliance (other alliances
+ * and players without one), strongest first, plus the total count (for "Load more").
+ */
+export async function getKingdomPlayersOutsideAlliance(
+  kingdomId: number,
+  allianceId: number,
+  offset: number,
+  limit: number
+): Promise<{ players: Player[]; total: number }> {
+  const { data, error, count } = await supabase
+    .from('player')
+    .select('*', { count: 'exact' })
+    .eq('kingdomId', kingdomId)
+    // neq alone would also drop players without an alliance (NULL), so include them explicitly
+    .or(`allianceId.is.null,allianceId.neq.${allianceId}`)
+    .order('power', { ascending: false })
+    .order('id')
+    .range(offset, offset + limit - 1);
+
+  if (error) {
+    throw new Error(`Failed to fetch kingdom players: ${error.message}`);
+  }
+
+  return { players: data ?? [], total: count ?? data?.length ?? 0 };
+}

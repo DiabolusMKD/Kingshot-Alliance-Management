@@ -1,11 +1,12 @@
 .main {
   flex: 1;
-  padding: 40px 20px;
+  padding: 40px 0;
   min-height: calc(100vh - var(--header-height));
 }
 
 .container {
-  max-width: 900px;
+  max-width: var(--page-max-width);
+  padding: 0 var(--page-gutter);
   margin: 0 auto;
 }
 
@@ -90,7 +91,7 @@
 
 @media (max-width: 768px) {
   .main {
-    padding: 20px 15px;
+    padding: 20px 0;
   }
 
   .header {

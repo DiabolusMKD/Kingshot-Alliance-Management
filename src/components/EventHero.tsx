@@ -8,11 +8,10 @@ interface EventHeroProps {
   eventType: EventType;
 }
 
+// Served from /public (hotlinking the wiki fails when the browser sends no Referer)
 const HERO_IMAGES = {
-  swordland:
-    'https://static.wikia.nocookie.net/kingshot/images/4/47/SwordlandShowdown.png/revision/latest/scale-to-width-down/1000?cb=20250321085018',
-  'tri-alliance':
-    'https://cacle.kingshotguide.org/guideImage/tri-alliance-clash-kingshot/tri-alliance-clash-map-by-daryl-scaled.webp',
+  swordland: '/images/events/swordland-showdown.webp',
+  'tri-alliance': '/images/events/tri-alliance-clash.webp',
 };
 
 const EVENT_TITLES = {

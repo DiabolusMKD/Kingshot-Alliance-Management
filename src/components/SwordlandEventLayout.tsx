@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import LegionTable from "./LegionTable";
+import KingdomPlayerPicker from "./KingdomPlayerPicker";
 import BuildingPreview from "./BuildingPreview";
 import EventPoints, { PointsLegion, useEventPoints } from "./EventPoints";
 import {
@@ -44,6 +45,9 @@ const SWORDLAND_RESULTS = [
   { value: "lose", label: "Lose" },
 ];
 
+// Stable default: a fresh [] per render would re-run the init effect endlessly
+const NO_PLAYERS: Player[] = [];
+
 const emptyBuildings = (): Record<string, BuildingAssignment> =>
   Object.fromEntries(
     BUILDINGS.map((b) => [b, { leader: null, support: [], manual: false }]),
@@ -51,13 +55,20 @@ const emptyBuildings = (): Record<string, BuildingAssignment> =>
 
 export default function SwordlandEventLayout({
   players,
+  externalPlayers = NO_PLAYERS,
+  summitLeague,
   initialAssignments = [],
   initialResults = null,
   eventStatus = "not-started",
   onSave,
   isSaving,
 }: {
+  /** The alliance's own players */
   players: Player[];
+  /** Other-alliance players already saved in this (SLS) event */
+  externalPlayers?: Player[];
+  /** Set for SLS events: lets players from other alliances of the kingdom be added */
+  summitLeague?: { kingdomId: number; allianceId: number };
   initialAssignments?: PlayerAssignment[];
   initialResults?: EventResults | null;
   eventStatus?: EventStatus;
@@ -68,6 +79,11 @@ export default function SwordlandEventLayout({
   ) => Promise<void>;
   isSaving?: boolean;
 }) {
+  // SLS: other-alliance players in this event (saved ones + ones added now)
+  const [addedPlayers, setAddedPlayers] = useState<Player[]>(externalPlayers);
+  const allPlayers = useMemo(() => [...players, ...addedPlayers], [players, addedPlayers]);
+  const externalIds = useMemo(() => new Set(addedPlayers.map((p) => p.id)), [addedPlayers]);
+
   const [assignments, setAssignments] = useState<LegionAssignments>({
     legion1: [],
     legion2: [],
@@ -105,7 +121,10 @@ export default function SwordlandEventLayout({
   });
 
   // ---------------- INIT ----------------
+  // Rebuilds from the saved assignments when the event or the alliance players change.
+  // Adding an other-alliance player (SLS) doesn't go through here, so unsaved moves stay.
   useEffect(() => {
+    const pool = [...players, ...externalPlayers];
     const next: LegionAssignments = {
       legion1: [],
       legion2: [],
@@ -117,8 +136,8 @@ export default function SwordlandEventLayout({
       legion2: [] as Player[],
     };
 
-    players.forEach((p) => {
-      const found = initialAssignments.find((a) => a.playerId === p.id);
+    pool.forEach((p) => {
+      const found = initialAssignments.find((a) => String(a.playerId) === String(p.id));
 
       if (!found) next.unassigned.push(p);
       else if (found.legion === "legion1" || found.legion === "legion2") {
@@ -134,11 +153,25 @@ export default function SwordlandEventLayout({
 
     setAssignments(next);
     setLegionSubstitutes(nextSubstitutes);
-  }, [players, initialAssignments]);
+    setAddedPlayers(externalPlayers);
+  }, [players, externalPlayers, initialAssignments]);
+
+  // ---------------- SLS: ADD / REMOVE OTHER-ALLIANCE PLAYERS ----------------
+  const addExternalPlayer = (player: Player, to: keyof LegionAssignments) => {
+    if (allPlayers.some((p) => p.id === player.id)) return;
+    setAddedPlayers((prev) => [...prev, player]);
+    setAssignments((prev) => ({ ...prev, [to]: [...prev[to], player] }));
+  };
+
+  // Only from Unassigned: drops the player from this event's pool again
+  const removeExternalPlayer = (id: string) => {
+    setAddedPlayers((prev) => prev.filter((p) => p.id !== id));
+    setAssignments((prev) => ({ ...prev, unassigned: prev.unassigned.filter((p) => p.id !== id) }));
+  };
 
   // ---------------- MOVE ----------------
   const movePlayer = (id: string, from: string, to: string) => {
-    const player = players.find((p) => p.id === id);
+    const player = allPlayers.find((p) => p.id === id);
     if (!player) return;
 
     setAssignments((prev) => {
@@ -160,7 +193,7 @@ export default function SwordlandEventLayout({
 
   // Move player to/from substitute
   const movePlayerToSubstitute = (id: string, legion: Legion) => {
-    const player = players.find((p) => p.id === id);
+    const player = allPlayers.find((p) => p.id === id);
     if (!player) return;
 
     // Remove from legion
@@ -188,7 +221,7 @@ export default function SwordlandEventLayout({
     }));
     // Add back to legion
     setAssignments((prev) => {
-      const player = players.find((p) => p.id === id);
+      const player = allPlayers.find((p) => p.id === id);
       if (!player) return prev;
 
       return {
@@ -425,7 +458,7 @@ ${buildingText}${substitutesText}`;
     setAssignments({
       legion1: [],
       legion2: [],
-      unassigned: players,
+      unassigned: allPlayers,
     });
     setLegionSubstitutes({
       legion1: [],
@@ -555,19 +588,29 @@ ${buildingText}${substitutesText}`;
               <tbody>
                 {filter(assignments.unassigned).map((p) => (
                   <tr key={`u-${p.id}`}>
-                    <td>{p.name}</td>
+                    <td>
+                      {p.name}
+                      {externalIds.has(p.id) && (
+                        <span className={styles.externalBadge} title="Player from another alliance (SLS)">
+                          other alliance
+                        </span>
+                      )}
+                    </td>
                     <td>{p.swordlandPower}</td>
                     <td>
                       <select
                         className={styles.tableSelect}
                         onChange={(e) =>
-                          movePlayer(p.id, "unassigned", e.target.value as any)
+                          e.target.value === "remove"
+                            ? removeExternalPlayer(p.id)
+                            : movePlayer(p.id, "unassigned", e.target.value as any)
                         }
                         defaultValue=""
                       >
                         <option value="">Move</option>
                         <option value="legion1">Legion 1</option>
                         <option value="legion2">Legion 2</option>
+                        {externalIds.has(p.id) && <option value="remove">Remove from event</option>}
                       </select>
                     </td>
                   </tr>
@@ -575,6 +618,17 @@ ${buildingText}${substitutesText}`;
               </tbody>
             </table>
           </div>
+
+          {/* SLS: strongest players of the kingdom from other alliances */}
+          {summitLeague && (
+            <KingdomPlayerPicker
+              kingdomId={summitLeague.kingdomId}
+              excludeAllianceId={summitLeague.allianceId}
+              inEventIds={new Set(allPlayers.map((p) => p.id))}
+              filterPlayers={filter}
+              onAdd={addExternalPlayer}
+            />
+          )}
 
           {/* LEGIONS */}
           <div className={styles.legionsContainer}>
