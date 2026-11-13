@@ -166,13 +166,24 @@ export default function AlliancePage({ params }: AlliancePageProps) {
         <div className={styles.container}>
           <Breadcrumbs />
           <div className={styles.content}>
-            <Image
-              src={alliance.allianceImageUrl || DEFAULT_ALLIANCE_IMAGE_URL}
-              alt={alliance.name}
-              className={styles.image}
-              width={300}
-              height={100}
-            />
+            {alliance.allianceImageUrl ? (
+              <Image
+                src={alliance.allianceImageUrl}
+                alt={alliance.name}
+                className={styles.image}
+                width={300}
+                height={100}
+              />
+            ) : (
+              <Image
+                src={DEFAULT_ALLIANCE_IMAGE_URL}
+                alt=""
+                className={styles.defaultEmblem}
+                width={454}
+                height={350}
+                priority
+              />
+            )}
             <h1 className={styles.title}>Welcome to [{alliance.nameTag}]{alliance.name}</h1>
             {alliance.description && (
               <p className={styles.description}>{alliance.description}</p>

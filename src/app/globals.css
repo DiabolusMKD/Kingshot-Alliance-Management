@@ -8,6 +8,14 @@
   --accent-color: #6366f1;
   --accent-hover: #4f46e5;
   --danger-color: #ef4444;
+  /* Sticky header (Navigation) height; pages subtract it for full-height layouts */
+  --header-height: 80px;
+}
+
+@media (max-width: 768px) {
+  :root {
+    --header-height: 64px;
+  }
 }
 
 * {

@@ -1,6 +1,6 @@
 .main {
   flex: 1;
-  min-height: calc(100vh - 60px);
+  min-height: calc(100vh - var(--header-height));
   padding: 40px 20px;
 }
 
@@ -28,6 +28,14 @@
 .image:hover {
   transform: scale(1.05);
   box-shadow: 0 12px 40px rgba(99, 102, 241, 0.35);
+}
+
+/* Fallback when the alliance has no image: our transparent shield emblem.
+   Glow follows its outline (no box), same look as the homepage. */
+.defaultEmblem {
+  height: 170px;
+  width: auto;
+  filter: drop-shadow(0 10px 28px rgba(99, 102, 241, 0.25));
 }
 
 .title {

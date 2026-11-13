@@ -1,9 +1,8 @@
 .main {
   flex: 1;
   display: flex;
-  align-items: center;
   justify-content: center;
-  min-height: calc(100vh - 60px);
+  min-height: calc(100vh - var(--header-height));
   padding: 40px 20px;
 }
 
@@ -11,27 +10,36 @@
   max-width: 900px;
   width: 100%;
   position: relative;
+  display: flex;
 }
 
+/*
+ * Three rows: brand (top) / search block / empty spacer.
+ * The two outer rows share the free height equally, which keeps the search block
+ * in the vertical center of the page. A grid row never shrinks below its content,
+ * so on short (landscape) screens the brand row grows and pushes the search block
+ * down instead of overlapping it.
+ */
 .content {
+  flex: 1;
+  display: grid;
+  grid-template-rows: 1fr auto 1fr;
+  justify-items: center;
+  text-align: center;
+}
+
+.brand {
+  align-self: start;
+  /* Minimum gap to "Choose a Server", even when the screen is short */
+  padding-bottom: 32px;
+}
+
+.searchSection {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 30px;
-  text-align: center;
-}
-
-.image {
-  width: 300px;
-  height: auto;
-  border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(99, 102, 241, 0.2);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-
-.image:hover {
-  transform: scale(1.05);
-  box-shadow: 0 12px 40px rgba(99, 102, 241, 0.35);
+  width: 100%;
 }
 
 .title {
@@ -146,7 +154,6 @@
 
 @media (max-width: 768px) {
   .main {
-    min-height: calc(100vh - 100px);
     padding: 30px 15px;
   }
 
@@ -156,10 +163,6 @@
 
   .description {
     font-size: 16px;
-  }
-
-  .image {
-    width: 200px;
   }
 
   .searchWrapper {

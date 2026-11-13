@@ -2,10 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import Navigation from '@/components/Navigation';
+import Logo from '@/components/Logo';
 import { getKingdomCount } from '@/utils/kingdomService';
-import { DEFAULT_ALLIANCE_IMAGE_URL } from '@/utils/constants';
 import styles from './page.module.css';
 
 const RESULTS_LIMIT = 5;
@@ -60,64 +59,62 @@ export default function Home() {
       <main className={styles.main}>
         <div className={styles.container} ref={containerRef}>
           <div className={styles.content}>
-            <Image
-              src={DEFAULT_ALLIANCE_IMAGE_URL}
-              alt="Alliance Logo"
-              className={styles.image}
-              width={300}
-              height={100}
-            />
-            <h1 className={styles.title}>Choose a Server</h1>
-            <p className={styles.description}>
-              Search for your kingdom by its number to view or create alliances
-            </p>
+            <div className={styles.brand}>
+              <Logo variant="hero" />
+            </div>
+            <div className={styles.searchSection}>
+              <h1 className={styles.title}>Choose a Server</h1>
+              <p className={styles.description}>
+                Search for your kingdom by its number to view or create alliances
+              </p>
 
-            <div className={styles.searchWrapper}>
-              <div className={styles.searchBar}>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  className={styles.searchInput}
-                  placeholder="Enter kingdom number..."
-                  value={query}
-                  onChange={(e) => handleSearchChange(e.target.value)}
-                  onFocus={() => setIsPopupOpen(true)}
-                />
-                <button
-                  className={styles.searchButton}
-                  onClick={() => setIsPopupOpen(true)}
-                >
-                  Search
-                </button>
-              </div>
-
-              {isPopupOpen && query.trim() && (
-                <div className={styles.popup}>
-                  {matches.length === 0 ? (
-                    <p className={styles.noResults}>No kingdoms found</p>
-                  ) : (
-                    <>
-                      {visibleMatches.map((kingdomId) => (
-                        <Link
-                          key={kingdomId}
-                          href={`/${kingdomId}`}
-                          className={styles.resultItem}
-                        >
-                          Kingdom {kingdomId}
-                        </Link>
-                      ))}
-                      {!showAll && matches.length > RESULTS_LIMIT && (
-                        <button
-                          className={styles.showMore}
-                          onClick={() => setShowAll(true)}
-                        >
-                          Show more ({matches.length - RESULTS_LIMIT})
-                        </button>
-                      )}
-                    </>
-                  )}
+              <div className={styles.searchWrapper}>
+                <div className={styles.searchBar}>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    className={styles.searchInput}
+                    placeholder="Enter kingdom number..."
+                    value={query}
+                    onChange={(e) => handleSearchChange(e.target.value)}
+                    onFocus={() => setIsPopupOpen(true)}
+                  />
+                  <button
+                    className={styles.searchButton}
+                    onClick={() => setIsPopupOpen(true)}
+                  >
+                    Search
+                  </button>
                 </div>
-              )}
+
+                {isPopupOpen && query.trim() && (
+                  <div className={styles.popup}>
+                    {matches.length === 0 ? (
+                      <p className={styles.noResults}>No kingdoms found</p>
+                    ) : (
+                      <>
+                        {visibleMatches.map((kingdomId) => (
+                          <Link
+                            key={kingdomId}
+                            href={`/${kingdomId}`}
+                            className={styles.resultItem}
+                          >
+                            Kingdom {kingdomId}
+                          </Link>
+                        ))}
+                        {!showAll && matches.length > RESULTS_LIMIT && (
+                          <button
+                            className={styles.showMore}
+                            onClick={() => setShowAll(true)}
+                          >
+                            Show more ({matches.length - RESULTS_LIMIT})
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

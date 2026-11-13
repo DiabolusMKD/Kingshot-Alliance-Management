@@ -1,0 +1,115 @@
+.logo {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+}
+
+.emblem {
+  width: auto;
+  flex-shrink: 0;
+}
+
+.wordmark {
+  display: flex;
+  flex-direction: column;
+}
+
+/* "KINGSHOT": small gold, widely spaced */
+.kicker {
+  color: #e6b85c;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.32em;
+}
+
+/* "ALLIANCE COMMAND": white with a faint warm sheen, dark edge for depth */
+.name {
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: linear-gradient(180deg, #ffffff 0%, #ffffff 45%, #f1dfb3 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.6));
+}
+
+.tagline {
+  color: var(--text-secondary);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+}
+
+/* Header: emblem left, two-line name right */
+.header {
+  gap: 12px;
+}
+
+.header .emblem {
+  height: 58px;
+}
+
+.header .wordmark {
+  gap: 5px;
+  text-align: left;
+}
+
+.header .kicker {
+  font-size: 11px;
+}
+
+.header .name {
+  font-size: 22px;
+}
+
+/* Homepage: big emblem with the name centered underneath.
+   Sized by viewport height so it leaves room for the centered search block. */
+.hero {
+  flex-direction: column;
+  gap: clamp(8px, 1.6vh, 18px);
+}
+
+.hero .emblem {
+  height: clamp(90px, 15vh, 190px);
+  filter: drop-shadow(0 10px 28px rgba(99, 102, 241, 0.25));
+}
+
+.hero .wordmark {
+  align-items: center;
+  gap: clamp(4px, 0.9vh, 10px);
+  text-align: center;
+}
+
+.hero .kicker {
+  font-size: clamp(11px, 1.6vh, 16px);
+}
+
+.hero .name {
+  /* vh: leave room for the centered search; vw: "ALLIANCE MANAGEMENT" is ~14.5em wide,
+     so 6.2vw keeps it inside narrow phones */
+  font-size: min(clamp(26px, 4vh, 46px), 6.2vw);
+}
+
+.hero .tagline {
+  font-size: clamp(10px, 1.3vh, 13px);
+  margin-top: 4px;
+}
+
+@media (max-width: 768px) {
+  .header .emblem {
+    height: 46px;
+  }
+
+  .header .kicker {
+    font-size: 9px;
+  }
+
+  .header .name {
+    font-size: 15px;
+  }
+
+  .hero .name {
+    font-size: min(clamp(24px, 3.6vh, 32px), 6.2vw);
+  }
+}
