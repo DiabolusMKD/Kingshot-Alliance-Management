@@ -7,6 +7,13 @@ import BuildingPreview from "./BuildingPreview";
 import EventPoints, { PointsLegion, useEventPoints } from "./EventPoints";
 import PlayerIdentity from "./PlayerIdentity";
 import { useToast } from "./Toast";
+import LegionTimeSelect from "./LegionTimeSelect";
+import {
+  LEGION_SCHEDULE_FIELD,
+  LegionSchedules,
+  formatLegionTitle,
+  parseLegionSchedules,
+} from "@/utils/legionSchedule";
 import { formatPower } from "@/utils/formatNumbers";
 import {
   PowerMode,
@@ -82,6 +89,7 @@ export default function SwordlandEventLayout({
   initialAssignments = [],
   initialResults = null,
   initialPowerMode = "swordland",
+  initialLegionSchedules = parseLegionSchedules(null),
   eventStatus = "not-started",
   onSave,
   isSaving,
@@ -96,12 +104,15 @@ export default function SwordlandEventLayout({
   initialResults?: EventResults | null;
   /** Power saved with the event (in its notes) */
   initialPowerMode?: PowerMode;
+  /** Legion start times (+ weekday of the event), saved in the notes */
+  initialLegionSchedules?: LegionSchedules;
   eventStatus?: EventStatus;
   onSave: (
     a: PlayerAssignment[],
     status: EventStatus,
     results: EventResults | undefined,
-    powerMode: PowerMode,
+    /** Settings saved next to the results in the notes */
+    notesFields: Record<string, unknown>,
   ) => Promise<void>;
   isSaving?: boolean;
 }) {
@@ -138,6 +149,7 @@ export default function SwordlandEventLayout({
   // Power used to build the buildings and shown in the tables (only one at a time)
   const [powerMode, setPowerMode] = useState<PowerMode>(initialPowerMode);
   const powerOf = (p: Player) => getPlayerPower(p, powerMode);
+  const [legionSchedules, setLegionSchedules] = useState<LegionSchedules>(initialLegionSchedules);
   const [jsonOut, setJsonOut] = useState("");
   const toast = useToast();
   const [copiedField, setCopiedField] = useState<"string" | "json" | null>(null);
@@ -152,7 +164,6 @@ export default function SwordlandEventLayout({
       toast.error("Failed to copy to clipboard");
     }
   };
-  const [textOut, setTextOut] = useState("");
   const [jsonInput, setJsonInput] = useState("");
   const [showJsonModal, setShowJsonModal] = useState(false);
   const [jsonModalError, setJsonModalError] = useState("");
@@ -426,9 +437,17 @@ export default function SwordlandEventLayout({
 
     setJsonOut(JSON.stringify(json, null, 2));
 
+
+    setPreview({ legion1: l1, legion2: l2 });
+  };
+
+  // ---------------- GENERATED STRING ----------------
+  // Built from the building cards (manual moves included) and the legion start times
+  const textOut = useMemo(() => {
     const format = (title: string, data: LegionBuildingData) => {
       const buildingText = BUILDINGS.map((b) => {
-        const x = data.buildings[b];
+        // An uploaded JSON may miss buildings until it's regenerated
+        const x = data.buildings?.[b] ?? { leader: null, support: [] };
 
         if (b === "Undercellars") {
           const players = [
@@ -445,7 +464,7 @@ Support: ${x.support.map((p) => p.name).join(", ") || "None"}`;
       }).join("\n\n");
 
       const substitutesText =
-        data.substitutes.length > 0
+        data.substitutes?.length > 0
           ? `\n\nSubstitutes\n${data.substitutes.map((p) => p.name).join(", ")}`
           : "";
 
@@ -454,10 +473,11 @@ Support: ${x.support.map((p) => p.name).join(", ") || "None"}`;
 ${buildingText}${substitutesText}`;
     };
 
-    setTextOut(`${format("Legion 1", l1)}\n\n${format("Legion 2", l2)}`);
-
-    setPreview({ legion1: l1, legion2: l2 });
-  };
+    return [
+      format(formatLegionTitle("Legion 1", legionSchedules.legion_1), preview.legion1),
+      format(formatLegionTitle("Legion 2", legionSchedules.legion_2), preview.legion2),
+    ].join("\n\n");
+  }, [preview, legionSchedules]);
 
   // ---------------- SAVE ----------------
   const handleSave = async () => {
@@ -493,7 +513,7 @@ ${buildingText}${substitutesText}`;
       payload,
       currentEventStatus,
       currentEventStatus === "completed" ? pointsState.buildResults(pointsLegions) : undefined,
-      powerMode,
+      { powerMode, [LEGION_SCHEDULE_FIELD]: legionSchedules },
     );
   };
 
@@ -511,7 +531,6 @@ ${buildingText}${substitutesText}`;
     setSearch("");
     setJsonInput("");
     setJsonOut("");
-    setTextOut("");
     setJsonModalError("");
     setShowJsonModal(false);
     setPreview({
@@ -722,7 +741,17 @@ ${buildingText}${substitutesText}`;
           <div className={styles.legionsContainer}>
             {(["legion1", "legion2"] as const).map((legion, index) => (
               <div key={legion} className={styles.legionGroup}>
-                <h3 className={styles.legionGroupTitle}>Legion {index + 1}</h3>
+                <h3 className={styles.legionGroupTitle}>
+                  <span>Legion {index + 1}</span>
+                  <LegionTimeSelect
+                    legionTitle={`Legion ${index + 1}`}
+                    schedule={legionSchedules[legion === "legion1" ? "legion_1" : "legion_2"]}
+                    onChange={(time) => {
+                      const key = legion === "legion1" ? "legion_1" : "legion_2";
+                      setLegionSchedules((prev) => ({ ...prev, [key]: { ...prev[key], time } }));
+                    }}
+                  />
+                </h3>
                 <LegionTable
                   title={`Players (${assignments[legion].length})`}
                   players={assignments[legion]}

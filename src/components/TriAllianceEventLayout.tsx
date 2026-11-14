@@ -5,6 +5,13 @@ import { EventResults, EventStatus, Player, PlayerAssignment } from "@/types";
 import { useToast } from "./Toast";
 import EventPoints, { PointsLegion, useEventPoints } from "./EventPoints";
 import PlayerIdentity from "./PlayerIdentity";
+import LegionTimeSelect from "./LegionTimeSelect";
+import {
+  LEGION_SCHEDULE_FIELD,
+  LegionSchedules,
+  formatLegionTitle,
+  parseLegionSchedules,
+} from "@/utils/legionSchedule";
 import { formatPower } from "@/utils/formatNumbers";
 import styles from "./TriAllianceEventLayout.module.css";
 
@@ -21,11 +28,15 @@ interface TriAllianceEventLayoutProps {
   players: Player[];
   initialAssignments?: PlayerAssignment[];
   initialResults?: EventResults | null;
+  /** Legion start times (+ weekday of the event), saved in the notes */
+  initialLegionSchedules?: LegionSchedules;
   eventStatus: EventStatus;
   onSave: (
     assignments: PlayerAssignment[],
     status: EventStatus,
-    results?: EventResults,
+    results: EventResults | undefined,
+    /** Settings saved next to the results in the notes */
+    notesFields: Record<string, unknown>,
   ) => Promise<void>;
   isSaving?: boolean;
 }
@@ -97,6 +108,7 @@ export default function TriAllianceEventLayout({
   players,
   initialAssignments = [],
   initialResults = null,
+  initialLegionSchedules = parseLegionSchedules(null),
   eventStatus,
   onSave,
   isSaving = false,
@@ -110,6 +122,7 @@ export default function TriAllianceEventLayout({
   const [assignmentsExpanded, setAssignmentsExpanded] = useState(
     eventStatus !== "completed",
   );
+  const [legionSchedules, setLegionSchedules] = useState<LegionSchedules>(initialLegionSchedules);
   const [copiedField, setCopiedField] = useState<"string" | "json" | null>(null);
   const [assignments, setAssignments] = useState<LegionAssignments>({
     legion1: [],
@@ -163,10 +176,11 @@ export default function TriAllianceEventLayout({
     }
   }, [players, initialAssignments]);
 
-  // Auto-generate on any assignment change
+  // Auto-generate on any assignment or start time change
   useEffect(() => {
     handleGenerateString();
-  }, [assignments]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assignments, legionSchedules]);
 
   const movePlayer = (
     playerId: string,
@@ -268,9 +282,9 @@ ${splitLegion(legion)
   .join("\n")}
 Substitutions: ${formatPlayers(substitutes)}`;
 
-    const fullString = `${formatLegion("Legion 1", assignments.legion1, assignments.substituteLegion1)}
+    const fullString = `${formatLegion(formatLegionTitle("Legion 1", legionSchedules.legion_1), assignments.legion1, assignments.substituteLegion1)}
 
-${formatLegion("Legion 2", assignments.legion2, assignments.substituteLegion2)}`;
+${formatLegion(formatLegionTitle("Legion 2", legionSchedules.legion_2), assignments.legion2, assignments.substituteLegion2)}`;
 
     setGeneratedString(fullString);
 
@@ -434,6 +448,7 @@ ${formatLegion("Legion 2", assignments.legion2, assignments.substituteLegion2)}`
       allAssignments,
       currentEventStatus,
       currentEventStatus === "completed" ? pointsState.buildResults(pointsLegions) : undefined,
+      { [LEGION_SCHEDULE_FIELD]: legionSchedules },
     );
   };
 
@@ -471,11 +486,13 @@ ${formatLegion("Legion 2", assignments.legion2, assignments.substituteLegion2)}`
       title: "Legion 1",
       legion: "legion1",
       substitutes: "substituteLegion1",
+      scheduleKey: "legion_1",
     },
     {
       title: "Legion 2",
       legion: "legion2",
       substitutes: "substituteLegion2",
+      scheduleKey: "legion_2",
     },
   ] as const;
 
@@ -563,7 +580,19 @@ ${formatLegion("Legion 2", assignments.legion2, assignments.substituteLegion2)}`
           <div className={styles.legionsContainer}>
             {legionColumns.map((column) => (
               <div key={column.legion} className={styles.legionGroup}>
-                <h3 className={styles.legionGroupTitle}>{column.title}</h3>
+                <h3 className={styles.legionGroupTitle}>
+                  <span>{column.title}</span>
+                  <LegionTimeSelect
+                    legionTitle={column.title}
+                    schedule={legionSchedules[column.scheduleKey]}
+                    onChange={(time) =>
+                      setLegionSchedules((prev) => ({
+                        ...prev,
+                        [column.scheduleKey]: { ...prev[column.scheduleKey], time },
+                      }))
+                    }
+                  />
+                </h3>
                 <PlayerSelectBox
                   title={`Players (${assignments[column.legion].length}/${MAX_LEGION_PLAYERS})`}
                   players={filterPlayers(assignments[column.legion])}

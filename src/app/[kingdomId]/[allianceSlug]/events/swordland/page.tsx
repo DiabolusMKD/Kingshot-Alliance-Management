@@ -14,7 +14,8 @@ import { getAlliancesByKingdomId } from "@/utils/allianceService";
 import { findAllianceBySlug } from "@/utils/allianceSlug";
 import { findEventBySlug, getEventSlug } from "@/utils/eventSlug";
 import { buildEventNotes, parseEventResults } from "@/utils/eventResults";
-import { PowerMode, parsePowerMode } from "@/utils/powerMode";
+import { parsePowerMode } from "@/utils/powerMode";
+import { parseLegionSchedules } from "@/utils/legionSchedule";
 import {
   getAllianceEvents,
   createAllianceEvent,
@@ -238,7 +239,7 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
     assignments: PlayerAssignment[],
     eventStatus: EventStatus,
     results: EventResults | undefined,
-    powerMode: PowerMode,
+    notesFields: Record<string, unknown>,
   ) => {
     if (!selectedEvent || !alliance) return;
 
@@ -250,8 +251,8 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
         assignments: serialized,
         updatedAt: new Date().toISOString(),
         status: eventStatus,
-        // Results (completed events) and the power used for the assignments
-        notes: buildEventNotes(selectedEvent.notes, { results, fields: { powerMode } }),
+        // Results (completed events), the power used for the assignments and the legion start times
+        notes: buildEventNotes(selectedEvent.notes, { results, fields: notesFields }),
       });
 
       toast.success("Event updated successfully");
@@ -435,6 +436,7 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
                   initialAssignments={initialAssignments}
                   initialResults={initialResults}
                   initialPowerMode={parsePowerMode(selectedEvent.notes)}
+                  initialLegionSchedules={parseLegionSchedules(selectedEvent.notes, selectedEvent.startsAt)}
                   onSave={handleSaveAssignments}
                   isSaving={isSaving}
                   eventStatus={selectedEvent.status}

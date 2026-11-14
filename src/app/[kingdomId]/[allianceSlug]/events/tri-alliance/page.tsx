@@ -13,7 +13,8 @@ import { getPlayers } from "@/utils/playerService";
 import { getAlliancesByKingdomId } from "@/utils/allianceService";
 import { findAllianceBySlug } from "@/utils/allianceSlug";
 import { findEventBySlug, getEventSlug } from "@/utils/eventSlug";
-import { parseEventResults, serializeEventResults } from "@/utils/eventResults";
+import { buildEventNotes, parseEventResults } from "@/utils/eventResults";
+import { parseLegionSchedules } from "@/utils/legionSchedule";
 import {
   getAllianceEvents,
   createAllianceEvent,
@@ -168,7 +169,8 @@ export default function TriAlliancePage({ params, searchParams }: TriAlliancePag
   const handleSaveAssignments = async (
     assignments: PlayerAssignment[],
     eventStatus: EventStatus,
-    results?: EventResults,
+    results: EventResults | undefined,
+    notesFields: Record<string, unknown>,
   ) => {
     if (!selectedEvent || !alliance) return;
 
@@ -180,7 +182,8 @@ export default function TriAlliancePage({ params, searchParams }: TriAlliancePag
         assignments: serialized,
         updatedAt: new Date().toISOString(),
         status: eventStatus,
-        ...(results ? { notes: serializeEventResults(results) } : {}),
+        // Results (completed events) and the legion start times
+        notes: buildEventNotes(selectedEvent.notes, { results, fields: notesFields }),
       });
 
       toast.success("Event updated successfully");
@@ -274,6 +277,7 @@ export default function TriAlliancePage({ params, searchParams }: TriAlliancePag
                 players={players}
                 initialAssignments={initialAssignments}
                 initialResults={initialResults}
+                initialLegionSchedules={parseLegionSchedules(selectedEvent.notes, selectedEvent.startsAt)}
                 eventStatus={selectedEvent.status}
                 onSave={handleSaveAssignments}
                 isSaving={isSaving}

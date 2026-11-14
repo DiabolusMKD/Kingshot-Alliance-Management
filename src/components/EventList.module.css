@@ -200,17 +200,31 @@
   gap: 0.4rem;
 }
 
+/* Legion (+ start time) on the left, Win/Lose badge on the right */
 .resultRow {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 0.75rem;
 }
 
-/* Fixed width so the badges line up under each other */
 .resultLegion {
-  min-width: 4.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0.5rem;
+  min-width: 0;
   color: var(--text-primary);
   font-size: 0.95rem;
+}
+
+.resultSchedule {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.resultBadge {
+  flex-shrink: 0;
 }
 
 .resultBadge {

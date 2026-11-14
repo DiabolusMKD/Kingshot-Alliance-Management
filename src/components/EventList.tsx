@@ -2,6 +2,7 @@
 
 import { AllianceEvent, EventStatus } from '@/types';
 import { getNotesField, parseEventResults } from '@/utils/eventResults';
+import { LegionSchedule, parseLegionSchedules } from '@/utils/legionSchedule';
 import styles from './EventList.module.css';
 
 const RESULT_LABELS: Record<string, string> = {
@@ -80,7 +81,11 @@ export default function EventList({
   }
 
   // Notes hold the results JSON for completed events; plain text notes are shown as-is
-  const renderNotes = (notes?: string) => {
+  /** "Sunday, 14:00 UTC" - only when a start time was picked */
+  const formatSchedule = (schedule: LegionSchedule) =>
+    schedule.time ? [schedule.weekday, `${schedule.time} UTC`].filter(Boolean).join(', ') : null;
+
+  const renderNotes = (notes?: string, startsAt?: string) => {
     if (!notes) return null;
 
     const results = parseEventResults(notes);
@@ -96,9 +101,10 @@ export default function EventList({
       );
     }
 
+    const schedules = parseLegionSchedules(notes, startsAt);
     const legions = [
-      { title: 'Legion 1', result: results.legion_1 },
-      { title: 'Legion 2', result: results.legion_2 },
+      { title: 'Legion 1', result: results.legion_1, schedule: formatSchedule(schedules.legion_1) },
+      { title: 'Legion 2', result: results.legion_2, schedule: formatSchedule(schedules.legion_2) },
     ].filter(({ result }) => result.status);
     if (legions.length === 0) return null;
 
@@ -106,9 +112,12 @@ export default function EventList({
       <div className={styles.field}>
         <label>Results:</label>
         <ul className={styles.resultList}>
-          {legions.map(({ title, result }) => (
+          {legions.map(({ title, result, schedule }) => (
             <li key={title} className={styles.resultRow}>
-              <span className={styles.resultLegion}>{title}</span>
+              <span className={styles.resultLegion}>
+                {title}
+                {schedule && <span className={styles.resultSchedule}>{schedule}</span>}
+              </span>
               <span className={`${styles.resultBadge} ${RESULT_STYLES[result.status!] ?? ''}`}>
                 {RESULT_LABELS[result.status!] ?? result.status}
               </span>
@@ -152,7 +161,7 @@ export default function EventList({
               </div>
             )}
 
-            {renderNotes(event.notes)}
+            {renderNotes(event.notes, event.startsAt)}
 
             <div className={styles.field}>
               <label>Assignments:</label>
