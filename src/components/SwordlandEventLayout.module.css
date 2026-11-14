@@ -597,3 +597,35 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+
+/* Output title on the left, copy button on the right */
+.outputHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.outputHeader .label {
+  margin-bottom: 0;
+}
+
+.copyButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--accent-color);
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+
+.copyButton:hover {
+  border-color: var(--accent-color);
+}

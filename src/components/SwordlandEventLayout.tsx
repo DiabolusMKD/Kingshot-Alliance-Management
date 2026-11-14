@@ -6,6 +6,7 @@ import KingdomPlayerPicker from "./KingdomPlayerPicker";
 import BuildingPreview from "./BuildingPreview";
 import EventPoints, { PointsLegion, useEventPoints } from "./EventPoints";
 import PlayerIdentity from "./PlayerIdentity";
+import { useToast } from "./Toast";
 import { formatPower } from "@/utils/formatNumbers";
 import {
   PowerMode,
@@ -52,6 +53,19 @@ const SWORDLAND_RESULTS = [
   { value: "win", label: "Win" },
   { value: "lose", label: "Lose" },
 ];
+
+const CopyIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <rect x="9" y="9" width="13" height="13" rx="2" />
+    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+  </svg>
+);
+
+const CheckIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M20 6 9 17l-5-5" />
+  </svg>
+);
 
 // Stable default: a fresh [] per render would re-run the init effect endlessly
 const NO_PLAYERS: Player[] = [];
@@ -125,6 +139,19 @@ export default function SwordlandEventLayout({
   const [powerMode, setPowerMode] = useState<PowerMode>(initialPowerMode);
   const powerOf = (p: Player) => getPlayerPower(p, powerMode);
   const [jsonOut, setJsonOut] = useState("");
+  const toast = useToast();
+  const [copiedField, setCopiedField] = useState<"string" | "json" | null>(null);
+
+  const handleCopy = async (field: "string" | "json", text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 2000);
+    } catch (error) {
+      console.error("Failed to copy:", error);
+      toast.error("Failed to copy to clipboard");
+    }
+  };
   const [textOut, setTextOut] = useState("");
   const [jsonInput, setJsonInput] = useState("");
   const [showJsonModal, setShowJsonModal] = useState(false);
@@ -737,33 +764,36 @@ ${buildingText}${substitutesText}`;
           {/* OUTPUTS side by side */}
           {(textOut || jsonOut) && (
             <div className={styles.outputsContainer}>
-              {textOut && (
-                <div className={styles.textAreaWrapper}>
-                  <label htmlFor="textOutput" className={styles.label}>
-                    Generated String
-                  </label>
-                  <textarea
-                    id="textOutput"
-                    className={styles.textarea}
-                    value={textOut}
-                    readOnly
-                  />
-                </div>
-              )}
-
-              {jsonOut && (
-                <div className={styles.textAreaWrapper}>
-                  <label htmlFor="jsonOutput" className={styles.label}>
-                    Generated JSON
-                  </label>
-                  <textarea
-                    id="jsonOutput"
-                    className={styles.textarea}
-                    value={jsonOut}
-                    readOnly
-                  />
-                </div>
-              )}
+              {[
+                { field: "string" as const, id: "textOutput", label: "Generated String", value: textOut },
+                { field: "json" as const, id: "jsonOutput", label: "Generated JSON", value: jsonOut },
+              ]
+                .filter((output) => output.value)
+                .map((output) => (
+                  <div key={output.field} className={styles.textAreaWrapper}>
+                    <div className={styles.outputHeader}>
+                      <label htmlFor={output.id} className={styles.label}>
+                        {output.label}
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(output.field, output.value)}
+                        className={styles.copyButton}
+                        title={`Copy ${output.label.toLowerCase()}`}
+                        aria-label={`Copy ${output.label.toLowerCase()}`}
+                      >
+                        {copiedField === output.field ? <CheckIcon /> : <CopyIcon />}
+                        {copiedField === output.field ? "Copied" : "Copy"}
+                      </button>
+                    </div>
+                    <textarea
+                      id={output.id}
+                      className={styles.textarea}
+                      value={output.value}
+                      readOnly
+                    />
+                  </div>
+                ))}
             </div>
           )}
         </>
