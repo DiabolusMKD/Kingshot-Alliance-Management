@@ -461,3 +461,9 @@
 .textAreaWrapper {
   margin-bottom: 3rem;
 }
+
+/* Powers: thousands separators + aligned digits */
+.powerCell {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

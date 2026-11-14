@@ -6,6 +6,7 @@ import KingdomPlayerPicker from "./KingdomPlayerPicker";
 import BuildingPreview from "./BuildingPreview";
 import EventPoints, { PointsLegion, useEventPoints } from "./EventPoints";
 import PlayerIdentity from "./PlayerIdentity";
+import { formatPower } from "@/utils/formatNumbers";
 import {
   PowerMode,
   POWER_MODE_OPTIONS,
@@ -648,7 +649,7 @@ ${buildingText}${substitutesText}`;
                                 )}
                               </PlayerIdentity>
                             </td>
-                            <td>{powerOf(p)}</td>
+                            <td className={styles.powerCell}>{formatPower(powerOf(p))}</td>
                             <td>
                               <select
                                 className={styles.tableSelect}

@@ -19,3 +19,10 @@ export const formatNumbers = (num: number): string => {
     }
     return formatted;
 }
+
+/**
+ * Formats a power value with a space between each group of three digits.
+ * Uses a non-breaking space so a number never wraps onto two lines.
+ * Example: formatPower(152384920) => "152 384 920"
+ */
+export const formatPower = (num: number): string => formatNumbers(Number(num)).replace(/,/g, " ");

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { BuildingAssignment, LegionBuildingData, Player } from "@/types";
 import PlayerIdentity from "./PlayerIdentity";
 import { PowerMode, getPlayerPower } from "@/utils/powerMode";
+import { formatPower } from "@/utils/formatNumbers";
 import styles from "./BuildingPreview.module.css";
 
 type Legion = "legion1" | "legion2";
@@ -29,7 +30,7 @@ function PlayerRow({ player, powerMode }: { player: Player; powerMode: PowerMode
   return (
     <div className={styles.playerRow}>
       <PlayerIdentity player={player} size={40} />
-      <span className={styles.power}>{getPlayerPower(player, powerMode)}</span>
+      <span className={styles.power}>{formatPower(getPlayerPower(player, powerMode))}</span>
     </div>
   );
 }

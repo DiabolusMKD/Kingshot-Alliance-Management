@@ -150,6 +150,7 @@
 
 .power {
   flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
   font-size: 14px;
   font-weight: 600;
   color: var(--accent-color);

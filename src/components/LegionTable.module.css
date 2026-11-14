@@ -101,3 +101,9 @@
   background-color: #ff6b6b;
   color: white;
 }
+
+/* Powers: thousands separators + aligned digits */
+.powerCell {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

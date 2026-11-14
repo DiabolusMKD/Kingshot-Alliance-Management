@@ -5,6 +5,7 @@ import { EventResults, EventStatus, Player, PlayerAssignment } from "@/types";
 import { useToast } from "./Toast";
 import EventPoints, { PointsLegion, useEventPoints } from "./EventPoints";
 import PlayerIdentity from "./PlayerIdentity";
+import { formatPower } from "@/utils/formatNumbers";
 import styles from "./TriAllianceEventLayout.module.css";
 
 const MAX_LEGION_PLAYERS = 30;
@@ -70,7 +71,7 @@ function PlayerSelectBox({
           <div key={player.id} className={styles.playerItem}>
             <span className={styles.playerName}>
               <PlayerIdentity player={player}>
-                <span className={styles.power}>({player.power})</span>
+                <span className={styles.power}>({formatPower(player.power)})</span>
               </PlayerIdentity>
             </span>
             <select
@@ -535,8 +536,8 @@ ${formatLegion("Legion 2", assignments.legion2, assignments.substituteLegion2)}`
                     <td>
                       <PlayerIdentity player={player} />
                     </td>
-                    <td>{player.trialliancePower}</td>
-                    <td>{player.power}</td>
+                    <td className={styles.powerCell}>{formatPower(player.trialliancePower)}</td>
+                    <td className={styles.powerCell}>{formatPower(player.power)}</td>
                     <td>
                       <select
                         value="unassigned"

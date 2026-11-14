@@ -3,6 +3,7 @@
 import { LegionBuildingData, Player } from "@/types";
 import PlayerIdentity from "./PlayerIdentity";
 import { PowerMode, getPlayerPower, getPowerLabel } from "@/utils/powerMode";
+import { formatPower } from "@/utils/formatNumbers";
 import styles from "./LegionTable.module.css";
 
 type Legion = "legion1" | "legion2";
@@ -121,7 +122,9 @@ export default function LegionTable({
                 <td>
                   <PlayerIdentity player={player} />
                 </td>
-                <td>{getPlayerPower(player, powerMode)}</td>
+                <td className={styles.powerCell}>
+                  {formatPower(getPlayerPower(player, powerMode))}
+                </td>
 
                 <td>
                   <select

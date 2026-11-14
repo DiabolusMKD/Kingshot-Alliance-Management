@@ -591,3 +591,9 @@
     white-space: nowrap;
   }
 }
+
+/* Powers: thousands separators + aligned digits */
+.powerCell {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
