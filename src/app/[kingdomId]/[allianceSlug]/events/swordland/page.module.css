@@ -205,7 +205,7 @@
   flex-wrap: wrap;
   align-items: baseline;
   gap: 4px 12px;
-  margin: 16px 0;
+  margin: 0 0 16px;
   padding: 12px 16px;
   border-radius: 8px;
   border: 1px solid rgba(230, 184, 92, 0.45);
@@ -216,4 +216,44 @@
 
 .variantBanner strong {
   color: #e6b85c;
+}
+
+/* Variant dropdown, right below the banner */
+.variantPicker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 24px;
+}
+
+.variantPicker label {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.variantSelect {
+  min-width: 260px;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.variantSelect:focus {
+  outline: none;
+  border-color: var(--accent-color);
+}
+
+.variantSelect:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.variantPicker .formHint {
+  margin-top: 0;
 }

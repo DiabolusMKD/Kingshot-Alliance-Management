@@ -268,14 +268,6 @@ export default function TriAlliancePage({ params, searchParams }: TriAlliancePag
           ) : selectedEvent ? (
             // Event Editor View
             <>
-              <div className={styles.header}>
-                <button
-                  onClick={handleBackToList}
-                  className={styles.backButton}
-                >
-                  ← Back to Events
-                </button>
-              </div>
               <EventHero eventType="tri-alliance" />
               <TriAllianceEventLayout
                 key={selectedEvent.id}
@@ -289,17 +281,7 @@ export default function TriAlliancePage({ params, searchParams }: TriAlliancePag
             </>
           ) : eventSlug && !isLoading ? (
             // Unknown event id in the URL
-            <>
-              <div className={styles.header}>
-                <button
-                  onClick={handleBackToList}
-                  className={styles.backButton}
-                >
-                  ← Back to Events
-                </button>
-              </div>
-              <p>Event not found.</p>
-            </>
+            <p>Event not found.</p>
           ) : (
             // Events List View
             <>

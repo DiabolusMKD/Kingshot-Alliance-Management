@@ -1,121 +1,140 @@
 "use client";
 
-import { Player } from "@/types";
+import { useState } from "react";
+import { BuildingAssignment, LegionBuildingData, Player } from "@/types";
+import PlayerIdentity from "./PlayerIdentity";
+import { PowerMode, getPlayerPower } from "@/utils/powerMode";
 import styles from "./BuildingPreview.module.css";
 
 type Legion = "legion1" | "legion2";
-
-export interface BuildingAssignment {
-  leader: Player | null;
-  support: Player[];
-  manual: boolean;
-}
-
-export interface LegionBuildingData {
-  buildings: Record<string, BuildingAssignment>;
-  substitutes: Player[];
-}
 
 interface Props {
   title: string;
   legion: Legion;
   legionData: LegionBuildingData;
   BUILDINGS: string[];
-  moveSubstitute: (legion: Legion, player: Player, value: string) => void;
+  /** Which power is shown next to each player */
+  powerMode: PowerMode;
 }
 
-export default function BuildingPreview({
-  title,
-  legion,
-  legionData,
-  BUILDINGS,
-}: Props) {
-  const safe = legionData ?? { buildings: {}, substitutes: [] };
+const EMPTY_BUILDING: BuildingAssignment = { leader: null, support: [], manual: false };
 
-  const getTotal = (b: BuildingAssignment) =>
-    (b?.leader ? 1 : 0) + (b?.support?.length ?? 0);
+interface RoleGroup {
+  /** Omitted for lists without roles (Undercellars, Substitutes) */
+  role?: string;
+  players: Player[];
+}
+
+function PlayerRow({ player, powerMode }: { player: Player; powerMode: PowerMode }) {
+  return (
+    <div className={styles.playerRow}>
+      <PlayerIdentity player={player} size={40} />
+      <span className={styles.power}>{getPlayerPower(player, powerMode)}</span>
+    </div>
+  );
+}
+
+/** One card per building, stacked in a single column (styled like the player cards) */
+export default function BuildingPreview({ title, legion, legionData, BUILDINGS, powerMode }: Props) {
+  const safe = legionData ?? { buildings: {}, substitutes: [] };
+  // Cards start collapsed; only the expanded ones are tracked
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const toggle = (name: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+
+  const getTotal = (b: BuildingAssignment) => (b?.leader ? 1 : 0) + (b?.support?.length ?? 0);
+
+  const cards: { name: string; count: number; groups: RoleGroup[] }[] = [
+    ...BUILDINGS.map((name) => {
+      const building = safe.buildings?.[name] ?? EMPTY_BUILDING;
+      const leader = building.leader ? [building.leader] : [];
+      const support = building.support ?? [];
+      const groups: RoleGroup[] =
+        name === "Undercellars"
+          ? [{ players: [...leader, ...support] }]
+          : [
+              { role: "Leader", players: leader },
+              { role: "Support", players: support },
+            ];
+      return { name, count: getTotal(building), groups };
+    }),
+    {
+      name: "Substitutes",
+      count: safe.substitutes?.length ?? 0,
+      groups: [{ players: safe.substitutes ?? [] }],
+    },
+  ];
 
   return (
     <div className={styles.previewSection}>
-      <h2 className={styles.playersHeader}>{title}</h2>
+      <div className={styles.sectionHeader}>
+        <h4 className={styles.sectionTitle}>{title}</h4>
+        <button
+          type="button"
+          className={styles.toggleAllButton}
+          onClick={() =>
+            setExpanded(
+              expanded.size === cards.length ? new Set() : new Set(cards.map((c) => c.name)),
+            )
+          }
+        >
+          {expanded.size === cards.length ? "Collapse all" : "Expand all"}
+        </button>
+      </div>
 
-      <div className={styles.buildingsGrid}>
-        {BUILDINGS.map((name) => {
-          const building: BuildingAssignment = safe.buildings?.[name] ?? {
-            leader: null,
-            support: [],
-            manual: false,
-          };
+      <div className={styles.cardsColumn}>
+        {cards.map((card) => {
+          const isOpen = expanded.has(card.name);
+          const bodyId = `${legion}-${card.name}-body`.replace(/\s+/g, "-");
 
           return (
-            <div key={`${legion}-${name}`} className={styles.buildingCard}>
-              <div className={styles.buildingHeader}>
-                <h3 className={styles.columnTitle}>
-                  {name} ({getTotal(building)})
-                </h3>
-              </div>
+            <div key={`${legion}-${card.name}`} className={styles.card}>
+              <button
+                type="button"
+                className={`${styles.cardHeader} ${isOpen ? styles.cardHeaderOpen : ""}`}
+                onClick={() => toggle(card.name)}
+                aria-expanded={isOpen}
+                aria-controls={bodyId}
+              >
+                <span
+                  className={`${styles.chevron} ${isOpen ? styles.chevronOpen : ""}`}
+                  aria-hidden="true"
+                >
+                  ▸
+                </span>
+                <span className={styles.cardTitle}>{card.name}</span>
+                <span className={styles.count}>{card.count}</span>
+              </button>
 
-              <div className={styles.buildingContent}>
-                {name !== "Undercellars" && (
-                  <div className={styles.leaderSection}>
-                    <span className={styles.leaderLabel}>Leader</span>
-                    {building.leader ? (
-                      <div className={styles.playerItem}>
-                        {building.leader.name} ({building.leader.swordlandPower}
-                        )
-                      </div>
-                    ) : (
-                      <p className={styles.empty}>None</p>
-                    )}
-                  </div>
-                )}
-
-                <div className={styles.supportSection}>
-                  <span className={styles.leaderLabel}>
-                    {name === "Undercellars" ? "Players" : "Support"}
-                  </span>
-
-                  {building.support?.length ? (
-                    building.support.map((p) => (
-                      <div
-                        key={`${legion}-${name}-${p.id}`}
-                        className={styles.playerItem}
-                      >
-                        {p.name} ({p.swordlandPower})
-                      </div>
-                    ))
-                  ) : (
-                    <p className={styles.empty}>None</p>
-                  )}
+              {isOpen && (
+                <div id={bodyId} className={styles.cardBody}>
+                  {card.groups.map((group, index) => (
+                    <div key={group.role ?? index} className={styles.roleGroup}>
+                      {group.role && <span className={styles.role}>{group.role}</span>}
+                      {group.players.length ? (
+                        group.players.map((player) => (
+                          <PlayerRow
+                            key={`${legion}-${card.name}-${player.id}`}
+                            player={player}
+                            powerMode={powerMode}
+                          />
+                        ))
+                      ) : (
+                        <p className={styles.empty}>None</p>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              </div>
+              )}
             </div>
           );
         })}
-
-        {/* SUBSTITUTES */}
-        <div className={styles.buildingCard}>
-          <div className={styles.buildingHeader}>
-            <h3 className={styles.columnTitle}>
-              Substitutes ({safe.substitutes?.length ?? 0})
-            </h3>
-          </div>
-
-          <div className={styles.buildingContent}>
-            {safe.substitutes?.length ? (
-              safe.substitutes.map((p) => (
-                <div
-                  key={`${legion}-sub-${p.id}`}
-                  className={styles.playerItem}
-                >
-                  {p.name} ({p.swordlandPower})
-                </div>
-              ))
-            ) : (
-              <p className={styles.empty}>None</p>
-            )}
-          </div>
-        </div>
       </div>
     </div>
   );

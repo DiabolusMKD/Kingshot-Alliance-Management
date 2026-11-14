@@ -5,6 +5,8 @@ import { Alliance, Player } from '@/types';
 import { getKingdomPlayersOutsideAlliance } from '@/utils/playerService';
 import { getAlliancesByKingdomId } from '@/utils/allianceService';
 import { formatNumbers } from '@/utils/formatNumbers';
+import { PowerMode, getPlayerPower, getPowerLabel } from '@/utils/powerMode';
+import PlayerIdentity from './PlayerIdentity';
 import styles from './SwordlandEventLayout.module.css';
 
 const PAGE_SIZE = 100;
@@ -19,6 +21,8 @@ interface KingdomPlayerPickerProps {
   inEventIds: Set<string>;
   /** Same search filter as the rest of the editor */
   filterPlayers: (list: Player[]) => Player[];
+  /** Which power is shown */
+  powerMode: PowerMode;
   onAdd: (player: Player, to: AddTarget) => void;
 }
 
@@ -31,6 +35,7 @@ export default function KingdomPlayerPicker({
   excludeAllianceId,
   inEventIds,
   filterPlayers,
+  powerMode,
   onAdd,
 }: KingdomPlayerPickerProps) {
   const [players, setPlayers] = useState<Player[]>([]);
@@ -83,78 +88,82 @@ export default function KingdomPlayerPicker({
 
   return (
     <>
-      <h2 className={styles.playersHeader}>
-        Kingdom Players{' '}
-        <span className={styles.pickerCount}>
-          ({players.length < total ? `${players.length} of ${total}` : total} from other alliances)
-        </span>
-      </h2>
-      <p className={styles.pickerHint}>
-        Swordland Summit League: add the strongest players of the kingdom to your legions.
-      </p>
-
-      {error && <p className={styles.errorMessage}>{error}</p>}
-
-      <div className={styles.tableWrapper}>
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Name</th>
-              <th>Alliance</th>
-              <th>Power</th>
-              <th>Swordland</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {visible.map((p) => {
-              const rank = players.indexOf(p) + 1;
-              const tag = p.allianceId != null ? allianceTags.get(String(p.allianceId)) : undefined;
-              const added = inEventIds.has(p.id);
-              return (
-                <tr key={`k-${p.id}`} className={added ? styles.pickerAddedRow : undefined}>
-                  <td>{rank}</td>
-                  <td>{p.aliasName || p.name}</td>
-                  <td>{tag ? `[${tag}]` : '—'}</td>
-                  <td>{formatNumbers(p.power)}</td>
-                  <td>{formatNumbers(p.swordlandPower)}</td>
-                  <td>
-                    {added ? (
-                      <span className={styles.pickerAdded}>Added</span>
-                    ) : (
-                      <select
-                        className={styles.tableSelect}
-                        value=""
-                        onChange={(e) => e.target.value && onAdd(p, e.target.value as AddTarget)}
-                      >
-                        <option value="">Add to…</option>
-                        <option value="unassigned">Unassigned</option>
-                        <option value="legion1">Legion 1</option>
-                        <option value="legion2">Legion 2</option>
-                      </select>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        {!isLoading && players.length === 0 && !error && (
-          <p className={styles.pickerHint}>No players from other alliances in this kingdom.</p>
-        )}
+      <div className={styles.poolHeader}>
+        <h2 className={styles.playersHeader}>
+          Kingdom Players{' '}
+          <span className={styles.pickerCount}>
+            ({players.length < total ? `${players.length} of ${total}` : total} from other alliances)
+          </span>
+        </h2>
+        <p className={styles.pickerHint}>
+          Add players from other alliances in your kingdom who registered for SLS with your alliance.
+        </p>
       </div>
 
-      {(remaining > 0 || isLoading) && (
-        <button
-          type="button"
-          className={styles.loadMoreButton}
-          onClick={loadMore}
-          disabled={isLoading}
-        >
-          {isLoading ? 'Loading...' : `Load more (${Math.min(PAGE_SIZE, remaining)} of ${remaining} remaining)`}
-        </button>
-      )}
+      <div className={styles.poolBody}>
+        {error && <p className={styles.errorMessage}>{error}</p>}
+
+        <div className={styles.tableWrapper}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Name</th>
+                <th>Alliance</th>
+                <th>{getPowerLabel(powerMode)}</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {visible.map((p) => {
+                const rank = players.indexOf(p) + 1;
+                const tag = p.allianceId != null ? allianceTags.get(String(p.allianceId)) : undefined;
+                const added = inEventIds.has(p.id);
+                return (
+                  <tr key={`k-${p.id}`} className={added ? styles.pickerAddedRow : undefined}>
+                    <td>{rank}</td>
+                    <td>
+                      <PlayerIdentity player={p} label={p.aliasName || p.name} />
+                    </td>
+                    <td>{tag ? `[${tag}]` : '—'}</td>
+                    <td>{formatNumbers(getPlayerPower(p, powerMode))}</td>
+                    <td>
+                      {added ? (
+                        <span className={styles.pickerAdded}>Added</span>
+                      ) : (
+                        <select
+                          className={styles.tableSelect}
+                          value=""
+                          onChange={(e) => e.target.value && onAdd(p, e.target.value as AddTarget)}
+                        >
+                          <option value="">Add to…</option>
+                          <option value="unassigned">Unassigned</option>
+                          <option value="legion1">Legion 1</option>
+                          <option value="legion2">Legion 2</option>
+                        </select>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {!isLoading && players.length === 0 && !error && (
+            <p className={styles.pickerHint}>No players from other alliances in this kingdom.</p>
+          )}
+        </div>
+
+        {(remaining > 0 || isLoading) && (
+          <button
+            type="button"
+            className={styles.loadMoreButton}
+            onClick={loadMore}
+            disabled={isLoading}
+          >
+            {isLoading ? 'Loading...' : `Load more (${Math.min(PAGE_SIZE, remaining)} of ${remaining} remaining)`}
+          </button>
+        )}
+      </div>
     </>
   );
 }

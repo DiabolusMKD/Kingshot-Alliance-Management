@@ -5,6 +5,13 @@ import LegionTable from "./LegionTable";
 import KingdomPlayerPicker from "./KingdomPlayerPicker";
 import BuildingPreview from "./BuildingPreview";
 import EventPoints, { PointsLegion, useEventPoints } from "./EventPoints";
+import PlayerIdentity from "./PlayerIdentity";
+import {
+  PowerMode,
+  POWER_MODE_OPTIONS,
+  getPlayerPower,
+  getPowerLabel,
+} from "@/utils/powerMode";
 import {
   Player,
   PlayerAssignment,
@@ -109,6 +116,9 @@ export default function SwordlandEventLayout({
   });
 
   const [search, setSearch] = useState("");
+  // Power used to build the buildings and shown in the tables (only one at a time)
+  const [powerMode, setPowerMode] = useState<PowerMode>("swordland");
+  const powerOf = (p: Player) => getPlayerPower(p, powerMode);
   const [jsonOut, setJsonOut] = useState("");
   const [textOut, setTextOut] = useState("");
   const [jsonInput, setJsonInput] = useState("");
@@ -270,7 +280,7 @@ export default function SwordlandEventLayout({
           if (sourceBuilding.support.length > 0) {
             // Promote strongest support to leader
             const strongest = sourceBuilding.support.reduce((a, b) =>
-              a.swordlandPower > b.swordlandPower ? a : b,
+              powerOf(a) > powerOf(b) ? a : b,
             );
 
             sourceBuilding.support = sourceBuilding.support.filter(
@@ -296,7 +306,7 @@ export default function SwordlandEventLayout({
       // Place player in destination
       if (!destination.leader) {
         destination.leader = player;
-      } else if (player.swordlandPower > destination.leader.swordlandPower) {
+      } else if (powerOf(player) > powerOf(destination.leader)) {
         destination.support.unshift(destination.leader);
         destination.leader = player;
       } else {
@@ -307,10 +317,11 @@ export default function SwordlandEventLayout({
     });
   }
 
-  // Auto-generate on any change
+  // Auto-generate on any change (also when switching the power the buildings are built from)
   useEffect(() => {
     handleGenerate();
-  }, [assignments, legionSubstitutes]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assignments, legionSubstitutes, powerMode]);
 
   // ---------------- FILTER ----------------
   const filter = (list: Player[]) =>
@@ -329,7 +340,7 @@ export default function SwordlandEventLayout({
 
     const sorted = [...list]
       .filter((p) => !substituteIds.has(p.id))
-      .sort((a, b) => b.swordlandPower - a.swordlandPower);
+      .sort((a, b) => powerOf(b) - powerOf(a));
 
     const buildings: Record<string, BuildingAssignment> = emptyBuildings();
 
@@ -340,7 +351,7 @@ export default function SwordlandEventLayout({
     const under = sorted.slice(-2);
     const rest = sorted.slice(0, -2);
 
-    const [u1, u2] = under.sort((a, b) => b.swordlandPower - a.swordlandPower);
+    const [u1, u2] = under.sort((a, b) => powerOf(b) - powerOf(a));
 
     buildings["Undercellars"].leader = u1 ?? null;
     if (u2) buildings["Undercellars"].support.push(u2);
@@ -563,133 +574,192 @@ ${buildingText}${substitutesText}`;
 
       {showAssignments && (
         <>
-          {/* SEARCH */}
-          <div className={styles.searchWrapper}>
-            <input
-              className={styles.searchInput}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search..."
-            />
-            {search && (
-              <button className={styles.clearButton} onClick={() => setSearch("")}>
-                ✕
-              </button>
+          {/* SEARCH + POWER USED FOR THE ASSIGNMENTS */}
+          <div className={styles.toolbar}>
+            <div className={styles.searchWrapper}>
+              <input
+                className={styles.searchInput}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search..."
+              />
+              {search && (
+                <button className={styles.clearButton} onClick={() => setSearch("")}>
+                  ✕
+                </button>
+              )}
+            </div>
+
+            <label className={styles.powerModeField}>
+              <span className={styles.powerModeLabel}>Assign by</span>
+              <select
+                className={styles.statusSelect}
+                value={powerMode}
+                onChange={(e) => setPowerMode(e.target.value as PowerMode)}
+                name="powerMode"
+              >
+                {POWER_MODE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          {/* UNASSIGNED (+ SLS kingdom players side by side) */}
+          <div className={summitLeague ? styles.poolGrid : undefined}>
+            <div className={styles.poolColumn}>
+              <div className={styles.poolHeader}>
+                <h2 className={styles.playersHeader}>
+                  Unassigned ({assignments.unassigned.length})
+                </h2>
+              </div>
+
+              <div className={styles.poolBody}>
+                <div className={styles.tableWrapper}>
+                  <table className={styles.table}>
+                    <thead>
+                      <tr>
+                        <th>Player</th>
+                        <th>{getPowerLabel(powerMode)}</th>
+                        <th />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filter(assignments.unassigned)
+                        .sort((a, b) => powerOf(b) - powerOf(a))
+                        .map((p) => (
+                          <tr key={`u-${p.id}`}>
+                            <td>
+                              <PlayerIdentity player={p}>
+                                {externalIds.has(p.id) && (
+                                  <span
+                                    className={styles.externalBadge}
+                                    title="Player from another alliance (SLS)"
+                                  >
+                                    other alliance
+                                  </span>
+                                )}
+                              </PlayerIdentity>
+                            </td>
+                            <td>{powerOf(p)}</td>
+                            <td>
+                              <select
+                                className={styles.tableSelect}
+                                onChange={(e) =>
+                                  e.target.value === "remove"
+                                    ? removeExternalPlayer(p.id)
+                                    : movePlayer(p.id, "unassigned", e.target.value)
+                                }
+                                value=""
+                              >
+                                <option value="">Move</option>
+                                <option value="legion1">Legion 1</option>
+                                <option value="legion2">Legion 2</option>
+                                {externalIds.has(p.id) && (
+                                  <option value="remove">Remove from event</option>
+                                )}
+                              </select>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            {/* SLS: players of the kingdom from other alliances */}
+            {summitLeague && (
+              <div className={styles.poolColumn}>
+                <KingdomPlayerPicker
+                  kingdomId={summitLeague.kingdomId}
+                  excludeAllianceId={summitLeague.allianceId}
+                  inEventIds={new Set(allPlayers.map((p) => p.id))}
+                  filterPlayers={filter}
+                  powerMode={powerMode}
+                  onAdd={addExternalPlayer}
+                />
+              </div>
             )}
           </div>
 
-          {/* UNASSIGNED */}
-          <h2 className={styles.playersHeader}>
-            Unassigned ({assignments.unassigned.length})
-          </h2>
-
-          <div className={styles.tableWrapper}>
-            <table className={styles.table}>
-              <tbody>
-                {filter(assignments.unassigned).map((p) => (
-                  <tr key={`u-${p.id}`}>
-                    <td>
-                      {p.name}
-                      {externalIds.has(p.id) && (
-                        <span className={styles.externalBadge} title="Player from another alliance (SLS)">
-                          other alliance
-                        </span>
-                      )}
-                    </td>
-                    <td>{p.swordlandPower}</td>
-                    <td>
-                      <select
-                        className={styles.tableSelect}
-                        onChange={(e) =>
-                          e.target.value === "remove"
-                            ? removeExternalPlayer(p.id)
-                            : movePlayer(p.id, "unassigned", e.target.value as any)
-                        }
-                        defaultValue=""
-                      >
-                        <option value="">Move</option>
-                        <option value="legion1">Legion 1</option>
-                        <option value="legion2">Legion 2</option>
-                        {externalIds.has(p.id) && <option value="remove">Remove from event</option>}
-                      </select>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* SLS: strongest players of the kingdom from other alliances */}
-          {summitLeague && (
-            <KingdomPlayerPicker
-              kingdomId={summitLeague.kingdomId}
-              excludeAllianceId={summitLeague.allianceId}
-              inEventIds={new Set(allPlayers.map((p) => p.id))}
-              filterPlayers={filter}
-              onAdd={addExternalPlayer}
-            />
-          )}
-
-          {/* LEGIONS */}
+          {/* LEGIONS: players, substitutes, then the building cards */}
           <div className={styles.legionsContainer}>
-            <div className={styles.legionGroup}>
-              <h3 className={styles.legionGroupTitle}>Legion 1</h3>
-              <LegionTable
-                title={`Players (${assignments.legion1.length})`}
-                players={assignments.legion1}
-                legion="legion1"
-                BUILDINGS={BUILDINGS}
-                filterPlayers={filter}
-                handleManualBuildingAssign={handleManualBuildingAssign}
-                movePlayerToSubstitute={movePlayerToSubstitute}
-                movePlayer={movePlayer}
-                preview={preview?.legion1 || undefined}
-              />
+            {(["legion1", "legion2"] as const).map((legion, index) => (
+              <div key={legion} className={styles.legionGroup}>
+                <h3 className={styles.legionGroupTitle}>Legion {index + 1}</h3>
+                <LegionTable
+                  title={`Players (${assignments[legion].length})`}
+                  players={assignments[legion]}
+                  legion={legion}
+                  BUILDINGS={BUILDINGS}
+                  filterPlayers={filter}
+                  powerMode={powerMode}
+                  handleManualBuildingAssign={handleManualBuildingAssign}
+                  movePlayerToSubstitute={movePlayerToSubstitute}
+                  movePlayer={movePlayer}
+                  preview={preview[legion]}
+                />
 
-              {/* Substitutes for Legion 1 */}
-              <LegionTable
-                title={`Substitutes (${legionSubstitutes.legion1.length})`}
-                players={legionSubstitutes.legion1}
-                legion="legion1"
-                BUILDINGS={[]}
-                selectedBuilding={"substitute"}
-                filterPlayers={filter}
-                handleManualBuildingAssign={() => {}}
-                movePlayerToSubstitute={() => {}}
-                movePlayer={() => {}}
-                movePlayerFromSubstitute={movePlayerFromSubstitute}
-              />
-            </div>
+                <LegionTable
+                  title={`Substitutes (${legionSubstitutes[legion].length})`}
+                  players={legionSubstitutes[legion]}
+                  legion={legion}
+                  BUILDINGS={[]}
+                  selectedBuilding={"substitute"}
+                  filterPlayers={filter}
+                  powerMode={powerMode}
+                  handleManualBuildingAssign={() => {}}
+                  movePlayerToSubstitute={() => {}}
+                  movePlayer={() => {}}
+                  movePlayerFromSubstitute={movePlayerFromSubstitute}
+                />
 
-            <div className={styles.legionGroup}>
-              <h3 className={styles.legionGroupTitle}>Legion 2</h3>
-              <LegionTable
-                title={`Players (${assignments.legion2.length})`}
-                players={assignments.legion2}
-                legion="legion2"
-                BUILDINGS={BUILDINGS}
-                filterPlayers={filter}
-                handleManualBuildingAssign={handleManualBuildingAssign}
-                movePlayerToSubstitute={movePlayerToSubstitute}
-                movePlayer={movePlayer}
-                preview={preview?.legion2 || undefined}
-              />
-
-              {/* Substitutes for Legion 2 */}
-              <LegionTable
-                title={`Substitutes (${legionSubstitutes.legion2.length})`}
-                players={legionSubstitutes.legion2}
-                legion="legion2"
-                BUILDINGS={[]}
-                selectedBuilding={"substitute"}
-                filterPlayers={filter}
-                handleManualBuildingAssign={() => {}}
-                movePlayerToSubstitute={() => {}}
-                movePlayer={() => {}}
-                movePlayerFromSubstitute={movePlayerFromSubstitute}
-              />
-            </div>
+                <BuildingPreview
+                  title="Buildings"
+                  legion={legion}
+                  legionData={preview[legion]}
+                  BUILDINGS={BUILDINGS}
+                  powerMode={powerMode}
+                />
+              </div>
+            ))}
           </div>
+
+          {/* OUTPUTS side by side */}
+          {(textOut || jsonOut) && (
+            <div className={styles.outputsContainer}>
+              {textOut && (
+                <div className={styles.textAreaWrapper}>
+                  <label htmlFor="textOutput" className={styles.label}>
+                    Generated String
+                  </label>
+                  <textarea
+                    id="textOutput"
+                    className={styles.textarea}
+                    value={textOut}
+                    readOnly
+                  />
+                </div>
+              )}
+
+              {jsonOut && (
+                <div className={styles.textAreaWrapper}>
+                  <label htmlFor="jsonOutput" className={styles.label}>
+                    Generated JSON
+                  </label>
+                  <textarea
+                    id="jsonOutput"
+                    className={styles.textarea}
+                    value={jsonOut}
+                    readOnly
+                  />
+                </div>
+              )}
+            </div>
+          )}
         </>
       )}
 
@@ -729,40 +799,6 @@ ${buildingText}${substitutesText}`;
         )}
       </div>
 
-      {/* Outputs are shown together with the assignments */}
-      {showAssignments && (
-        <>
-          {/* OUTPUTS */}
-          {textOut && (
-            <div className={styles.textAreaWrapper}>
-              <label htmlFor="textOutput" className={styles.label}>
-                Generated String
-              </label>
-              <textarea
-                id="textOutput"
-                className={styles.textarea}
-                value={textOut}
-                readOnly
-              />
-            </div>
-          )}
-
-          {jsonOut && (
-            <div className={styles.textAreaWrapper}>
-              <label htmlFor="jsonOutput" className={styles.label}>
-                Generated JSON
-              </label>
-              <textarea
-                id="jsonOutput"
-                className={styles.textarea}
-                value={jsonOut}
-                readOnly
-              />
-            </div>
-          )}
-        </>
-      )}
-
       {/* UPLOAD JSON MODAL */}
       {showJsonModal && (
         <div className={styles.modalOverlay}>
@@ -800,28 +836,6 @@ ${buildingText}${substitutesText}`;
         </div>
       )}
 
-      {showAssignments && (
-        <>
-          {/* PREVIEW */}
-          <div className={styles.previewContainer}>
-            <BuildingPreview
-              title="Legion 1"
-              legion="legion1"
-              legionData={preview.legion1}
-              BUILDINGS={BUILDINGS}
-              moveSubstitute={() => {}}
-            />
-
-            <BuildingPreview
-              title="Legion 2"
-              legion="legion2"
-              legionData={preview.legion2}
-              BUILDINGS={BUILDINGS}
-              moveSubstitute={() => {}}
-            />
-          </div>
-        </>
-      )}
     </div>
   );
 }

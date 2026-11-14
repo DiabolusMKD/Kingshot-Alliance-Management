@@ -67,6 +67,7 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
   const [externalPlayers, setExternalPlayers] = useState<{ key: string; players: Player[] } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isChangingVariant, setIsChangingVariant] = useState(false);
 
   // The event being edited comes from the ?event= URL param
   const selectedEvent = eventSlug ? findEventBySlug(events, eventSlug) ?? null : null;
@@ -82,14 +83,19 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
   // SLS: load the saved players that aren't in this alliance (other alliances of the kingdom)
   const externalKey = selectedEvent ? `${selectedEvent.id}:${selectedEvent.assignments ?? ""}` : "";
 
-  useEffect(() => {
-    if (!selectedEvent || !isSummitLeague || isLoading) return;
-    if (externalPlayers?.key === externalKey) return;
-
+  const savedExternalIds = useMemo(() => {
     const ownIds = new Set(players.map((p) => String(p.id)));
-    const externalIds = initialAssignments
+    return initialAssignments
       .map((a) => String(a.playerId))
       .filter((id) => !ownIds.has(id));
+  }, [players, initialAssignments]);
+
+  useEffect(() => {
+    if (!selectedEvent || !isSummitLeague || isLoading) return;
+    if (savedExternalIds.length === 0) return;
+    if (externalPlayers?.key === externalKey) return;
+
+    const externalIds = savedExternalIds;
 
     let isMounted = true;
     getPlayersByIds(externalIds)
@@ -105,9 +111,15 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
       isMounted = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [externalKey, isSummitLeague, isLoading, players, initialAssignments]);
+  }, [externalKey, isSummitLeague, isLoading, savedExternalIds]);
 
-  const externalReady = !isSummitLeague || externalPlayers?.key === externalKey;
+  const externalReady =
+    !isSummitLeague || savedExternalIds.length === 0 || externalPlayers?.key === externalKey;
+  // Only passed when there are any, so the editor isn't re-initialized by a new empty list
+  const editorExternalPlayers =
+    isSummitLeague && externalPlayers?.key === externalKey && externalPlayers.players.length > 0
+      ? externalPlayers.players
+      : undefined;
 
   // Points, results and MVPs of a completed event (stored in notes)
   const initialResults = useMemo(
@@ -250,6 +262,40 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
     }
   };
 
+  // Switch an existing event between standard and SLS (saved right away)
+  const handleVariantChange = async (variant: EventVariant) => {
+    if (!selectedEvent || variant === (selectedEvent.eventVariant ?? "standard")) return;
+
+    if (
+      variant === "standard" &&
+      savedExternalIds.length > 0 &&
+      !confirm(
+        "Players from other alliances will be removed from this event's assignments when you save. Continue?",
+      )
+    ) {
+      return;
+    }
+
+    setIsChangingVariant(true);
+    try {
+      await updateAllianceEvent(selectedEvent.id!, { eventVariant: variant });
+      setEvents((prev) =>
+        prev.map((e) => (e.id === selectedEvent.id ? { ...e, eventVariant: variant } : e)),
+      );
+      toast.success(variant === "sls" ? "Switched to SLS" : "Switched to Standard");
+    } catch (error) {
+      console.error("Failed to change event type:", error);
+      const message = error instanceof Error ? error.message : String((error as { message?: string })?.message ?? "");
+      toast.error(
+        message.includes("eventVariant")
+          ? "SLS events need the eventVariant column. Run the alliance_event migration in Supabase first."
+          : "Failed to change event type",
+      );
+    } finally {
+      setIsChangingVariant(false);
+    }
+  };
+
   const handleDeleteEvent = async (eventId: number) => {
     if (!confirm("Are you sure you want to delete this event?")) return;
 
@@ -348,26 +394,36 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
           ) : selectedEvent ? (
             // Event Editor View
             <>
-              <div className={styles.header}>
-                <button
-                  onClick={handleBackToList}
-                  className={styles.backButton}
+              <div className={styles.variantBanner}>
+                <strong>
+                  {isSummitLeague ? "SLS · Swordland Summit League" : "Standard Swordland"}
+                </strong>
+              </div>
+              <div className={styles.variantPicker}>
+                <label htmlFor="editEventVariant">Event Type</label>
+                <select
+                  id="editEventVariant"
+                  value={isSummitLeague ? "sls" : "standard"}
+                  onChange={(e) => handleVariantChange(e.target.value as EventVariant)}
+                  className={styles.variantSelect}
+                  disabled={isChangingVariant}
                 >
-                  ← Back to Events
-                </button>
+                  {VARIANT_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <small className={styles.formHint}>
+                  {VARIANT_OPTIONS.find((o) => o.value === (isSummitLeague ? "sls" : "standard"))?.hint}
+                </small>
               </div>
               <EventHero eventType="swordland" />
-              {isSummitLeague && (
-                <div className={styles.variantBanner}>
-                  <strong>SLS · Swordland Summit League</strong>
-                  <span>Players from other alliances of Kingdom {kingdomId} can be added below.</span>
-                </div>
-              )}
               {externalReady ? (
                 <SwordlandEventLayout
                   key={selectedEvent.id}
                   players={players}
-                  externalPlayers={isSummitLeague ? externalPlayers?.players : undefined}
+                  externalPlayers={editorExternalPlayers}
                   summitLeague={
                     isSummitLeague && alliance
                       ? { kingdomId: kingdomIdNumber, allianceId: alliance.id }
@@ -385,17 +441,7 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
             </>
           ) : eventSlug && !isLoading ? (
             // Unknown event id in the URL
-            <>
-              <div className={styles.header}>
-                <button
-                  onClick={handleBackToList}
-                  className={styles.backButton}
-                >
-                  ← Back to Events
-                </button>
-              </div>
-              <p>Event not found.</p>
-            </>
+            <p>Event not found.</p>
           ) : (
             // Events List View
             <>

@@ -1,6 +1,8 @@
 "use client";
 
 import { LegionBuildingData, Player } from "@/types";
+import PlayerIdentity from "./PlayerIdentity";
+import { PowerMode, getPlayerPower, getPowerLabel } from "@/utils/powerMode";
 import styles from "./LegionTable.module.css";
 
 type Legion = "legion1" | "legion2";
@@ -13,6 +15,8 @@ interface LegionTableProps {
   selectedBuilding?: string | null;
   preview?: LegionBuildingData;
   filterPlayers: (players: Player[]) => Player[];
+  /** Which power is shown (and used to build the assignments) */
+  powerMode: PowerMode;
 
   handleManualBuildingAssign: (
     legion: Legion,
@@ -88,6 +92,7 @@ export default function LegionTable({
   selectedBuilding,
   preview,
   filterPlayers,
+  powerMode,
   handleManualBuildingAssign,
   movePlayerToSubstitute,
   movePlayerFromSubstitute,
@@ -104,7 +109,7 @@ export default function LegionTable({
           <thead>
             <tr>
               <th>Player</th>
-              <th>Power</th>
+              <th>{getPowerLabel(powerMode)}</th>
               <th>Building</th>
               <th>Move</th>
             </tr>
@@ -113,8 +118,10 @@ export default function LegionTable({
           <tbody>
             {filtered.map((player) => (
               <tr key={`${legion}-${player.id}`}>
-                <td>{player.name}</td>
-                <td>{player.swordlandPower}</td>
+                <td>
+                  <PlayerIdentity player={player} />
+                </td>
+                <td>{getPlayerPower(player, powerMode)}</td>
 
                 <td>
                   <select
