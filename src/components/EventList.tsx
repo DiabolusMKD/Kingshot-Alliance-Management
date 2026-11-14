@@ -1,7 +1,7 @@
 'use client';
 
 import { AllianceEvent, EventStatus } from '@/types';
-import { parseEventResults } from '@/utils/eventResults';
+import { getNotesField, parseEventResults } from '@/utils/eventResults';
 import styles from './EventList.module.css';
 
 const RESULT_LABELS: Record<string, string> = {
@@ -85,10 +85,13 @@ export default function EventList({
 
     const results = parseEventResults(notes);
     if (!results) {
+      // Settings stored in the notes (e.g. powerMode) aren't shown, only plain text notes
+      const text = getNotesField(notes, 'text');
+      if (typeof text !== 'string' || !text) return null;
       return (
         <div className={styles.field}>
           <label>Notes:</label>
-          <p>{notes}</p>
+          <p>{text}</p>
         </div>
       );
     }

@@ -13,7 +13,8 @@ import { getPlayers, getPlayersByIds } from "@/utils/playerService";
 import { getAlliancesByKingdomId } from "@/utils/allianceService";
 import { findAllianceBySlug } from "@/utils/allianceSlug";
 import { findEventBySlug, getEventSlug } from "@/utils/eventSlug";
-import { parseEventResults, serializeEventResults } from "@/utils/eventResults";
+import { buildEventNotes, parseEventResults } from "@/utils/eventResults";
+import { PowerMode, parsePowerMode } from "@/utils/powerMode";
 import {
   getAllianceEvents,
   createAllianceEvent,
@@ -236,7 +237,8 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
   const handleSaveAssignments = async (
     assignments: PlayerAssignment[],
     eventStatus: EventStatus,
-    results?: EventResults,
+    results: EventResults | undefined,
+    powerMode: PowerMode,
   ) => {
     if (!selectedEvent || !alliance) return;
 
@@ -248,7 +250,8 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
         assignments: serialized,
         updatedAt: new Date().toISOString(),
         status: eventStatus,
-        ...(results ? { notes: serializeEventResults(results) } : {}),
+        // Results (completed events) and the power used for the assignments
+        notes: buildEventNotes(selectedEvent.notes, { results, fields: { powerMode } }),
       });
 
       toast.success("Event updated successfully");
@@ -431,6 +434,7 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
                   }
                   initialAssignments={initialAssignments}
                   initialResults={initialResults}
+                  initialPowerMode={parsePowerMode(selectedEvent.notes)}
                   onSave={handleSaveAssignments}
                   isSaving={isSaving}
                   eventStatus={selectedEvent.status}

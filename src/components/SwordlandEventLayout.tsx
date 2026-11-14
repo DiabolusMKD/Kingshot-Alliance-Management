@@ -66,6 +66,7 @@ export default function SwordlandEventLayout({
   summitLeague,
   initialAssignments = [],
   initialResults = null,
+  initialPowerMode = "swordland",
   eventStatus = "not-started",
   onSave,
   isSaving,
@@ -78,11 +79,14 @@ export default function SwordlandEventLayout({
   summitLeague?: { kingdomId: number; allianceId: number };
   initialAssignments?: PlayerAssignment[];
   initialResults?: EventResults | null;
+  /** Power saved with the event (in its notes) */
+  initialPowerMode?: PowerMode;
   eventStatus?: EventStatus;
   onSave: (
     a: PlayerAssignment[],
     status: EventStatus,
-    results?: EventResults,
+    results: EventResults | undefined,
+    powerMode: PowerMode,
   ) => Promise<void>;
   isSaving?: boolean;
 }) {
@@ -117,7 +121,7 @@ export default function SwordlandEventLayout({
 
   const [search, setSearch] = useState("");
   // Power used to build the buildings and shown in the tables (only one at a time)
-  const [powerMode, setPowerMode] = useState<PowerMode>("swordland");
+  const [powerMode, setPowerMode] = useState<PowerMode>(initialPowerMode);
   const powerOf = (p: Player) => getPlayerPower(p, powerMode);
   const [jsonOut, setJsonOut] = useState("");
   const [textOut, setTextOut] = useState("");
@@ -461,6 +465,7 @@ ${buildingText}${substitutesText}`;
       payload,
       currentEventStatus,
       currentEventStatus === "completed" ? pointsState.buildResults(pointsLegions) : undefined,
+      powerMode,
     );
   };
 
