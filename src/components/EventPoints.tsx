@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { EventResults, LegionResultKey, Player, PlayerAssignment } from "@/types";
+import { EventResults, LegionResultKey, Player, PlayerAssignment, SwordlandMvpType, SwordlandMvps } from "@/types";
 import { getResultsPoints } from "@/utils/eventResults";
 import PointsChart from "./PointsChart";
 import styles from "./EventPoints.module.css";
@@ -18,9 +18,16 @@ export interface ResultOption {
   label: string;
 }
 
+export interface MvpTypeOption {
+  value: SwordlandMvpType;
+  label: string;
+}
+
 interface LegionMeta {
   status: string | null;
   mvp: string | null;
+  /** Swordland: one player per MVP type */
+  mvps: SwordlandMvps;
 }
 
 /** Points saved by older versions inside the assignments (before results moved to notes) */
@@ -54,10 +61,12 @@ export function useEventPoints(
     legion_1: {
       status: initialResults?.legion_1.status ?? null,
       mvp: initialResults?.legion_1.mvp ?? null,
+      mvps: initialResults?.legion_1.mvps ?? {},
     },
     legion_2: {
       status: initialResults?.legion_2.status ?? null,
       mvp: initialResults?.legion_2.mvp ?? null,
+      mvps: initialResults?.legion_2.mvps ?? {},
     },
   }));
 
@@ -71,6 +80,15 @@ export function useEventPoints(
   const setMvp = (key: LegionResultKey, playerId: string | null) =>
     setLegionMeta((prev) => ({ ...prev, [key]: { ...prev[key], mvp: playerId } }));
 
+  // One player per MVP type: picking a player replaces the previous one
+  const setTypedMvp = (key: LegionResultKey, type: SwordlandMvpType, playerId: string | null) =>
+    setLegionMeta((prev) => {
+      const mvps = { ...prev[key].mvps };
+      if (playerId) mvps[type] = playerId;
+      else delete mvps[type];
+      return { ...prev, [key]: { ...prev[key], mvps } };
+    });
+
   const buildResults = (legions: PointsLegion[]): EventResults => {
     const results = {} as EventResults;
 
@@ -78,12 +96,17 @@ export function useEventPoints(
       const members = [...legion.players, ...legion.substitutes];
       // Ids compared as strings (bigint ids arrive as numbers)
       const memberIds = new Set(members.map((p) => String(p.id)));
-      const { status, mvp } = legionMeta[legion.key];
+      const { status, mvp, mvps } = legionMeta[legion.key];
+      // MVPs moved out of this legion are dropped
+      const legionMvps = Object.fromEntries(
+        Object.entries(mvps).filter(([, id]) => id != null && memberIds.has(String(id))),
+      ) as SwordlandMvps;
 
       results[legion.key] = {
         status,
         // Drop the MVP if they were moved out of this legion
         mvp: mvp != null && memberIds.has(String(mvp)) ? String(mvp) : null,
+        mvps: legionMvps,
         players_points: members
           .filter((p) => points[p.id]?.trim())
           .map((p) => ({ [p.id]: Number(points[p.id]) })),
@@ -93,7 +116,7 @@ export function useEventPoints(
     return results;
   };
 
-  return { points, legionMeta, setPoint, setStatus, setMvp, buildResults };
+  return { points, legionMeta, setPoint, setStatus, setMvp, setTypedMvp, buildResults };
 }
 
 export type EventPointsState = ReturnType<typeof useEventPoints>;
@@ -103,6 +126,51 @@ interface EventPointsProps {
   resultLabel: string;
   resultOptions: ResultOption[];
   state: EventPointsState;
+  /** Swordland: MVP per type (one dropdown each) instead of one MVP per legion */
+  mvpTypes?: MvpTypeOption[];
+}
+
+/** Swordland: one dropdown per MVP type, listing the legion's players and substitutes */
+function MvpPicker({
+  legion,
+  mvpTypes,
+  state,
+}: {
+  legion: PointsLegion;
+  mvpTypes: MvpTypeOption[];
+  state: EventPointsState;
+}) {
+  const members = [...legion.players, ...legion.substitutes];
+  const mvps = state.legionMeta[legion.key].mvps;
+
+  return (
+    <div className={styles.mvpPicker}>
+      {mvpTypes.map((type) => {
+        const id = `mvp-${legion.key}-${type.value}`;
+        const selected = mvps[type.value] ?? "";
+        return (
+          <div key={type.value} className={styles.mvpField}>
+            <label htmlFor={id} className={styles.mvpLabel}>
+              {type.label}
+            </label>
+            <select
+              id={id}
+              value={selected}
+              onChange={(e) => state.setTypedMvp(legion.key, type.value, e.target.value || null)}
+              className={`${styles.select} ${selected ? styles.mvpSelected : ""}`}
+            >
+              <option value="">None</option>
+              {members.map((player) => (
+                <option key={player.id} value={String(player.id)}>
+                  {player.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 function PointsList({
@@ -110,11 +178,13 @@ function PointsList({
   legionKey,
   players,
   state,
+  showMvpSelect,
 }: {
   title: string;
   legionKey: LegionResultKey;
   players: Player[];
   state: EventPointsState;
+  showMvpSelect: boolean;
 }) {
   const mvp = state.legionMeta[legionKey].mvp;
   const isMvp = (player: Player) => mvp != null && String(mvp) === String(player.id);
@@ -138,6 +208,7 @@ function PointsList({
               onChange={(e) => state.setPoint(player.id, e.target.value)}
               className={styles.input}
             />
+            {showMvpSelect && (
             <select
               value={isMvp(player) ? "mvp" : ""}
               onChange={(e) =>
@@ -152,6 +223,7 @@ function PointsList({
               <option value="">None</option>
               <option value="mvp">MVP</option>
             </select>
+            )}
           </div>
         ))}
         {players.length === 0 && <p className={styles.empty}>No players</p>}
@@ -165,7 +237,22 @@ export default function EventPoints({
   resultLabel,
   resultOptions,
   state,
+  mvpTypes,
 }: EventPointsProps) {
+  // Players with their MVP labels per legion (chart)
+  const mvpLabels = (key: LegionResultKey): Record<string, string[]> => {
+    const labels: Record<string, string[]> = {};
+    const add = (id: string | null | undefined, label: string) => {
+      if (id == null) return;
+      labels[String(id)] = [...(labels[String(id)] ?? []), label];
+    };
+    const meta = state.legionMeta[key];
+    if (mvpTypes) mvpTypes.forEach((type) => add(meta.mvps[type.value], type.label));
+    // Older Swordland events / Tri Alliance: one MVP
+    add(meta.mvp, "MVP");
+    return labels;
+  };
+
   const hasPlayers = legions.some(
     (legion) => legion.players.length > 0 || legion.substitutes.length > 0,
   );
@@ -197,11 +284,13 @@ export default function EventPoints({
                     ))}
                   </select>
                 </div>
+                {mvpTypes && <MvpPicker legion={legion} mvpTypes={mvpTypes} state={state} />}
                 <PointsList
                   title={`Players (${legion.players.length})`}
                   legionKey={legion.key}
                   players={legion.players}
                   state={state}
+                  showMvpSelect={!mvpTypes}
                 />
                 {legion.substitutes.length > 0 && (
                   <PointsList
@@ -209,6 +298,7 @@ export default function EventPoints({
                     legionKey={legion.key}
                     players={legion.substitutes}
                     state={state}
+                    showMvpSelect={!mvpTypes}
                   />
                 )}
               </div>
@@ -222,7 +312,7 @@ export default function EventPoints({
               result:
                 resultOptions.find((o) => o.value === state.legionMeta[legion.key].status)
                   ?.label ?? null,
-              mvp: state.legionMeta[legion.key].mvp,
+              mvpLabels: mvpLabels(legion.key),
               players: legion.players,
               substitutes: legion.substitutes,
             }))}

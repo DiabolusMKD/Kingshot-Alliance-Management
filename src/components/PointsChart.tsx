@@ -7,7 +7,8 @@ interface ChartLegion {
   key: LegionResultKey;
   title: string;
   result: string | null;
-  mvp: string | null;
+  /** player id -> MVP awards, e.g. ["KO MVP"] */
+  mvpLabels: Record<string, string[]>;
   players: Player[];
   substitutes: Player[];
 }
@@ -22,7 +23,7 @@ interface ChartRow {
   name: string;
   points: number;
   isSubstitute: boolean;
-  isMvp: boolean;
+  mvpLabels: string[];
 }
 
 const formatNumber = (value: number) => value.toLocaleString("en-US");
@@ -38,7 +39,7 @@ function toRows(legion: ChartLegion, points: Record<string, string>): ChartRow[]
       name: player.name,
       points: Number(points[player.id]) || 0,
       isSubstitute,
-      isMvp: legion.mvp != null && String(legion.mvp) === String(player.id),
+      mvpLabels: legion.mvpLabels[String(player.id)] ?? [],
     }));
 
   // Ranked: highest points first
@@ -92,7 +93,7 @@ export default function PointsChart({ legions, points }: PointsChartProps) {
                   {rows.map((row) => {
                     const description = `${row.name}: ${formatNumber(row.points)} points${
                       row.isSubstitute ? ", substitute" : ""
-                    }${row.isMvp ? ", MVP" : ""}`;
+                    }${row.mvpLabels.length ? `, ${row.mvpLabels.join(", ")}` : ""}`;
 
                     return (
                       <li
@@ -103,9 +104,9 @@ export default function PointsChart({ legions, points }: PointsChartProps) {
                         tabIndex={0}
                       >
                         <span className={styles.name}>
-                          {row.isMvp && (
+                          {row.mvpLabels.length > 0 && (
                             <span className={styles.mvp}>
-                              <span aria-hidden="true">★</span> MVP
+                              <span aria-hidden="true">★</span> {row.mvpLabels.join(" · ")}
                             </span>
                           )}
                           <span className={styles.nameText}>{row.name}</span>

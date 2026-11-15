@@ -78,6 +78,15 @@ export interface AllianceEvent {
   /** player.id of each legion's MVP */
   legion1Mvp?: string | null;
   legion2Mvp?: string | null;
+  /** Swordland: player.id of each legion's Control / Loot / Gathering / KO MVP */
+  legion1ControlMvp?: string | null;
+  legion1LootMvp?: string | null;
+  legion1GatheringMvp?: string | null;
+  legion1KoMvp?: string | null;
+  legion2ControlMvp?: string | null;
+  legion2LootMvp?: string | null;
+  legion2GatheringMvp?: string | null;
+  legion2KoMvp?: string | null;
   /** Embedded count of event_player rows (when selected) */
   event_player?: { count: number }[];
   createdAt?: string;
@@ -131,9 +140,15 @@ export interface PlayerAssignment {
 // the points on event_player
 export type LegionResultKey = "legion_1" | "legion_2";
 
+/** Swordland MVP awards (one player per type and legion, losers included) */
+export type SwordlandMvpType = "control" | "loot" | "gathering" | "ko";
+export type SwordlandMvps = Partial<Record<SwordlandMvpType, string>>;
+
 export interface LegionResult {
   status: string | null; // "win" | "lose" (Swordland) or "1st" | "2nd" | "3rd" (Tri Alliance)
-  mvp: string | null; // player id
+  mvp: string | null; // player id (Tri Alliance; older Swordland events)
+  /** Swordland: player id per MVP type */
+  mvps?: SwordlandMvps;
   players_points: Record<string, number>[]; // [{ [playerId]: points }]
 }
 

@@ -130,7 +130,7 @@ function EventTypeSection({ type, entries }: { type: EventType; entries: PlayerE
         formatDate(e.startsAt, { weekday: "short", month: "short", day: "numeric", year: "numeric" }),
         `${legionLabel(e)}${e.isSubstitute ? " · substitute" : ""}`,
         ...(e.result ? [`Result: ${formatResult(e.result)}`] : []),
-        ...(e.isMvp ? ["MVP"] : []),
+        ...e.mvpLabels,
         ...(!e.attended ? ["Didn't show up (no score)"] : []),
       ],
     }));
@@ -230,7 +230,11 @@ function EventTypeSection({ type, entries }: { type: EventType; entries: PlayerE
                 <td>{formatDate(e.startsAt, { month: "short", day: "numeric", year: "numeric" })}</td>
                 <td>
                   {e.alliance ? formatAllianceLabel(e.alliance) : "—"}
-                  {e.isSsl && <span className={styles.badge}>SSL</span>}
+                  {e.isSsl && (
+                    <span className={styles.sslBadge} title="Swordland Summit League">
+                      SSL
+                    </span>
+                  )}
                   {/* Playing for another alliance than the host (SSL guest) */}
                   {e.playerAlliance && e.alliance && e.playerAlliance.id !== e.alliance.id && (
                     <span className={styles.muted}> · as {formatAllianceLabel(e.playerAlliance)}</span>
@@ -252,7 +256,11 @@ function EventTypeSection({ type, entries }: { type: EventType; entries: PlayerE
                 </td>
                 <td>
                   {e.result ? <ResultLabel result={e.result} /> : "—"}
-                  {e.isMvp && <span className={styles.mvpBadge}>MVP</span>}
+                  {e.mvpLabels.map((label) => (
+                    <span key={label} className={styles.mvpBadge}>
+                      {label}
+                    </span>
+                  ))}
                 </td>
                 <td className={styles.numeric}>{e.points === null ? "—" : formatPower(e.points)}</td>
                 <td>{e.attended === null ? "—" : e.attended ? "Yes" : "No"}</td>

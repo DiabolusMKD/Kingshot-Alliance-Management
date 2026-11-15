@@ -5,6 +5,7 @@ import { getAllianceById } from './allianceService';
 import { LegionSchedule, getLegionSchedules } from './legionSchedule';
 import { getAllianceSlug } from './allianceSlug';
 import { getEventSlug } from './eventSlug';
+import { SWORDLAND_MVP_COLUMNS, getEventMvps, getMvpTypeLabel, getPlayerMvpTypes } from './swordlandMvps';
 import { Alliance, AllianceEvent, EventPlayer, EventStatus, EventType, LegionResultKey } from '@/types';
 
 /** alliance_event.eventId -> event type */
@@ -44,6 +45,8 @@ export interface PlayerEventEntry {
   /** Result of the player's legion: win/lose or 1st/2nd/3rd */
   result: string | null;
   isMvp: boolean;
+  /** MVP awards won, e.g. ["Control MVP", "KO MVP"] (older events: ["MVP"]) */
+  mvpLabels: string[];
   schedule: LegionSchedule;
   /** Link to the event editor */
   href: string | null;
@@ -60,6 +63,7 @@ export interface PlayerEventSummary {
   /** Average over attended events */
   averagePoints: number | null;
   bestPoints: number | null;
+  /** MVP awards won (a player can win several types in one event) */
   mvps: number;
   substitute: number;
   /** result -> count, e.g. { win: 3, lose: 1 } */
@@ -106,6 +110,12 @@ export function buildPlayerEntries(
     const mvp = (isLegion1 ? event.legion1Mvp : event.legion2Mvp) ?? null;
     const alliance = alliances.get(event.allianceId) ?? null;
     const isCompleted = event.status === 'completed';
+    const mvpLabels = [
+      ...(mvp != null && String(mvp) === String(playerId) ? ['MVP'] : []),
+      ...(type === 'swordland'
+        ? getPlayerMvpTypes(getEventMvps(event, row.legion), playerId).map(getMvpTypeLabel)
+        : []),
+    ];
     const record = recordAt(powerRecords, event.startsAt);
     const saved = (type: EventPlayer['powerType']) => (row.powerType === type ? row.powerAtEvent : null);
 
@@ -129,7 +139,8 @@ export function buildPlayerEntries(
       // Showed up = score > 0 (stored as didShowUp; derived for rows saved without it)
       attended: isCompleted ? row.didShowUp ?? (row.score ?? 0) > 0 : null,
       result,
-      isMvp: mvp != null && String(mvp) === String(playerId),
+      isMvp: mvpLabels.length > 0,
+      mvpLabels,
       schedule: getLegionSchedules(event)[row.legion],
       href: alliance
         ? `/${alliance.kingdomId}/${getAllianceSlug(alliance.id)}/events/${type}?event=${getEventSlug(event.id)}`
@@ -166,14 +177,16 @@ export function summarizeEntries(type: EventType, entries: PlayerEventEntry[]): 
     totalPoints,
     averagePoints: attended.length ? totalPoints / attended.length : null,
     bestPoints: scored.length ? Math.max(...scored) : null,
-    mvps: ofType.filter((e) => e.isMvp).length,
+    mvps: ofType.reduce((sum, e) => sum + e.mvpLabels.length, 0),
     substitute: ofType.filter((e) => e.isSubstitute).length,
     results,
   };
 }
 
-const EVENT_COLUMNS =
-  'id, allianceId, eventId, startsAt, status, eventVariant, legion1Result, legion2Result, legion1Mvp, legion2Mvp, legion1StartTime, legion2StartTime';
+const EVENT_COLUMNS: string = [
+  'id, allianceId, eventId, startsAt, status, eventVariant, legion1Result, legion2Result, legion1Mvp, legion2Mvp, legion1StartTime, legion2StartTime',
+  ...SWORDLAND_MVP_COLUMNS,
+].join(', ');
 
 /**
  * Every event the player took part in (event_player rows), across alliances and kingdoms:
@@ -185,7 +198,7 @@ export async function getPlayerEventHistory(playerId: string): Promise<PlayerEve
     .select(`*, alliance_event(${EVENT_COLUMNS})`)
     .eq('playerId', playerId);
   if (error) throw new Error(`Failed to load the player's events: ${error.message}`);
-  const rows = (data ?? []) as EventPlayerWithEvent[];
+  const rows = (data ?? []) as unknown as EventPlayerWithEvent[];
 
   // Alliances that ran these events (names + links) and the player's alliances at the time
   const allianceIds = [

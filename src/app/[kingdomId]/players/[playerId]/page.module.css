@@ -306,3 +306,18 @@
   font-weight: 700;
   font-family: inherit;
 }
+
+/* SSL: same gold as on the Swordland events page */
+.sslBadge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #e6b85c;
+  border: 1px solid rgba(230, 184, 92, 0.5);
+  background-color: rgba(230, 184, 92, 0.1);
+  cursor: help;
+}

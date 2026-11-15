@@ -4,6 +4,7 @@ import { supabase } from './supabaseClient';
 import { getPlayersByIds } from './playerService';
 import { LegionSchedules } from './legionSchedule';
 import { PowerMode } from './powerMode';
+import { SWORDLAND_MVP_TYPES, getEventMvps, getMvpColumn } from './swordlandMvps';
 import { getPowersAtOrNone, hasEventStarted, PowerSnapshot } from './powerHistory';
 import {
   AllianceEvent,
@@ -67,12 +68,23 @@ export function toEditorData(event: AllianceEvent, rows: EventPlayer[]): EventEd
 
   // MVP ids as strings, like every other player id in the editor
   const mvpId = (id: string | number | null | undefined) => (id != null ? String(id) : null);
+  const isSwordland = event.eventId !== TRI_ALLIANCE_EVENT_ID;
   const meta = {
-    legion_1: { status: event.legion1Result ?? null, mvp: mvpId(event.legion1Mvp) },
-    legion_2: { status: event.legion2Result ?? null, mvp: mvpId(event.legion2Mvp) },
+    legion_1: {
+      status: event.legion1Result ?? null,
+      mvp: mvpId(event.legion1Mvp),
+      ...(isSwordland ? { mvps: getEventMvps(event, 'legion_1') } : {}),
+    },
+    legion_2: {
+      status: event.legion2Result ?? null,
+      mvp: mvpId(event.legion2Mvp),
+      ...(isSwordland ? { mvps: getEventMvps(event, 'legion_2') } : {}),
+    },
   };
   const hasResults =
-    LEGION_KEYS.some((key) => meta[key].status || meta[key].mvp) || rows.some((row) => row.score !== null);
+    LEGION_KEYS.some(
+      (key) => meta[key].status || meta[key].mvp || Object.keys(meta[key].mvps ?? {}).length > 0,
+    ) || rows.some((row) => row.score !== null);
 
   const results = hasResults
     ? (Object.fromEntries(
@@ -185,6 +197,17 @@ export async function saveEventData(event: AllianceEvent, input: EventSaveInput)
           legion2Result: input.results.legion_2.status,
           legion1Mvp: input.results.legion_1.mvp,
           legion2Mvp: input.results.legion_2.mvp,
+          // Swordland: Control / Loot / Gathering / KO MVP of each legion
+          ...(event.eventId !== TRI_ALLIANCE_EVENT_ID
+            ? Object.fromEntries(
+                LEGION_KEYS.flatMap((key) =>
+                  SWORDLAND_MVP_TYPES.map(({ value }) => [
+                    getMvpColumn(key, value),
+                    input.results![key].mvps?.[value] ?? null,
+                  ]),
+                ),
+              )
+            : {}),
         }
       : {}),
   };

@@ -22,6 +22,7 @@ import {
   previewToJson,
 } from "@/utils/swordlandBuildings";
 import { formatCompactPower, formatPower } from "@/utils/formatNumbers";
+import { SWORDLAND_MVP_TYPES } from "@/utils/swordlandMvps";
 import {
   PowerMode,
   POWER_MODE_OPTIONS,
@@ -602,6 +603,7 @@ ${buildingText}${substitutesText}`;
             resultLabel="Result"
             resultOptions={SWORDLAND_RESULTS}
             state={pointsState}
+            mvpTypes={SWORDLAND_MVP_TYPES}
           />
           <div className={styles.editAssignmentsBar}>
             <button
