@@ -60,8 +60,11 @@ export default function TriAlliancePage({ params, searchParams }: TriAlliancePag
 
   // Players saved in the event who left the alliance stay in it
   const editorPlayers = useMemo(
-    () => (editorData.extraPlayers?.length ? [...players, ...editorData.extraPlayers] : players),
-    [players, editorData.extraPlayers],
+    () =>
+      editorData.extraPlayers?.length
+        ? [...editorData.players, ...editorData.extraPlayers]
+        : editorData.players,
+    [editorData.players, editorData.extraPlayers],
   );
 
   const loadData = async (allianceId: number) => {
@@ -255,6 +258,11 @@ export default function TriAlliancePage({ params, searchParams }: TriAlliancePag
             // Event Editor View
             <>
               <EventHero eventType="tri-alliance" />
+              {editorData.usesStartPowers && (
+                <p className={styles.powerNote}>
+                  This event has started: powers are each player&apos;s latest recorded power before the start.
+                </p>
+              )}
               {editorData.error ? (
                 <p className={styles.loadError}>
                   Couldn&apos;t load this event&apos;s players: {editorData.error}

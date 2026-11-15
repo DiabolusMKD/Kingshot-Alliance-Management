@@ -265,3 +265,10 @@
   background-color: rgba(255, 100, 100, 0.1);
   color: #ff6464;
 }
+
+/* Started events: the powers shown are the ones from before the start */
+.powerNote {
+  margin: 0 0 1rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}

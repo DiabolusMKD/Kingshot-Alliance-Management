@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AllianceEvent, EventResults, Player, PlayerAssignment } from "@/types";
 import { loadEventEditorData } from "@/utils/eventData";
 import { getPlayersByIds } from "@/utils/playerService";
+import { getPowersAtOrNone, hasEventStarted, PowerSnapshot, withPowersAt } from "@/utils/powerHistory";
 
 /** The legacy assignments JSON lists at least one player */
 function hasLegacyAssignments(event: AllianceEvent): boolean {
@@ -21,6 +22,8 @@ interface LoadedEditorData {
   results: EventResults | null;
   /** Players saved in the event who aren't in the alliance now (SSL guests, former members) */
   extraPlayers: Player[];
+  /** Started events: each player's powers just before the start (null: current powers) */
+  startPowers: Map<string, PowerSnapshot> | null;
   error: string | null;
 }
 
@@ -54,8 +57,16 @@ export function useEventEditorData(
         }
         const ownIds = new Set(alliancePlayers.map((p) => String(p.id)));
         const missingIds = loaded.assignments.map((a) => String(a.playerId)).filter((id) => !ownIds.has(id));
-        const extraPlayers = missingIds.length > 0 ? await getPlayersByIds(missingIds) : [];
-        if (isMounted) setData({ key, ...loaded, extraPlayers, error: null });
+        const currentExtraPlayers = missingIds.length > 0 ? await getPlayersByIds(missingIds) : [];
+        const startPowers =
+          hasEventStarted(event) && event.startsAt
+            ? await getPowersAtOrNone(
+                [...alliancePlayers, ...currentExtraPlayers].map((p) => p.id),
+                event.startsAt,
+              )
+            : null;
+        const extraPlayers = withPowersAt(currentExtraPlayers, startPowers);
+        if (isMounted) setData({ key, ...loaded, extraPlayers, startPowers, error: null });
       } catch (error) {
         console.error("Failed to load the event's players:", error);
         if (isMounted) {
@@ -64,6 +75,7 @@ export function useEventEditorData(
             assignments: [],
             results: null,
             extraPlayers: [],
+            startPowers: null,
             error: error instanceof Error ? error.message : "Failed to load the event's players",
           });
         }
@@ -77,7 +89,15 @@ export function useEventEditorData(
   }, [key, enabled, alliancePlayers]);
 
   const current = data?.key === key ? data : null;
+  const startPowers = current?.startPowers ?? null;
+  // Same array as long as the players and powers don't change (the editors re-initialize on a new one)
+  const players = useMemo(() => withPowersAt(alliancePlayers, startPowers), [alliancePlayers, startPowers]);
+
   return {
+    /** The alliance's players, with their powers just before the start for started events */
+    players,
+    /** The powers are the ones recorded before the event started */
+    usesStartPowers: !!startPowers && startPowers.size > 0,
     ready: !!current && !current.error,
     error: current?.error ?? null,
     assignments: current?.assignments ?? null,

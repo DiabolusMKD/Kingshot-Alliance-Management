@@ -347,6 +347,11 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
                 </small>
               </div>
               <EventHero eventType="swordland" />
+              {editorData.usesStartPowers && (
+                <p className={styles.powerNote}>
+                  This event has started: powers are each player&apos;s latest recorded power before the start.
+                </p>
+              )}
               {editorData.error ? (
                 <p className={styles.loadError}>
                   Couldn&apos;t load this event&apos;s players: {editorData.error}
@@ -354,7 +359,7 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
               ) : editorData.ready ? (
                 <SwordlandEventLayout
                   key={selectedEvent.id}
-                  players={players}
+                  players={editorData.players}
                   // Only passed when there are any, so the editor isn't re-initialized by a new empty list
                   externalPlayers={editorData.extraPlayers?.length ? editorData.extraPlayers : undefined}
                   summitLeague={

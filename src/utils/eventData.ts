@@ -4,6 +4,7 @@ import { supabase } from './supabaseClient';
 import { getPlayersByIds } from './playerService';
 import { LegionSchedules } from './legionSchedule';
 import { PowerMode } from './powerMode';
+import { getPowersAtOrNone, hasEventStarted, PowerSnapshot } from './powerHistory';
 import {
   AllianceEvent,
   EventPlayer,
@@ -128,6 +129,25 @@ function getPowerAtEvent(
   };
 }
 
+/** Power saved with the assignment, from the player's powers just before the event started */
+function getPowerFromSnapshot(
+  event: AllianceEvent,
+  snapshot: PowerSnapshot,
+  powerMode?: PowerMode,
+): Pick<EventPlayer, 'powerAtEvent' | 'powerType'> | null {
+  if (event.eventId === TRI_ALLIANCE_EVENT_ID) {
+    return snapshot.triAlliancePower !== null
+      ? { powerAtEvent: snapshot.triAlliancePower, powerType: 'tri_alliance' }
+      : null;
+  }
+  if (powerMode === 'power') {
+    return snapshot.power !== null ? { powerAtEvent: snapshot.power, powerType: 'power' } : null;
+  }
+  return snapshot.swordlandPower !== null
+    ? { powerAtEvent: snapshot.swordlandPower, powerType: 'swordland' }
+    : null;
+}
+
 /** { playerId: points } from the editor's results */
 function getScores(results: EventResults): Map<string, number> {
   const scores = new Map<string, number>();
@@ -187,10 +207,27 @@ export async function saveEventData(event: AllianceEvent, input: EventSaveInput)
       .map(String),
   );
 
+  // Started events: each player's power just before the start (player_power_history)
+  const startPowers =
+    hasEventStarted(event) && event.startsAt
+      ? await getPowersAtOrNone(
+          input.assignments.map((a) => a.playerId),
+          event.startsAt,
+        )
+      : null;
+  const savedPower = (assignment: PlayerAssignment, playerId: string, isNew: boolean) => {
+    const snapshot = startPowers?.get(playerId);
+    const fromHistory = snapshot ? getPowerFromSnapshot(event, snapshot, input.powerMode) : null;
+    if (fromHistory) return fromHistory;
+    // No history: power is frozen once the event is completed (editing later keeps the power at the event)
+    if (isCompleted && !isNew) return {};
+    return getPowerAtEvent(event, assignment, input.powerMode);
+  };
+
   const scores = input.results ? getScores(input.results) : null;
   const seen = new Set<string>();
   const mutableRows: Record<string, unknown>[] = [];
-  const newAssignments: { assignment: PlayerAssignment; row: Record<string, unknown> }[] = [];
+  const newRows: Record<string, unknown>[] = [];
 
   input.assignments.forEach((assignment) => {
     const playerId = String(assignment.playerId);
@@ -206,8 +243,7 @@ export async function saveEventData(event: AllianceEvent, input: EventSaveInput)
       position: legionInfo.isSubstitute ? null : assignment.position ?? null,
       positionRole: legionInfo.isSubstitute ? null : assignment.positionRole ?? null,
       updatedAt: now,
-      // Power is frozen once the event is completed (editing later keeps the power at the event)
-      ...(isCompleted && existingIds.has(playerId) ? {} : getPowerAtEvent(event, assignment, input.powerMode)),
+      ...savedPower(assignment, playerId, !existingIds.has(playerId)),
       // Points only change when results are saved (completed events)
       ...(scores
         ? {
@@ -218,7 +254,7 @@ export async function saveEventData(event: AllianceEvent, input: EventSaveInput)
     };
 
     if (existingIds.has(playerId)) mutableRows.push(row);
-    else newAssignments.push({ assignment, row });
+    else newRows.push(row);
   });
 
   // Rows of one upsert must have the same columns: group by the keys they set
@@ -234,17 +270,16 @@ export async function saveEventData(event: AllianceEvent, input: EventSaveInput)
     if (error) throw new Error(`Failed to update event players: ${error.message}`);
   }
 
-  if (newAssignments.length > 0) {
+  if (newRows.length > 0) {
     // Snapshot of the player when added: alliance, kingdom, name
-    const players = await getPlayersByIds(newAssignments.map(({ row }) => row.playerId as string));
+    const players = await getPlayersByIds(newRows.map((row) => row.playerId as string));
     const byId = new Map(players.map((p) => [String(p.id), p]));
 
-    const inserts = newAssignments
-      .filter(({ row }) => byId.has(row.playerId as string))
-      .map(({ assignment, row }) => {
+    const inserts = newRows
+      .filter((row) => byId.has(row.playerId as string))
+      .map((row) => {
         const player = byId.get(row.playerId as string)!;
         return {
-          ...getPowerAtEvent(event, assignment, input.powerMode),
           score: null,
           didShowUp: null,
           ...row,
