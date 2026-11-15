@@ -26,3 +26,28 @@ export const formatNumbers = (num: number): string => {
  * Example: formatPower(152384920) => "152 384 920"
  */
 export const formatPower = (num: number): string => formatNumbers(Number(num)).replace(/,/g, " ");
+
+const COMPACT_UNITS: { value: number; suffix: string }[] = [
+  { value: 1_000_000_000, suffix: "B" },
+  { value: 1_000_000, suffix: "M" },
+  { value: 1_000, suffix: "K" },
+];
+
+/**
+ * Short power for tables: one decimal, cut (not rounded) so it never shows more than the
+ * player has, a comma as the decimal mark and no ",0".
+ * Examples: 103890000 => "103,8M", 103000000 => "103M", 130890 => "130,8K", 950 => "950"
+ */
+export const formatCompactPower = (num: number): string => {
+  const value = Number(num);
+  if (!Number.isFinite(value)) return "0";
+  const sign = value < 0 ? "-" : "";
+  const abs = Math.abs(value);
+  const unit = COMPACT_UNITS.find((u) => abs >= u.value);
+  if (!unit) return `${sign}${Math.floor(abs)}`;
+
+  const tenths = Math.floor(abs / (unit.value / 10));
+  const whole = Math.floor(tenths / 10);
+  const decimal = tenths % 10;
+  return `${sign}${whole}${decimal ? `,${decimal}` : ""}${unit.suffix}`;
+};

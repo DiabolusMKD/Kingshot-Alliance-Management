@@ -3,7 +3,7 @@
 import { LegionBuildingData, Player } from "@/types";
 import PlayerIdentity from "./PlayerIdentity";
 import { PowerMode, getPlayerPower, getPowerLabel } from "@/utils/powerMode";
-import { formatPower } from "@/utils/formatNumbers";
+import { formatCompactPower, formatPower } from "@/utils/formatNumbers";
 import styles from "./LegionTable.module.css";
 
 type Legion = "legion1" | "legion2";
@@ -62,27 +62,27 @@ function UnassignPlayerButton({
   ) => void;
   movePlayerFromSubstitute?: (playerId: string, legion: Legion) => void;
 }) {
-  if (movePlayerFromSubstitute) {
-    return (
-      <button
-        type="button"
-        className={styles.unassignButton}
-        onClick={() => movePlayerFromSubstitute(player.id, legion)}
-      >
-        Remove
-      </button>
-    );
-  } else {
-    return (
-      <button
-        type="button"
-        className={styles.unassignButton}
-        onClick={() => movePlayer(player.id, legion, "unassigned")}
-      >
-        Unassign
-      </button>
-    );
-  }
+  // Substitutes go back to the legion's player list; players go back to Unassigned
+  const label = movePlayerFromSubstitute
+    ? `Remove ${player.name} from the substitutes`
+    : `Remove ${player.name} from the legion`;
+  return (
+    <button
+      type="button"
+      className={styles.removeButton}
+      onClick={() =>
+        movePlayerFromSubstitute
+          ? movePlayerFromSubstitute(player.id, legion)
+          : movePlayer(player.id, legion, "unassigned")
+      }
+      title={label}
+      aria-label={label}
+    >
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
+        <path d="M18 6 6 18M6 6l12 12" />
+      </svg>
+    </button>
+  );
 }
 
 export default function LegionTable({
@@ -112,7 +112,7 @@ export default function LegionTable({
               <th>Player</th>
               <th>{getPowerLabel(powerMode)}</th>
               <th>Building</th>
-              <th>Move</th>
+              <th>Remove</th>
             </tr>
           </thead>
 
@@ -122,8 +122,8 @@ export default function LegionTable({
                 <td>
                   <PlayerIdentity player={player} />
                 </td>
-                <td className={styles.powerCell}>
-                  {formatPower(getPlayerPower(player, powerMode))}
+                <td className={styles.powerCell} title={formatPower(getPlayerPower(player, powerMode))}>
+                  {formatCompactPower(getPlayerPower(player, powerMode))}
                 </td>
 
                 <td>

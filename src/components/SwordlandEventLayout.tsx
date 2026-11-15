@@ -21,7 +21,7 @@ import {
   parseBuildingsJson,
   previewToJson,
 } from "@/utils/swordlandBuildings";
-import { formatPower } from "@/utils/formatNumbers";
+import { formatCompactPower, formatPower } from "@/utils/formatNumbers";
 import {
   PowerMode,
   POWER_MODE_OPTIONS,
@@ -687,7 +687,9 @@ ${buildingText}${substitutesText}`;
                                 )}
                               </PlayerIdentity>
                             </td>
-                            <td className={styles.powerCell}>{formatPower(powerOf(p))}</td>
+                            <td className={styles.powerCell} title={formatPower(powerOf(p))}>
+                              {formatCompactPower(powerOf(p))}
+                            </td>
                             <td>
                               <select
                                 className={styles.tableSelect}

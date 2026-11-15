@@ -10,7 +10,7 @@ import ViewAssignmentsButton from "./ViewAssignmentsButton";
 import GeneratedOutput from "./GeneratedOutput";
 import { LegionSchedules, formatLegionTitle, getLegionSchedules } from "@/utils/legionSchedule";
 import { EventSaveInput } from "@/utils/eventData";
-import { formatPower } from "@/utils/formatNumbers";
+import { formatCompactPower, formatPower } from "@/utils/formatNumbers";
 import styles from "./TriAllianceEventLayout.module.css";
 
 const MAX_LEGION_PLAYERS = 30;
@@ -558,8 +558,12 @@ ${formatLegion(formatLegionTitle("Legion 2", legionSchedules.legion_2), assignme
                     <td>
                       <PlayerIdentity player={player} />
                     </td>
-                    <td className={styles.powerCell}>{formatPower(player.trialliancePower)}</td>
-                    <td className={styles.powerCell}>{formatPower(player.power)}</td>
+                    <td className={styles.powerCell} title={formatPower(player.trialliancePower)}>
+                      {formatCompactPower(player.trialliancePower)}
+                    </td>
+                    <td className={styles.powerCell} title={formatPower(player.power)}>
+                      {formatCompactPower(player.power)}
+                    </td>
                     <td>
                       <select
                         value="unassigned"

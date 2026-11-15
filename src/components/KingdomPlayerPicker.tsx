@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Alliance, Player } from '@/types';
 import { getKingdomPlayersOutsideAlliance } from '@/utils/playerService';
 import { getAlliancesByKingdomId } from '@/utils/allianceService';
-import { formatPower } from '@/utils/formatNumbers';
+import { formatCompactPower, formatPower } from '@/utils/formatNumbers';
 import { PowerMode, getPlayerPower, getPowerLabel } from '@/utils/powerMode';
 import PlayerIdentity from './PlayerIdentity';
 import styles from './SwordlandEventLayout.module.css';
@@ -126,7 +126,9 @@ export default function KingdomPlayerPicker({
                       <PlayerIdentity player={p} label={p.aliasName || p.name} />
                     </td>
                     <td>{tag ? `[${tag}]` : '—'}</td>
-                    <td className={styles.powerCell}>{formatPower(getPlayerPower(p, powerMode))}</td>
+                    <td className={styles.powerCell} title={formatPower(getPlayerPower(p, powerMode))}>
+                      {formatCompactPower(getPlayerPower(p, powerMode))}
+                    </td>
                     <td>
                       {added ? (
                         <span className={styles.pickerAdded}>Added</span>
