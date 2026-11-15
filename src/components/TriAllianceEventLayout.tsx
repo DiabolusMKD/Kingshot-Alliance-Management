@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { EventResults, EventStatus, Player, PlayerAssignment } from "@/types";
 import { useToast } from "./Toast";
 import EventPoints, { PointsLegion, useEventPoints } from "./EventPoints";
+import { CompletedStatus, LockToggleButton } from "./EventLock";
 import PlayerIdentity from "./PlayerIdentity";
 import LegionTimeSelect from "./LegionTimeSelect";
 import ViewAssignmentsButton from "./ViewAssignmentsButton";
@@ -138,6 +139,21 @@ export default function TriAllianceEventLayout({
   const [assignmentsExpanded, setAssignmentsExpanded] = useState(
     eventStatus !== "completed",
   );
+  // A saved completed event opens locked (view only); Unlock makes it editable again
+  const [isLocked, setIsLocked] = useState(eventStatus === "completed");
+  // Choosing Completed switches to the points view, like a saved completed event
+  const changeStatus = (status: EventStatus) => {
+    setCurrentEventStatus(status);
+    if (status === "completed") setAssignmentsExpanded(false);
+  };
+  // Lock goes back to the saved completed view (an unsaved status change is dropped)
+  const toggleLock = () => {
+    if (!isLocked) {
+      setCurrentEventStatus(eventStatus);
+      setAssignmentsExpanded(false);
+    }
+    setIsLocked(!isLocked);
+  };
   const [notes, setNotes] = useState(initialNotes);
   const [legionSchedules, setLegionSchedules] = useState<LegionSchedules>(initialLegionSchedules);
   const [assignments, setAssignments] = useState<LegionAssignments>({
@@ -484,7 +500,7 @@ ${formatLegion(formatLegionTitle("Legion 2", legionSchedules.legion_2), assignme
       substitutes: assignments.substituteLegion2,
     },
   ];
-  const showAssignments = !isCompleted || assignmentsExpanded;
+  const showAssignments = !isLocked && (!isCompleted || assignmentsExpanded);
 
   const legionColumns = [
     {
@@ -506,12 +522,15 @@ ${formatLegion(formatLegionTitle("Legion 2", legionSchedules.legion_2), assignme
       {/* Points (completed events only) */}
       {isCompleted && (
         <>
+          {isLocked && <CompletedStatus />}
           <EventPoints
             legions={pointsLegions}
             resultLabel="Place"
             resultOptions={TRI_ALLIANCE_PLACES}
             state={pointsState}
+            readOnly={isLocked}
           />
+          {!isLocked && (
           <div className={styles.editAssignmentsBar}>
             <button
               type="button"
@@ -522,6 +541,7 @@ ${formatLegion(formatLegionTitle("Legion 2", legionSchedules.legion_2), assignme
               {assignmentsExpanded ? "Hide assignments" : "Edit assignments"}
             </button>
           </div>
+          )}
         </>
       )}
 
@@ -635,7 +655,8 @@ ${formatLegion(formatLegionTitle("Legion 2", legionSchedules.legion_2), assignme
           className={styles.notesTextarea}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          placeholder="Anything to remember about this event..."
+          readOnly={isLocked}
+          placeholder={isLocked ? "No notes." : "Anything to remember about this event..."}
           rows={3}
         />
       </div>
@@ -649,6 +670,7 @@ ${formatLegion(formatLegionTitle("Legion 2", legionSchedules.legion_2), assignme
       )}
 
       {/* ACTIONS: assignment tools (left) and status + save (right) */}
+      {!isLocked && (
       <div className={styles.actionsBar}>
         {showAssignments && (
           <div className={styles.actionGroup}>
@@ -668,7 +690,7 @@ ${formatLegion(formatLegionTitle("Legion 2", legionSchedules.legion_2), assignme
         <div className={`${styles.actionGroup} ${styles.saveGroup}`}>
           <select
             value={currentEventStatus}
-            onChange={(e) => setCurrentEventStatus(e.target.value as EventStatus)}
+            onChange={(e) => changeStatus(e.target.value as EventStatus)}
             className={styles.statusSelect}
             name="eventStatus"
             aria-label="Event status"
@@ -687,6 +709,7 @@ ${formatLegion(formatLegionTitle("Legion 2", legionSchedules.legion_2), assignme
           </button>
         </div>
       </div>
+      )}
 
       {/* JSON Import Modal */}
       {showJsonModal && (
@@ -738,6 +761,9 @@ ${formatLegion(formatLegionTitle("Legion 2", legionSchedules.legion_2), assignme
           </button>
         </div>
       )}
+
+      {/* Very bottom of a saved completed event: Unlock to edit, Lock to go back to the view */}
+      {eventStatus === "completed" && <LockToggleButton isLocked={isLocked} onToggle={toggleLock} />}
     </div>
   );
 }

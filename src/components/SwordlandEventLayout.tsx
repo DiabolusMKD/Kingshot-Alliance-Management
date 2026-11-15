@@ -5,6 +5,7 @@ import LegionTable from "./LegionTable";
 import KingdomPlayerPicker from "./KingdomPlayerPicker";
 import BuildingPreview from "./BuildingPreview";
 import EventPoints, { PointsLegion, useEventPoints } from "./EventPoints";
+import { CompletedStatus, LockToggleButton } from "./EventLock";
 import PlayerIdentity from "./PlayerIdentity";
 import { useToast } from "./Toast";
 import LegionTimeSelect from "./LegionTimeSelect";
@@ -109,6 +110,21 @@ export default function SwordlandEventLayout({
   const [assignmentsExpanded, setAssignmentsExpanded] = useState(
     eventStatus !== "completed",
   );
+  // A saved completed event opens locked (view only); Unlock makes it editable again
+  const [isLocked, setIsLocked] = useState(eventStatus === "completed");
+  // Choosing Completed switches to the points view, like a saved completed event
+  const changeStatus = (status: EventStatus) => {
+    setCurrentEventStatus(status);
+    if (status === "completed") setAssignmentsExpanded(false);
+  };
+  // Lock goes back to the saved completed view (an unsaved status change is dropped)
+  const toggleLock = () => {
+    if (!isLocked) {
+      setCurrentEventStatus(eventStatus);
+      setAssignmentsExpanded(false);
+    }
+    setIsLocked(!isLocked);
+  };
 
   const [legionSubstitutes, setLegionSubstitutes] = useState<{
     legion1: Player[];
@@ -591,20 +607,23 @@ ${buildingText}${substitutesText}`;
       substitutes: legionSubstitutes.legion2,
     },
   ];
-  const showAssignments = !isCompleted || assignmentsExpanded;
+  const showAssignments = !isLocked && (!isCompleted || assignmentsExpanded);
 
   return (
     <div className={styles.container}>
       {/* POINTS (completed events only) */}
       {isCompleted && (
         <>
+          {isLocked && <CompletedStatus />}
           <EventPoints
             legions={pointsLegions}
             resultLabel="Result"
             resultOptions={SWORDLAND_RESULTS}
             state={pointsState}
+            readOnly={isLocked}
             mvpTypes={SWORDLAND_MVP_TYPES}
           />
+          {!isLocked && (
           <div className={styles.editAssignmentsBar}>
             <button
               type="button"
@@ -615,6 +634,7 @@ ${buildingText}${substitutesText}`;
               {assignmentsExpanded ? "Hide assignments" : "Edit assignments"}
             </button>
           </div>
+          )}
         </>
       )}
 
@@ -801,7 +821,8 @@ ${buildingText}${substitutesText}`;
           className={styles.notesTextarea}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          placeholder="Anything to remember about this event..."
+          readOnly={isLocked}
+          placeholder={isLocked ? "No notes." : "Anything to remember about this event..."}
           rows={3}
         />
       </div>
@@ -815,6 +836,7 @@ ${buildingText}${substitutesText}`;
       )}
 
       {/* ACTIONS: assignment tools (left) and status + save (right) */}
+      {!isLocked && (
       <div className={styles.actionsBar}>
         {showAssignments && (
           <div className={styles.actionGroup}>
@@ -834,7 +856,7 @@ ${buildingText}${substitutesText}`;
         <div className={`${styles.actionGroup} ${styles.saveGroup}`}>
           <select
             value={currentEventStatus}
-            onChange={(e) => setCurrentEventStatus(e.target.value as EventStatus)}
+            onChange={(e) => changeStatus(e.target.value as EventStatus)}
             className={styles.statusSelect}
             name="eventStatus"
             aria-label="Event status"
@@ -853,6 +875,7 @@ ${buildingText}${substitutesText}`;
           </button>
         </div>
       </div>
+      )}
 
       {/* UPLOAD JSON MODAL */}
       {showJsonModal && (
@@ -904,6 +927,9 @@ ${buildingText}${substitutesText}`;
           </button>
         </div>
       )}
+
+      {/* Very bottom of a saved completed event: Unlock to edit, Lock to go back to the view */}
+      {eventStatus === "completed" && <LockToggleButton isLocked={isLocked} onToggle={toggleLock} />}
     </div>
   );
 }

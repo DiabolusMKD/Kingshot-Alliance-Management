@@ -128,6 +128,8 @@ interface EventPointsProps {
   state: EventPointsState;
   /** Swordland: MVP per type (one dropdown each) instead of one MVP per legion */
   mvpTypes?: MvpTypeOption[];
+  /** Locked completed event: values are shown, nothing can be changed */
+  readOnly?: boolean;
 }
 
 /** Swordland: one dropdown per MVP type, listing the legion's players and substitutes */
@@ -135,10 +137,12 @@ function MvpPicker({
   legion,
   mvpTypes,
   state,
+  readOnly,
 }: {
   legion: PointsLegion;
   mvpTypes: MvpTypeOption[];
   state: EventPointsState;
+  readOnly: boolean;
 }) {
   const members = [...legion.players, ...legion.substitutes];
   const mvps = state.legionMeta[legion.key].mvps;
@@ -148,6 +152,17 @@ function MvpPicker({
       {mvpTypes.map((type) => {
         const id = `mvp-${legion.key}-${type.value}`;
         const selected = mvps[type.value] ?? "";
+        if (readOnly) {
+          const winner = members.find((p) => String(p.id) === selected);
+          return (
+            <div key={type.value} className={styles.mvpField}>
+              <span className={styles.mvpLabel}>{type.label}</span>
+              <span className={`${styles.readOnlyValue} ${winner ? styles.mvpWinner : ""}`}>
+                {winner ? winner.name : "—"}
+              </span>
+            </div>
+          );
+        }
         return (
           <div key={type.value} className={styles.mvpField}>
             <label htmlFor={id} className={styles.mvpLabel}>
@@ -179,12 +194,14 @@ function PointsList({
   players,
   state,
   showMvpSelect,
+  readOnly,
 }: {
   title: string;
   legionKey: LegionResultKey;
   players: Player[];
   state: EventPointsState;
   showMvpSelect: boolean;
+  readOnly: boolean;
 }) {
   const mvp = state.legionMeta[legionKey].mvp;
   const isMvp = (player: Player) => mvp != null && String(mvp) === String(player.id);
@@ -203,12 +220,14 @@ function PointsList({
               type="number"
               min="0"
               inputMode="numeric"
-              placeholder="Points"
+              placeholder={readOnly ? "—" : "Points"}
               value={state.points[player.id] ?? ""}
               onChange={(e) => state.setPoint(player.id, e.target.value)}
-              className={styles.input}
+              readOnly={readOnly}
+              className={`${styles.input} ${readOnly ? styles.inputReadOnly : ""}`}
             />
-            {showMvpSelect && (
+            {showMvpSelect && readOnly && isMvp(player) && <span className={styles.mvpTag}>MVP</span>}
+            {showMvpSelect && !readOnly && (
             <select
               value={isMvp(player) ? "mvp" : ""}
               onChange={(e) =>
@@ -238,6 +257,7 @@ export default function EventPoints({
   resultOptions,
   state,
   mvpTypes,
+  readOnly = false,
 }: EventPointsProps) {
   // Players with their MVP labels per legion (chart)
   const mvpLabels = (key: LegionResultKey): Record<string, string[]> => {
@@ -270,6 +290,12 @@ export default function EventPoints({
               <div key={legion.key} className={styles.legionGroup}>
                 <div className={styles.legionGroupHeader}>
                   <h3 className={styles.legionGroupTitle}>{legion.title}</h3>
+                  {readOnly ? (
+                    <span className={styles.resultValue}>
+                      {resultOptions.find((o) => o.value === state.legionMeta[legion.key].status)?.label ??
+                        `No ${resultLabel.toLowerCase()}`}
+                    </span>
+                  ) : (
                   <select
                     value={state.legionMeta[legion.key].status ?? ""}
                     onChange={(e) => state.setStatus(legion.key, e.target.value || null)}
@@ -283,14 +309,16 @@ export default function EventPoints({
                       </option>
                     ))}
                   </select>
+                  )}
                 </div>
-                {mvpTypes && <MvpPicker legion={legion} mvpTypes={mvpTypes} state={state} />}
+                {mvpTypes && <MvpPicker legion={legion} mvpTypes={mvpTypes} state={state} readOnly={readOnly} />}
                 <PointsList
                   title={`Players (${legion.players.length})`}
                   legionKey={legion.key}
                   players={legion.players}
                   state={state}
                   showMvpSelect={!mvpTypes}
+                  readOnly={readOnly}
                 />
                 {legion.substitutes.length > 0 && (
                   <PointsList
@@ -299,6 +327,7 @@ export default function EventPoints({
                     players={legion.substitutes}
                     state={state}
                     showMvpSelect={!mvpTypes}
+                    readOnly={readOnly}
                   />
                 )}
               </div>

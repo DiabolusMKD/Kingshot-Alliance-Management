@@ -174,3 +174,54 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ===== Locked (read-only) completed event ===== */
+.inputReadOnly {
+  background-color: transparent;
+  border-color: transparent;
+  color: var(--text-primary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: default;
+}
+
+.inputReadOnly:focus {
+  border-color: transparent;
+}
+
+/* Legion result shown as a label instead of a dropdown */
+.resultValue {
+  padding: 0.3rem 0.75rem;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+/* MVP type winner shown as a label instead of a dropdown */
+.readOnlyValue {
+  padding: 0.35rem 0;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mvpWinner {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* Tri Alliance MVP shown as a tag instead of a dropdown */
+.mvpTag {
+  flex-shrink: 0;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid #f59e0b;
+  color: #f59e0b;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
