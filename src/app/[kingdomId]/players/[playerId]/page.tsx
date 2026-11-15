@@ -368,7 +368,7 @@ export default function PlayerPage({ params }: PlayerPageProps) {
                       )}
                     </div>
                   )}
-                  <div>
+                  <div className={styles.nameBlock}>
                     <h1 className={styles.name}>{player.name}</h1>
                     {player.aliasName && <p className={styles.alias}>{player.aliasName}</p>}
                     <p className={styles.meta}>

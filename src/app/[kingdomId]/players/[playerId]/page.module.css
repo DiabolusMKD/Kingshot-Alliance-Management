@@ -38,6 +38,13 @@
   align-items: center;
   gap: 16px;
   min-width: 0;
+  max-width: 100%;
+}
+
+/* Name, alias and meta: shrink with the card so a long name wraps instead of widening it */
+.nameBlock {
+  flex: 1;
+  min-width: 0;
 }
 
 .photo,
@@ -84,15 +91,18 @@
   font-size: 28px;
   font-weight: 700;
   color: var(--text-primary);
+  overflow-wrap: anywhere;
 }
 
 .alias {
   margin: 2px 0 0;
+  overflow-wrap: anywhere;
   color: var(--text-secondary);
 }
 
 .meta {
   margin: 4px 0 0;
+  overflow-wrap: anywhere;
   font-size: 13px;
   color: var(--text-secondary);
 }
@@ -107,6 +117,32 @@
   .powers {
     grid-template-columns: 1fr;
     width: 100%;
+  }
+}
+
+/* Phones: smaller photo / level and name so the name gets more room */
+@media (max-width: 480px) {
+  .profile {
+    padding: 16px;
+  }
+
+  .identity {
+    gap: 10px;
+  }
+
+  .photo,
+  .photoPlaceholder {
+    width: 56px;
+    height: 56px;
+  }
+
+  .level {
+    width: 36px;
+    height: 36px;
+  }
+
+  .name {
+    font-size: 22px;
   }
 }
 
