@@ -27,7 +27,7 @@ interface KingdomPlayerPickerProps {
 }
 
 /**
- * SLS (Swordland Summit League): the kingdom's strongest players from other
+ * SSL (Swordland Summit League): the kingdom's strongest players from other
  * alliances, 100 at a time, so they can be added to this alliance's legions.
  */
 export default function KingdomPlayerPicker({
@@ -96,7 +96,7 @@ export default function KingdomPlayerPicker({
           </span>
         </h2>
         <p className={styles.pickerHint}>
-          Add players from other alliances in your kingdom who registered for SLS with your alliance.
+          Add players from other alliances in your kingdom who registered for SSL with your alliance.
         </p>
       </div>
 

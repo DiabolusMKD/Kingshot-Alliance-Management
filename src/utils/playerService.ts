@@ -284,7 +284,7 @@ export async function getKingdomPlayers(
 }
 
 /**
- * Players by their database ids (e.g. other-alliance players saved in an SLS event).
+ * Players by their database ids (e.g. other-alliance players saved in an SSL event).
  */
 export async function getPlayersByIds(ids: (string | number)[]): Promise<Player[]> {
   if (ids.length === 0) return [];
