@@ -34,6 +34,9 @@ export interface PlayerEventEntry {
   /** Power saved with the event (see powerType) */
   power: number | null;
   powerType: EventPlayer['powerType'];
+  /** Powers just before the event: the saved power for its type, else the power history */
+  swordlandPower: number | null;
+  totalPower: number | null;
   /** null when the event has no score for this player */
   points: number | null;
   /** Completed events only: showed up = score > 0 (no attendance is stored yet) */
@@ -65,11 +68,31 @@ export interface PlayerEventSummary {
 
 type EventPlayerWithEvent = EventPlayer & { alliance_event: AllianceEvent | null };
 
+/** One recorded change of the player's powers (player_power_history) */
+export interface PowerRecord {
+  power: number | null;
+  swordlandPower: number | null;
+  recordedAt: string;
+}
+
+/** Latest record at or before `at` (records sorted oldest first) */
+function recordAt(records: PowerRecord[], at: string | null | undefined): PowerRecord | null {
+  if (!at) return null;
+  const time = Date.parse(at);
+  let found: PowerRecord | null = null;
+  for (const record of records) {
+    if (Date.parse(record.recordedAt) > time) break;
+    found = record;
+  }
+  return found;
+}
+
 /** Turns the player's event_player rows (with their event) into entries (pure, no requests) */
 export function buildPlayerEntries(
   rows: EventPlayerWithEvent[],
   playerId: string,
   alliances: Map<number, Alliance>,
+  powerRecords: PowerRecord[] = [],
 ): PlayerEventEntry[] {
   const entries: PlayerEventEntry[] = [];
 
@@ -83,6 +106,8 @@ export function buildPlayerEntries(
     const mvp = (isLegion1 ? event.legion1Mvp : event.legion2Mvp) ?? null;
     const alliance = alliances.get(event.allianceId) ?? null;
     const isCompleted = event.status === 'completed';
+    const record = recordAt(powerRecords, event.startsAt);
+    const saved = (type: EventPlayer['powerType']) => (row.powerType === type ? row.powerAtEvent : null);
 
     entries.push({
       allianceEventId: event.id,
@@ -98,6 +123,8 @@ export function buildPlayerEntries(
       playerAlliance: row.playerAllianceId != null ? alliances.get(row.playerAllianceId) ?? null : null,
       power: row.powerAtEvent,
       powerType: row.powerType,
+      swordlandPower: saved('swordland') ?? record?.swordlandPower ?? null,
+      totalPower: saved('power') ?? record?.power ?? null,
       points: row.score,
       // Showed up = score > 0 (stored as didShowUp; derived for rows saved without it)
       attended: isCompleted ? row.didShowUp ?? (row.score ?? 0) > 0 : null,
@@ -170,5 +197,25 @@ export async function getPlayerEventHistory(playerId: string): Promise<PlayerEve
   const alliances = new Map<number, Alliance>();
   found.forEach((a) => a && alliances.set(a.id, a));
 
-  return buildPlayerEntries(rows, playerId, alliances);
+  return buildPlayerEntries(rows, playerId, alliances, await getPowerRecords(playerId));
+}
+
+/** The player's power history, oldest first (empty when it can't be read) */
+async function getPowerRecords(playerId: string): Promise<PowerRecord[]> {
+  const { data, error } = await supabase
+    .from('player_power_history')
+    .select('power, swordlandPower, recordedAt')
+    .eq('playerId', playerId)
+    .order('recordedAt', { ascending: true })
+    .order('id', { ascending: true });
+  if (error) {
+    console.warn('Power history not available:', error.message);
+    return [];
+  }
+  const toNumber = (v: unknown) => (v === null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v));
+  return (data ?? []).map((r: { power: unknown; swordlandPower: unknown; recordedAt: string }) => ({
+    power: toNumber(r.power),
+    swordlandPower: toNumber(r.swordlandPower),
+    recordedAt: r.recordedAt,
+  }));
 }

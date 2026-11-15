@@ -40,10 +40,12 @@ const formatResult = (result: string) => RESULT_LABELS[result] ?? result;
 const formatDate = (iso: string | null, options: Intl.DateTimeFormatOptions) =>
   iso ? new Date(iso).toLocaleDateString("en-US", { timeZone: "UTC", ...options }) : "—";
 
-const POWER_LABELS: Record<EventType, string> = {
-  swordland: "Swordland power at the event",
-  "tri-alliance": "Tri Alliance power at the event",
-};
+/** Swordland's power chart: which power it shows */
+type SwordlandPowerView = "swordland" | "power";
+const SWORDLAND_POWER_VIEWS: { value: SwordlandPowerView; label: string; title: string }[] = [
+  { value: "swordland", label: "Swordland power", title: "Swordland power at the event" },
+  { value: "power", label: "Total power", title: "Total power at the event" },
+];
 
 function StatTile({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
@@ -56,6 +58,7 @@ function StatTile({ label, value, hint }: { label: string; value: string; hint?:
 }
 
 function EventTypeSection({ type, entries }: { type: EventType; entries: PlayerEventEntry[] }) {
+  const [powerView, setPowerView] = useState<SwordlandPowerView>("swordland");
   const ofType = entries.filter((e) => e.type === type);
   const summary = summarizeEntries(type, entries);
   const title = EVENT_TYPE_LABELS[type];
@@ -89,12 +92,20 @@ function EventTypeSection({ type, entries }: { type: EventType; entries: PlayerE
       ],
     }));
 
+  // Swordland: the selected power; Tri Alliance: the power saved with the event
+  const powerOf = (e: PlayerEventEntry) =>
+    type === "swordland" ? (powerView === "power" ? e.totalPower : e.swordlandPower) : e.power;
+  const powerTitle =
+    type === "swordland"
+      ? SWORDLAND_POWER_VIEWS.find((v) => v.value === powerView)!.title
+      : "Tri Alliance power at the event";
+
   const powerData: ChartPoint[] = ofType
-    .filter((e) => e.power !== null)
+    .filter((e) => powerOf(e) !== null)
     .map((e) => ({
       id: e.allianceEventId,
       label: shortDate(e),
-      value: e.power ?? 0,
+      value: powerOf(e) ?? 0,
       details: [formatDate(e.startsAt, { weekday: "short", month: "short", day: "numeric", year: "numeric" })],
     }));
 
@@ -132,10 +143,26 @@ function EventTypeSection({ type, entries }: { type: EventType; entries: PlayerE
           emptyMessage="No completed events yet."
         />
         <PlayerStatsChart
-          title={POWER_LABELS[type]}
+          title={powerTitle}
           points={powerData}
           formatValue={formatPower}
           emptyMessage="No power saved with these events."
+          controls={
+            type === "swordland" && (
+              <select
+                className={styles.chartSelect}
+                value={powerView}
+                onChange={(e) => setPowerView(e.target.value as SwordlandPowerView)}
+                aria-label="Power shown in the chart"
+              >
+                {SWORDLAND_POWER_VIEWS.map((view) => (
+                  <option key={view.value} value={view.value}>
+                    {view.label}
+                  </option>
+                ))}
+              </select>
+            )
+          }
         />
       </div>
 

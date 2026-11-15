@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import styles from "./PlayerStatsChart.module.css";
 
 export interface ChartPoint {
@@ -19,6 +19,8 @@ interface PlayerStatsChartProps {
   points: ChartPoint[];
   formatValue: (value: number) => string;
   emptyMessage: string;
+  /** Shown right of the title, e.g. a select for what the chart shows */
+  controls?: ReactNode;
 }
 
 const HEIGHT = 220;
@@ -34,7 +36,7 @@ function niceMax(value: number): number {
 }
 
 /** Single-series line chart (one per metric, never two y-scales) with a tooltip per point */
-export default function PlayerStatsChart({ title, points, formatValue, emptyMessage }: PlayerStatsChartProps) {
+export default function PlayerStatsChart({ title, points, formatValue, emptyMessage, controls }: PlayerStatsChartProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
   const [active, setActive] = useState<number | null>(null);
@@ -64,7 +66,10 @@ export default function PlayerStatsChart({ title, points, formatValue, emptyMess
 
   return (
     <figure className={styles.chart}>
-      <figcaption className={styles.title}>{title}</figcaption>
+      <div className={styles.header}>
+        <figcaption className={styles.title}>{title}</figcaption>
+        {controls}
+      </div>
 
       <div ref={wrapperRef} className={styles.plot} onMouseLeave={() => setActive(null)}>
         {points.length === 0 ? (
