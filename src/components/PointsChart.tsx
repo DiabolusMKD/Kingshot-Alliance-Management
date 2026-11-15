@@ -38,7 +38,7 @@ function toRows(legion: ChartLegion, points: Record<string, string>): ChartRow[]
       name: player.name,
       points: Number(points[player.id]) || 0,
       isSubstitute,
-      isMvp: legion.mvp === player.id,
+      isMvp: legion.mvp != null && String(legion.mvp) === String(player.id),
     }));
 
   // Ranked: highest points first

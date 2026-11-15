@@ -76,13 +76,14 @@ export function useEventPoints(
 
     legions.forEach((legion) => {
       const members = [...legion.players, ...legion.substitutes];
-      const memberIds = new Set(members.map((p) => p.id));
+      // Ids compared as strings (bigint ids arrive as numbers)
+      const memberIds = new Set(members.map((p) => String(p.id)));
       const { status, mvp } = legionMeta[legion.key];
 
       results[legion.key] = {
         status,
         // Drop the MVP if they were moved out of this legion
-        mvp: mvp && memberIds.has(mvp) ? mvp : null,
+        mvp: mvp != null && memberIds.has(String(mvp)) ? String(mvp) : null,
         players_points: members
           .filter((p) => points[p.id]?.trim())
           .map((p) => ({ [p.id]: Number(points[p.id]) })),
@@ -116,6 +117,7 @@ function PointsList({
   state: EventPointsState;
 }) {
   const mvp = state.legionMeta[legionKey].mvp;
+  const isMvp = (player: Player) => mvp != null && String(mvp) === String(player.id);
 
   return (
     <div className={styles.column}>
@@ -137,14 +139,14 @@ function PointsList({
               className={styles.input}
             />
             <select
-              value={mvp === player.id ? "mvp" : ""}
+              value={isMvp(player) ? "mvp" : ""}
               onChange={(e) =>
                 state.setMvp(
                   legionKey,
-                  e.target.value === "mvp" ? player.id : mvp === player.id ? null : mvp,
+                  e.target.value === "mvp" ? String(player.id) : isMvp(player) ? null : mvp,
                 )
               }
-              className={`${styles.select} ${mvp === player.id ? styles.mvpSelected : ""}`}
+              className={`${styles.select} ${isMvp(player) ? styles.mvpSelected : ""}`}
               aria-label={`MVP for ${player.name}`}
             >
               <option value="">None</option>

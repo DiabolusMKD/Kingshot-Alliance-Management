@@ -1,8 +1,7 @@
 'use client';
 
 import { AllianceEvent, EventStatus } from '@/types';
-import { getNotesField, parseEventResults } from '@/utils/eventResults';
-import { LegionSchedule, parseLegionSchedules } from '@/utils/legionSchedule';
+import { LegionSchedule, getLegionSchedules } from '@/utils/legionSchedule';
 import styles from './EventList.module.css';
 
 const RESULT_LABELS: Record<string, string> = {
@@ -80,46 +79,31 @@ export default function EventList({
     return <div className={styles.empty}>No events created yet. Create your first event!</div>;
   }
 
-  // Notes hold the results JSON for completed events; plain text notes are shown as-is
   /** "Sunday, 14:00 UTC" - only when a start time was picked */
   const formatSchedule = (schedule: LegionSchedule) =>
     schedule.time ? [schedule.weekday, `${schedule.time} UTC`].filter(Boolean).join(', ') : null;
 
-  const renderNotes = (notes?: string, startsAt?: string) => {
-    if (!notes) return null;
-
-    const results = parseEventResults(notes);
-    if (!results) {
-      // Settings stored in the notes (e.g. powerMode) aren't shown, only plain text notes
-      const text = getNotesField(notes, 'text');
-      if (typeof text !== 'string' || !text) return null;
-      return (
-        <div className={styles.field}>
-          <label>Notes:</label>
-          <p>{text}</p>
-        </div>
-      );
-    }
-
-    const schedules = parseLegionSchedules(notes, startsAt);
+  // Each legion's result (columns on the event) with its start time
+  const renderResults = (event: AllianceEvent) => {
+    const schedules = getLegionSchedules(event);
     const legions = [
-      { title: 'Legion 1', result: results.legion_1, schedule: formatSchedule(schedules.legion_1) },
-      { title: 'Legion 2', result: results.legion_2, schedule: formatSchedule(schedules.legion_2) },
-    ].filter(({ result }) => result.status);
+      { title: 'Legion 1', status: event.legion1Result, schedule: formatSchedule(schedules.legion_1) },
+      { title: 'Legion 2', status: event.legion2Result, schedule: formatSchedule(schedules.legion_2) },
+    ].filter((legion): legion is typeof legion & { status: string } => !!legion.status);
     if (legions.length === 0) return null;
 
     return (
       <div className={styles.field}>
         <label>Results:</label>
         <ul className={styles.resultList}>
-          {legions.map(({ title, result, schedule }) => (
+          {legions.map(({ title, status, schedule }) => (
             <li key={title} className={styles.resultRow}>
               <span className={styles.resultLegion}>
                 {title}
                 {schedule && <span className={styles.resultSchedule}>{schedule}</span>}
               </span>
-              <span className={`${styles.resultBadge} ${RESULT_STYLES[result.status!] ?? ''}`}>
-                {RESULT_LABELS[result.status!] ?? result.status}
+              <span className={`${styles.resultBadge} ${RESULT_STYLES[status] ?? ''}`}>
+                {RESULT_LABELS[status] ?? status}
               </span>
             </li>
           ))}
@@ -128,10 +112,19 @@ export default function EventList({
     );
   };
 
-  const renderEventCards = (eventList: AllianceEvent[]) => (
+  const playerCount = (event: AllianceEvent) => event.event_player?.[0]?.count ?? 0;
+
+  const renderEventCards = (eventList: AllianceEvent[], { allowDelete }: { allowDelete: boolean }) => (
     <div className={styles.eventsGrid}>
       {eventList.map((event) => (
         <div key={event.id} className={styles.eventCard}>
+          {/* The whole card opens the event (a full-card button under the content) */}
+          <button
+            type="button"
+            className={styles.cardOpen}
+            onClick={() => onEventClick(event)}
+            aria-label={`Open event of ${formatDate(event.startsAt)}`}
+          />
           <div className={styles.cardHeader}>
             <div className={styles.dateInfo}>
               <span className={styles.date}>{formatDate(event.startsAt)}</span>
@@ -140,17 +133,20 @@ export default function EventList({
               </span>
               {event.eventVariant === 'sls' && (
                 <span className={styles.variantBadge} title="Swordland Summit League">
-                  SLS
+                  SSL
                 </span>
               )}
             </div>
-            <button
-              onClick={() => onDeleteEvent(event.id!)}
-              className={styles.deleteBtn}
-              title="Delete event"
-            >
-              ✕
-            </button>
+            {/* Completed events keep their results and player history: they can't be deleted */}
+            {allowDelete && event.status !== 'completed' && (
+              <button
+                onClick={() => onDeleteEvent(event.id!)}
+                className={styles.deleteBtn}
+                title="Delete event"
+              >
+                ✕
+              </button>
+            )}
           </div>
 
           <div className={styles.cardBody}>
@@ -161,22 +157,25 @@ export default function EventList({
               </div>
             )}
 
-            {renderNotes(event.notes, event.startsAt)}
+            {renderResults(event)}
+
+            {event.notes && (
+              <div className={styles.field}>
+                <label>Notes:</label>
+                <p className={styles.notes}>{event.notes}</p>
+              </div>
+            )}
 
             <div className={styles.field}>
               <label>Assignments:</label>
-              <p>{event.assignments ? 'Configured' : 'Not configured'}</p>
+              <p>
+                {playerCount(event) > 0
+                  ? `${playerCount(event)} player${playerCount(event) === 1 ? '' : 's'}`
+                  : 'Not configured'}
+              </p>
             </div>
           </div>
 
-          <div className={styles.cardFooter}>
-            <button
-              onClick={() => onEventClick(event)}
-              className={styles.editBtn}
-            >
-              Edit Event
-            </button>
-          </div>
         </div>
       ))}
     </div>
@@ -187,14 +186,15 @@ export default function EventList({
       {upcomingEvents.length > 0 && (
         <div className={styles.section}>
           <h2 className={styles.title}>Upcoming Events</h2>
-          {renderEventCards(upcomingEvents)}
+          {/* Upcoming events can't be deleted for now */}
+          {renderEventCards(upcomingEvents, { allowDelete: false })}
         </div>
       )}
 
       {pastEvents.length > 0 && (
         <div className={styles.section}>
           <h2 className={styles.title}>Past Events</h2>
-          {renderEventCards(pastEvents)}
+          {renderEventCards(pastEvents, { allowDelete: true })}
         </div>
       )}
     </div>

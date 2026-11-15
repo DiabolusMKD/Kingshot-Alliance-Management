@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import LegionTable from "./LegionTable";
 import KingdomPlayerPicker from "./KingdomPlayerPicker";
 import BuildingPreview from "./BuildingPreview";
@@ -8,12 +8,19 @@ import EventPoints, { PointsLegion, useEventPoints } from "./EventPoints";
 import PlayerIdentity from "./PlayerIdentity";
 import { useToast } from "./Toast";
 import LegionTimeSelect from "./LegionTimeSelect";
+import ViewAssignmentsButton from "./ViewAssignmentsButton";
+import GeneratedOutput from "./GeneratedOutput";
+import { LegionSchedules, formatLegionTitle, getLegionSchedules } from "@/utils/legionSchedule";
+import { EventSaveInput } from "@/utils/eventData";
 import {
-  LEGION_SCHEDULE_FIELD,
-  LegionSchedules,
-  formatLegionTitle,
-  parseLegionSchedules,
-} from "@/utils/legionSchedule";
+  BUILDINGS,
+  BuildingsPreview,
+  emptyBuildings,
+  emptyPreview,
+  buildingsFromPlacements,
+  parseBuildingsJson,
+  previewToJson,
+} from "@/utils/swordlandBuildings";
 import { formatPower } from "@/utils/formatNumbers";
 import {
   PowerMode,
@@ -39,48 +46,13 @@ interface LegionAssignments {
   unassigned: Player[];
 }
 
-interface PreviewState {
-  legion1: LegionBuildingData;
-  legion2: LegionBuildingData;
-}
-
-const BUILDINGS = [
-  "Sanctum North-West",
-  "Sanctum South-East",
-  "Abbey 1",
-  "Abbey 2",
-  "Abbey 3",
-  "Abbey 4",
-  "Bell Tower",
-  "Stables",
-  "Undercellars",
-];
-
 const SWORDLAND_RESULTS = [
   { value: "win", label: "Win" },
   { value: "lose", label: "Lose" },
 ];
 
-const CopyIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <rect x="9" y="9" width="13" height="13" rx="2" />
-    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-  </svg>
-);
-
-const CheckIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <path d="M20 6 9 17l-5-5" />
-  </svg>
-);
-
 // Stable default: a fresh [] per render would re-run the init effect endlessly
 const NO_PLAYERS: Player[] = [];
-
-const emptyBuildings = (): Record<string, BuildingAssignment> =>
-  Object.fromEntries(
-    BUILDINGS.map((b) => [b, { leader: null, support: [], manual: false }]),
-  );
 
 export default function SwordlandEventLayout({
   players,
@@ -89,34 +61,34 @@ export default function SwordlandEventLayout({
   initialAssignments = [],
   initialResults = null,
   initialPowerMode = "swordland",
-  initialLegionSchedules = parseLegionSchedules(null),
+  initialLegionSchedules = getLegionSchedules(null),
+  initialNotes = "",
   eventStatus = "not-started",
   onSave,
   isSaving,
+  onDelete,
 }: {
   /** The alliance's own players */
   players: Player[];
-  /** Other-alliance players already saved in this (SLS) event */
+  /** Players saved in this event who aren't in the alliance now (SSL guests, former members) */
   externalPlayers?: Player[];
-  /** Set for SLS events: lets players from other alliances of the kingdom be added */
+  /** Set for SSL events: lets players from other alliances of the kingdom be added */
   summitLeague?: { kingdomId: number; allianceId: number };
   initialAssignments?: PlayerAssignment[];
   initialResults?: EventResults | null;
-  /** Power saved with the event (in its notes) */
+  /** Power saved with the event */
   initialPowerMode?: PowerMode;
-  /** Legion start times (+ weekday of the event), saved in the notes */
+  /** Legion start times (+ weekday of the event) */
   initialLegionSchedules?: LegionSchedules;
+  /** Plain-text note of the event's creator */
+  initialNotes?: string;
   eventStatus?: EventStatus;
-  onSave: (
-    a: PlayerAssignment[],
-    status: EventStatus,
-    results: EventResults | undefined,
-    /** Settings saved next to the results in the notes */
-    notesFields: Record<string, unknown>,
-  ) => Promise<void>;
+  onSave: (input: EventSaveInput) => Promise<void>;
   isSaving?: boolean;
+  /** Deletes the event (shown only while it isn't completed) */
+  onDelete?: () => void;
 }) {
-  // SLS: other-alliance players in this event (saved ones + ones added now)
+  // SSL: other-alliance players in this event (saved ones + ones added now)
   const [addedPlayers, setAddedPlayers] = useState<Player[]>(externalPlayers);
   const allPlayers = useMemo(() => [...players, ...addedPlayers], [players, addedPlayers]);
   const externalIds = useMemo(() => new Set(addedPlayers.map((p) => p.id)), [addedPlayers]);
@@ -150,32 +122,36 @@ export default function SwordlandEventLayout({
   const [powerMode, setPowerMode] = useState<PowerMode>(initialPowerMode);
   const powerOf = (p: Player) => getPlayerPower(p, powerMode);
   const [legionSchedules, setLegionSchedules] = useState<LegionSchedules>(initialLegionSchedules);
-  const [jsonOut, setJsonOut] = useState("");
+  const [notes, setNotes] = useState(initialNotes);
   const toast = useToast();
-  const [copiedField, setCopiedField] = useState<"string" | "json" | null>(null);
-
-  const handleCopy = async (field: "string" | "json", text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopiedField(field);
-      setTimeout(() => setCopiedField(null), 2000);
-    } catch (error) {
-      console.error("Failed to copy:", error);
-      toast.error("Failed to copy to clipboard");
-    }
-  };
   const [jsonInput, setJsonInput] = useState("");
   const [showJsonModal, setShowJsonModal] = useState(false);
   const [jsonModalError, setJsonModalError] = useState("");
 
-  const [preview, setPreview] = useState<PreviewState>({
-    legion1: { buildings: emptyBuildings(), substitutes: [] },
-    legion2: { buildings: emptyBuildings(), substitutes: [] },
-  });
+  const [preview, setPreview] = useState<BuildingsPreview>(emptyPreview);
+  // Buildings to show for a given assignments state instead of generating them
+  // (saved positions on open, an uploaded JSON); used once by the generate effect
+  const pendingPreview = useRef<{ assignments: LegionAssignments; preview: BuildingsPreview } | null>(null);
+
+  /** Buildings of both legions from placements, or null when any player has none */
+  const previewFromPlacements = (
+    legions: LegionAssignments,
+    substitutes: { legion1: Player[]; legion2: Player[] },
+    placements: Map<string, Pick<PlayerAssignment, "position" | "positionRole">>,
+  ): BuildingsPreview | null => {
+    const power = (p: Player) => getPlayerPower(p, powerMode);
+    const l1 = buildingsFromPlacements(legions.legion1, placements, power);
+    const l2 = buildingsFromPlacements(legions.legion2, placements, power);
+    if (!l1 || !l2 || legions.legion1.length + legions.legion2.length === 0) return null;
+    return {
+      legion1: { buildings: l1, substitutes: substitutes.legion1 },
+      legion2: { buildings: l2, substitutes: substitutes.legion2 },
+    };
+  };
 
   // ---------------- INIT ----------------
   // Rebuilds from the saved assignments when the event or the alliance players change.
-  // Adding an other-alliance player (SLS) doesn't go through here, so unsaved moves stay.
+  // Adding an other-alliance player (SSL) doesn't go through here, so unsaved moves stay.
   useEffect(() => {
     const pool = [...players, ...externalPlayers];
     const next: LegionAssignments = {
@@ -204,12 +180,20 @@ export default function SwordlandEventLayout({
       }
     });
 
+    // Saved buildings (manual moves included) are shown as they were saved
+    const savedPlacements = new Map(
+      initialAssignments.map((a) => [String(a.playerId), { position: a.position, positionRole: a.positionRole }]),
+    );
+    const saved = previewFromPlacements(next, nextSubstitutes, savedPlacements);
+    pendingPreview.current = saved ? { assignments: next, preview: saved } : null;
+
     setAssignments(next);
     setLegionSubstitutes(nextSubstitutes);
     setAddedPlayers(externalPlayers);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [players, externalPlayers, initialAssignments]);
 
-  // ---------------- SLS: ADD / REMOVE OTHER-ALLIANCE PLAYERS ----------------
+  // ---------------- SSL: ADD / REMOVE OTHER-ALLIANCE PLAYERS ----------------
   const addExternalPlayer = (player: Player, to: keyof LegionAssignments) => {
     if (allPlayers.some((p) => p.id === player.id)) return;
     setAddedPlayers((prev) => [...prev, player]);
@@ -362,6 +346,12 @@ export default function SwordlandEventLayout({
 
   // Auto-generate on any change (also when switching the power the buildings are built from)
   useEffect(() => {
+    const pending = pendingPreview.current;
+    if (pending && pending.assignments === assignments) {
+      pendingPreview.current = null;
+      setPreview(pending.preview);
+      return;
+    }
     handleGenerate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assignments, legionSubstitutes, powerMode]);
@@ -433,11 +423,6 @@ export default function SwordlandEventLayout({
       legionSubstitutes.legion2,
     );
 
-    const json = { legion1: l1, legion2: l2 };
-
-    setJsonOut(JSON.stringify(json, null, 2));
-
-
     setPreview({ legion1: l1, legion2: l2 });
   };
 
@@ -479,46 +464,56 @@ ${buildingText}${substitutesText}`;
     ].join("\n\n");
   }, [preview, legionSchedules]);
 
+  // Player ids only; uploading it looks the players up again
+  const jsonOut = useMemo(() => previewToJson(preview), [preview]);
+
   // ---------------- SAVE ----------------
   const handleSave = async () => {
+    // Building + role of each player, from the cards (manual moves included)
+    const positions = new Map<string, Pick<PlayerAssignment, "position" | "positionRole">>();
+    (["legion1", "legion2"] as const).forEach((legion) => {
+      Object.entries(preview[legion].buildings ?? {}).forEach(([building, data]) => {
+        const isUndercellars = building === "Undercellars";
+        if (data.leader) {
+          positions.set(data.leader.id, { position: building, positionRole: isUndercellars ? undefined : "leader" });
+        }
+        data.support.forEach((p) =>
+          positions.set(p.id, { position: building, positionRole: isUndercellars ? undefined : "support" }),
+        );
+      });
+    });
+
+    const toAssignment = (p: Player, legion: string): PlayerAssignment => ({
+      playerId: p.id,
+      legion,
+      name: p.name,
+      power: p.swordlandPower,
+      swordlandPower: p.swordlandPower,
+      totalPower: p.power,
+      ...(legion.startsWith("substitute") ? {} : positions.get(p.id)),
+    });
+
     const payload: PlayerAssignment[] = [
-      ...assignments.legion1.map((p) => ({
-        playerId: p.id,
-        legion: "legion1" as const,
-        name: p.name,
-        power: p.swordlandPower,
-      })),
-      ...assignments.legion2.map((p) => ({
-        playerId: p.id,
-        legion: "legion2" as const,
-        name: p.name,
-        power: p.swordlandPower,
-      })),
-      ...legionSubstitutes.legion1.map((p) => ({
-        playerId: p.id,
-        legion: "substitute_legion1" as const,
-        name: p.name,
-        power: p.swordlandPower,
-      })),
-      ...legionSubstitutes.legion2.map((p) => ({
-        playerId: p.id,
-        legion: "substitute_legion2" as const,
-        name: p.name,
-        power: p.swordlandPower,
-      })),
+      ...assignments.legion1.map((p) => toAssignment(p, "legion1")),
+      ...assignments.legion2.map((p) => toAssignment(p, "legion2")),
+      ...legionSubstitutes.legion1.map((p) => toAssignment(p, "substitute_legion1")),
+      ...legionSubstitutes.legion2.map((p) => toAssignment(p, "substitute_legion2")),
     ];
 
     // Results (points, win/lose, MVPs) are only saved for completed events
-    await onSave(
-      payload,
-      currentEventStatus,
-      currentEventStatus === "completed" ? pointsState.buildResults(pointsLegions) : undefined,
-      { powerMode, [LEGION_SCHEDULE_FIELD]: legionSchedules },
-    );
+    await onSave({
+      status: currentEventStatus,
+      assignments: payload,
+      results: currentEventStatus === "completed" ? pointsState.buildResults(pointsLegions) : undefined,
+      powerMode,
+      legionSchedules,
+      notes,
+    });
   };
 
   // Reset everything
   const reset = () => {
+    if (!confirm("Reset all assignments? Every player goes back to Unassigned. Nothing is saved until you click Save.")) return;
     setAssignments({
       legion1: [],
       legion2: [],
@@ -530,7 +525,6 @@ ${buildingText}${substitutesText}`;
     });
     setSearch("");
     setJsonInput("");
-    setJsonOut("");
     setJsonModalError("");
     setShowJsonModal(false);
     setPreview({
@@ -539,46 +533,44 @@ ${buildingText}${substitutesText}`;
     });
   };
 
-  // Upload JSON from modal
+  // Upload JSON from modal: player ids -> players of this event, buildings as in the JSON
   const uploadJson = () => {
     setJsonModalError("");
+    let parsed;
     try {
-      const parsed = JSON.parse(jsonInput);
-
-      if (!parsed.legion1 || !parsed.legion2) {
-        setJsonModalError(
-          "Invalid JSON format. Expected legion1 and legion2 fields.",
-        );
-        return;
-      }
-
-      const extract = (data: LegionBuildingData) => {
-        const all: Player[] = [];
-
-        Object.values(data.buildings).forEach((b) => {
-          if (b.leader) all.push(b.leader);
-          all.push(...b.support);
-        });
-
-        return all;
-      };
-
-      setAssignments({
-        legion1: extract(parsed.legion1),
-        legion2: extract(parsed.legion2),
-        unassigned: [],
-      });
-
-      setLegionSubstitutes({
-        legion1: parsed.legion1.substitutes || [],
-        legion2: parsed.legion2.substitutes || [],
-      });
-
-      setPreview(parsed);
-      setShowJsonModal(false);
-      setJsonInput("");
+      parsed = parseBuildingsJson(jsonInput, new Map(allPlayers.map((p) => [String(p.id), p])));
     } catch (error) {
-      setJsonModalError("Invalid JSON. Please check the format and try again.");
+      setJsonModalError(
+        error instanceof SyntaxError
+          ? "Invalid JSON. Please check the format and try again."
+          : (error as Error).message,
+      );
+      return;
+    }
+
+    const { legion1, legion2 } = parsed.legions;
+    const inEvent = new Set(
+      [legion1, legion2].flatMap((l) => [...l.players, ...l.substitutes]).map((p) => String(p.id)),
+    );
+    const nextAssignments: LegionAssignments = {
+      legion1: legion1.players,
+      legion2: legion2.players,
+      unassigned: allPlayers.filter((p) => !inEvent.has(String(p.id))),
+    };
+    const nextSubstitutes = { legion1: legion1.substitutes, legion2: legion2.substitutes };
+    const placements = new Map([...legion1.placements, ...legion2.placements]);
+    const uploaded = previewFromPlacements(nextAssignments, nextSubstitutes, placements);
+    pendingPreview.current = uploaded ? { assignments: nextAssignments, preview: uploaded } : null;
+
+    setAssignments(nextAssignments);
+    setLegionSubstitutes(nextSubstitutes);
+    setShowJsonModal(false);
+    setJsonInput("");
+
+    if (parsed.unknownIds.length > 0) {
+      toast.warning(
+        `${parsed.unknownIds.length} player${parsed.unknownIds.length === 1 ? " isn't" : "s aren't"} in this event and ${parsed.unknownIds.length === 1 ? "was" : "were"} skipped.`,
+      );
     }
   };
 
@@ -659,7 +651,7 @@ ${buildingText}${substitutesText}`;
             </label>
           </div>
 
-          {/* UNASSIGNED (+ SLS kingdom players side by side) */}
+          {/* UNASSIGNED (+ SSL kingdom players side by side) */}
           <div className={summitLeague ? styles.poolGrid : undefined}>
             <div className={styles.poolColumn}>
               <div className={styles.poolHeader}>
@@ -688,9 +680,9 @@ ${buildingText}${substitutesText}`;
                                 {externalIds.has(p.id) && (
                                   <span
                                     className={styles.externalBadge}
-                                    title="Player from another alliance (SLS)"
+                                    title="Not in this alliance now (SSL guest or former member)"
                                   >
-                                    other alliance
+                                    not in alliance
                                   </span>
                                 )}
                               </PlayerIdentity>
@@ -722,7 +714,7 @@ ${buildingText}${substitutesText}`;
               </div>
             </div>
 
-            {/* SLS: players of the kingdom from other alliances */}
+            {/* SSL: players of the kingdom from other alliances */}
             {summitLeague && (
               <div className={styles.poolColumn}>
                 <KingdomPlayerPicker
@@ -736,6 +728,9 @@ ${buildingText}${substitutesText}`;
               </div>
             )}
           </div>
+
+          {/* The generated string in a modal */}
+          <ViewAssignmentsButton text={textOut} />
 
           {/* LEGIONS: players, substitutes, then the building cards */}
           <div className={styles.legionsContainer}>
@@ -789,79 +784,70 @@ ${buildingText}${substitutesText}`;
               </div>
             ))}
           </div>
-
-          {/* OUTPUTS side by side */}
-          {(textOut || jsonOut) && (
-            <div className={styles.outputsContainer}>
-              {[
-                { field: "string" as const, id: "textOutput", label: "Generated String", value: textOut },
-                { field: "json" as const, id: "jsonOutput", label: "Generated JSON", value: jsonOut },
-              ]
-                .filter((output) => output.value)
-                .map((output) => (
-                  <div key={output.field} className={styles.textAreaWrapper}>
-                    <div className={styles.outputHeader}>
-                      <label htmlFor={output.id} className={styles.label}>
-                        {output.label}
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => handleCopy(output.field, output.value)}
-                        className={styles.copyButton}
-                        title={`Copy ${output.label.toLowerCase()}`}
-                        aria-label={`Copy ${output.label.toLowerCase()}`}
-                      >
-                        {copiedField === output.field ? <CheckIcon /> : <CopyIcon />}
-                        {copiedField === output.field ? "Copied" : "Copy"}
-                      </button>
-                    </div>
-                    <textarea
-                      id={output.id}
-                      className={styles.textarea}
-                      value={output.value}
-                      readOnly
-                    />
-                  </div>
-                ))}
-            </div>
-          )}
         </>
       )}
 
-      {/* ACTIONS */}
-      <div className={styles.actions}>
-        <select
-          value={currentEventStatus}
-          onChange={(e) => setCurrentEventStatus(e.target.value as EventStatus)}
-          className={styles.statusSelect}
-          name="eventStatus"
-        >
-          <option value="not-started">Not Started</option>
-          <option value="ongoing">Ongoing</option>
-          <option value="completed">Completed</option>
-        </select>
-        <button
-          className={styles.saveButton}
-          onClick={handleSave}
-          disabled={isSaving}
-        >
-          {isSaving ? "Saving..." : "Save"}
-        </button>
+      {/* NOTE of the event's creator */}
+      <div className={styles.notesField}>
+        <label htmlFor="eventNotes" className={styles.label}>
+          Notes
+        </label>
+        <textarea
+          id="eventNotes"
+          className={styles.notesTextarea}
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Anything to remember about this event..."
+          rows={3}
+        />
+      </div>
 
+      {/* OUTPUTS side by side, collapsed until opened (shown with the assignments) */}
+      {showAssignments && (
+        <div className={styles.outputsContainer}>
+          <GeneratedOutput id="textOutput" label="Generated String" value={textOut} />
+          <GeneratedOutput id="jsonOutput" label="Generated JSON" value={jsonOut} />
+        </div>
+      )}
+
+      {/* ACTIONS: assignment tools (left) and status + save (right) */}
+      <div className={styles.actionsBar}>
         {showAssignments && (
-          <>
+          <div className={styles.actionGroup}>
             <button
+              type="button"
               className={styles.uploadJsonButton}
               onClick={() => setShowJsonModal(true)}
             >
               Upload JSON
             </button>
-
-            <button className={styles.resetButton} onClick={reset}>
-              Reset
+            <button type="button" className={styles.resetButton} onClick={reset}>
+              Reset assignments
             </button>
-          </>
+          </div>
         )}
+
+        <div className={`${styles.actionGroup} ${styles.saveGroup}`}>
+          <select
+            value={currentEventStatus}
+            onChange={(e) => setCurrentEventStatus(e.target.value as EventStatus)}
+            className={styles.statusSelect}
+            name="eventStatus"
+            aria-label="Event status"
+          >
+            <option value="not-started">Not Started</option>
+            <option value="ongoing">Ongoing</option>
+            <option value="completed">Completed</option>
+          </select>
+          <button
+            type="button"
+            className={styles.saveButton}
+            onClick={handleSave}
+            disabled={isSaving}
+          >
+            {isSaving ? "Saving..." : "Save"}
+          </button>
+        </div>
       </div>
 
       {/* UPLOAD JSON MODAL */}
@@ -901,6 +887,19 @@ ${buildingText}${substitutesText}`;
         </div>
       )}
 
+      {/* Very bottom: delete, apart from the other actions (only while the event isn't completed) */}
+      {onDelete && eventStatus !== "completed" && (
+        <div className={styles.deleteRow}>
+          <button
+            type="button"
+            className={`${styles.resetButton} ${styles.deleteEventButton}`}
+            onClick={onDelete}
+            disabled={isSaving}
+          >
+            Delete event
+          </button>
+        </div>
+      )}
     </div>
   );
 }

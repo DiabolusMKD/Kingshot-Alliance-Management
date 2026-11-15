@@ -14,7 +14,7 @@ export interface Alliance {
 }
 
 export interface Player {
-  id: string; // UUID from Supabase
+  id: string; // player.id (a bigint in the database, compare as String(id))
   playerId: string;
   name: string;
   aliasName: string;
@@ -51,7 +51,7 @@ export interface AllianceLegion {
 // Event Management Types
 export type EventType = "swordland" | "tri-alliance";
 export type EventStatus = "not-started" | "ongoing" | "completed";
-/** Swordland variant: standard (own alliance) or SLS - Swordland Summit League (whole kingdom) */
+/** Swordland variant: standard (own alliance) or SSL - Swordland Summit League (whole kingdom) */
 export type EventVariant = "standard" | "sls";
 
 export interface AllianceEvent {
@@ -63,19 +63,50 @@ export interface AllianceEvent {
   status: EventStatus;
   /** Missing on rows created before the eventVariant column existed -> standard */
   eventVariant?: EventVariant;
-  notes?: string;
-  assignments?: string; // JSON string of assignments
+  /** Plain-text note of the event's creator */
+  notes?: string | null;
+  /** Legacy JSON of the assignments: only read by the migration, players live in event_player */
+  assignments?: string | null;
+  /** Swordland: power the assignments are built from */
+  powerMode?: "swordland" | "power" | null;
+  /** Legion start times (UTC), e.g. "14:00"; the weekday comes from startsAt */
+  legion1StartTime?: string | null;
+  legion2StartTime?: string | null;
+  /** "win" | "lose" (Swordland) or "1st" | "2nd" | "3rd" (Tri Alliance) */
+  legion1Result?: string | null;
+  legion2Result?: string | null;
+  /** player.id of each legion's MVP */
+  legion1Mvp?: string | null;
+  legion2Mvp?: string | null;
+  /** Embedded count of event_player rows (when selected) */
+  event_player?: { count: number }[];
   createdAt?: string;
   updatedAt?: string;
 }
 
+/** One player in one event (event_player): the saved assignments of an event */
 export interface EventPlayer {
   id?: number;
-  playerId: number;
-  didShowUp?: boolean;
-  score?: number;
-  notes?: string;
+  /** player.id (bigint, arrives as a number); null once the player was deleted */
+  playerId: number | string | null;
+  /** Name when the player was added (shown after the player is deleted) */
+  playerName?: string | null;
   alliance_event_id: number;
+  /** The player's alliance / kingdom when added to the event - never overwritten */
+  playerAllianceId?: number | null;
+  playerKingdomId?: number | null;
+  legion: LegionResultKey;
+  isSubstitute: boolean;
+  /** Swordland building / Tri Alliance team */
+  position: string | null;
+  positionRole: "leader" | "support" | "offense" | null;
+  powerAtEvent: number | null;
+  powerType: "swordland" | "power" | "tri_alliance" | null;
+  /** Points */
+  score: number | null;
+  /** Completed events: score > 0 */
+  didShowUp: boolean | null;
+  notes?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -88,10 +119,16 @@ export interface PlayerAssignment {
   power: number;
   triAlliancePower?: number;
   swordlandPower?: number;
+  /** Total power (Swordland saves Swordland power in `power`) */
+  totalPower?: number;
+  /** Swordland building / Tri Alliance team when saved */
+  position?: string;
+  positionRole?: "leader" | "support" | "offense";
   points?: number;
 }
 
-// Results of a completed event, stored as JSON in alliance_event.notes
+// Results of a completed event (editor state): legion result/MVP live on alliance_event,
+// the points on event_player
 export type LegionResultKey = "legion_1" | "legion_2";
 
 export interface LegionResult {

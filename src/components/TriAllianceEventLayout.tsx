@@ -6,12 +6,10 @@ import { useToast } from "./Toast";
 import EventPoints, { PointsLegion, useEventPoints } from "./EventPoints";
 import PlayerIdentity from "./PlayerIdentity";
 import LegionTimeSelect from "./LegionTimeSelect";
-import {
-  LEGION_SCHEDULE_FIELD,
-  LegionSchedules,
-  formatLegionTitle,
-  parseLegionSchedules,
-} from "@/utils/legionSchedule";
+import ViewAssignmentsButton from "./ViewAssignmentsButton";
+import GeneratedOutput from "./GeneratedOutput";
+import { LegionSchedules, formatLegionTitle, getLegionSchedules } from "@/utils/legionSchedule";
+import { EventSaveInput } from "@/utils/eventData";
 import { formatPower } from "@/utils/formatNumbers";
 import styles from "./TriAllianceEventLayout.module.css";
 
@@ -25,34 +23,50 @@ const TRI_ALLIANCE_PLACES = [
 ];
 
 interface TriAllianceEventLayoutProps {
+  /** The alliance's players + players saved in this event who left it */
   players: Player[];
   initialAssignments?: PlayerAssignment[];
   initialResults?: EventResults | null;
-  /** Legion start times (+ weekday of the event), saved in the notes */
+  /** Legion start times (+ weekday of the event) */
   initialLegionSchedules?: LegionSchedules;
+  /** Plain-text note of the event's creator */
+  initialNotes?: string;
   eventStatus: EventStatus;
-  onSave: (
-    assignments: PlayerAssignment[],
-    status: EventStatus,
-    results: EventResults | undefined,
-    /** Settings saved next to the results in the notes */
-    notesFields: Record<string, unknown>,
-  ) => Promise<void>;
+  onSave: (input: EventSaveInput) => Promise<void>;
   isSaving?: boolean;
+  /** Deletes the event (shown only while it isn't completed) */
+  onDelete?: () => void;
 }
 
-const CopyIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <rect x="9" y="9" width="13" height="13" rx="2" />
-    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-  </svg>
-);
+const TEAM_LABELS = [
+  "Team 1 (Right outer)",
+  "Team 2 (Right inner)",
+  "Team 3 (Left outer)",
+  "Team 4 (Left inner)",
+];
+// Distribution order by power rank: outer teams first, right before left
+const DISTRIBUTION_ORDER = [0, 2, 1, 3];
 
-const CheckIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <path d="M20 6 9 17l-5-5" />
-  </svg>
-);
+/** Splits a legion into the 4 teams (offense + support), strongest by tri-alliance power first */
+function splitLegion(players: Player[]) {
+  const sortedPlayers = [...players].sort(
+    (a, b) => Number(b.trialliancePower) - Number(a.trialliancePower),
+  );
+
+  const teams: Player[][] = [[], [], [], []];
+  sortedPlayers.forEach((player, index) => {
+    teams[DISTRIBUTION_ORDER[index % 4]].push(player);
+  });
+
+  // Teams of 6+ get 3 offense, smaller teams 2; the rest is support
+  return teams.map((team) => {
+    const offenseCount = team.length >= 6 ? 3 : 2;
+    return {
+      offense: team.slice(0, offenseCount),
+      support: team.slice(offenseCount),
+    };
+  });
+}
 
 interface LegionAssignments {
   legion1: Player[];
@@ -108,10 +122,12 @@ export default function TriAllianceEventLayout({
   players,
   initialAssignments = [],
   initialResults = null,
-  initialLegionSchedules = parseLegionSchedules(null),
+  initialLegionSchedules = getLegionSchedules(null),
+  initialNotes = "",
   eventStatus,
   onSave,
   isSaving = false,
+  onDelete,
 }: TriAllianceEventLayoutProps) {
   const toast = useToast();
   const [currentEventStatus, setCurrentEventStatus] =
@@ -122,8 +138,8 @@ export default function TriAllianceEventLayout({
   const [assignmentsExpanded, setAssignmentsExpanded] = useState(
     eventStatus !== "completed",
   );
+  const [notes, setNotes] = useState(initialNotes);
   const [legionSchedules, setLegionSchedules] = useState<LegionSchedules>(initialLegionSchedules);
-  const [copiedField, setCopiedField] = useState<"string" | "json" | null>(null);
   const [assignments, setAssignments] = useState<LegionAssignments>({
     legion1: [],
     legion2: [],
@@ -153,7 +169,8 @@ export default function TriAllianceEventLayout({
 
       players.forEach((player) => {
         const assignment = initialAssignments.find(
-          (a) => a.playerId === player.id,
+          // Saved ids are strings, player ids arrive as numbers (bigint)
+          (a) => String(a.playerId) === String(player.id),
         );
         if (!assignment) {
           newAssignments.unassigned.push(player);
@@ -237,37 +254,6 @@ export default function TriAllianceEventLayout({
   };
 
   const handleGenerateString = () => {
-    const teamLabels = [
-      "Team 1 (Right outer)",
-      "Team 2 (Right inner)",
-      "Team 3 (Left outer)",
-      "Team 4 (Left inner)",
-    ];
-    // Distribution order by power rank: outer teams first, right before left
-    const distributionOrder = [0, 2, 1, 3];
-
-    const splitLegion = (players: Player[]) => {
-      // Sort strongest -> weakest by tri-alliance power
-      const sortedPlayers = [...players].sort(
-        (a, b) => Number(b.trialliancePower) - Number(a.trialliancePower),
-      );
-
-      const teams: Player[][] = [[], [], [], []];
-      sortedPlayers.forEach((player, index) => {
-        teams[distributionOrder[index % 4]].push(player);
-      });
-
-      // Teams of 6+ get 3 offense, smaller teams 2; the rest is support
-      return teams.map((team) => {
-        const offenseCount = team.length >= 6 ? 3 : 2;
-
-        return {
-          offense: team.slice(0, offenseCount),
-          support: team.slice(offenseCount),
-        };
-      });
-    };
-
     const formatPlayers = (players: Player[]) =>
       players.map((p) => p.name).join(", ") || "None";
 
@@ -275,7 +261,7 @@ export default function TriAllianceEventLayout({
       `${title}:
 ${splitLegion(legion)
   .map(
-    (team, index) => `${teamLabels[index]}:
+    (team, index) => `${TEAM_LABELS[index]}:
 - Offense: ${formatPlayers(team.offense)}
 - Support: ${formatPlayers(team.support)}`,
   )
@@ -288,24 +274,24 @@ ${formatLegion(formatLegionTitle("Legion 2", legionSchedules.legion_2), assignme
 
     setGeneratedString(fullString);
 
-    // Generate JSON
+    // JSON with player ids only (the players are looked up again on upload)
+    const toJson = (legion: Player[], substitutes: Player[]) => ({
+      teams: splitLegion(legion).map((team) => ({
+        offense: team.offense.map((p) => p.id),
+        support: team.support.map((p) => p.id),
+      })),
+      substitutes: substitutes.map((p) => p.id),
+    });
     const jsonData = {
-      legion1: {
-        leftOffense: assignments.legion1.slice(0, Math.floor(assignments.legion1.length / 2)).map((p) => ({ id: p.id, name: p.name, power: p.power })),
-        rightOffense: assignments.legion1.slice(Math.floor(assignments.legion1.length / 2), Math.floor(assignments.legion1.length / 2) * 2).map((p) => ({ id: p.id, name: p.name, power: p.power })),
-        substitutes: assignments.substituteLegion1.map((p) => ({ id: p.id, name: p.name, power: p.power })),
-      },
-      legion2: {
-        leftOffense: assignments.legion2.slice(0, Math.floor(assignments.legion2.length / 2)).map((p) => ({ id: p.id, name: p.name, power: p.power })),
-        rightOffense: assignments.legion2.slice(Math.floor(assignments.legion2.length / 2), Math.floor(assignments.legion2.length / 2) * 2).map((p) => ({ id: p.id, name: p.name, power: p.power })),
-        substitutes: assignments.substituteLegion2.map((p) => ({ id: p.id, name: p.name, power: p.power })),
-      },
+      legion1: toJson(assignments.legion1, assignments.substituteLegion1),
+      legion2: toJson(assignments.legion2, assignments.substituteLegion2),
     };
 
     setGeneratedJson(JSON.stringify(jsonData, null, 2));
   };
 
   const handleReset = () => {
+    if (!confirm("Reset all assignments? Every player goes back to Unassigned. Nothing is saved until you click Save.")) return;
     setAssignments({
       legion1: [],
       legion2: [],
@@ -333,26 +319,37 @@ ${formatLegion(formatLegionTitle("Legion 2", legionSchedules.legion_2), assignme
         return;
       }
 
-      // Extract player IDs from the JSON and find matching players
-      const extractPlayers = (legionData: any): string[] => {
-        const playerIds: string[] = [];
+      // Player ids (or, in older JSON, player objects with an id)
+      const toIds = (list: unknown): string[] =>
+        Array.isArray(list)
+          ? list
+              .map((value) =>
+                typeof value === "string" || typeof value === "number"
+                  ? String(value)
+                  : value && typeof value === "object" && "id" in value
+                    ? String((value as { id: unknown }).id)
+                    : null,
+              )
+              .filter((id): id is string => !!id)
+          : [];
 
-        if (legionData.leftOffense) {
-          playerIds.push(...legionData.leftOffense.map((p: any) => p.id));
-        }
-        if (legionData.rightOffense) {
-          playerIds.push(...legionData.rightOffense.map((p: any) => p.id));
-        }
-        if (legionData.substitutes) {
-          playerIds.push(...legionData.substitutes.map((p: any) => p.id));
-        }
-
-        return playerIds;
+      type LegionJson = {
+        teams?: { offense?: unknown; support?: unknown }[];
+        leftOffense?: unknown;
+        rightOffense?: unknown;
+        substitutes?: unknown;
       };
+      const extractPlayers = (legionData: LegionJson): string[] => [
+        ...(legionData.teams ?? []).flatMap((team) => [...toIds(team?.offense), ...toIds(team?.support)]),
+        ...toIds(legionData.leftOffense),
+        ...toIds(legionData.rightOffense),
+        ...toIds(legionData.substitutes),
+      ];
 
       const legion1Ids = extractPlayers(parsed.legion1);
       const legion2Ids = extractPlayers(parsed.legion2);
-      const allImportedIds = new Set([...legion1Ids, ...legion2Ids]);
+      const knownIds = new Set(players.map((p) => String(p.id)));
+      const unknownCount = new Set([...legion1Ids, ...legion2Ids].filter((id) => !knownIds.has(id))).size;
 
       const newAssignments: LegionAssignments = {
         legion1: [],
@@ -364,9 +361,9 @@ ${formatLegion(formatLegionTitle("Legion 2", legionSchedules.legion_2), assignme
 
       // Assign players based on imported data
       players.forEach((player) => {
-        if (legion1Ids.includes(player.id)) {
+        if (legion1Ids.includes(String(player.id))) {
           newAssignments.legion1.push(player);
-        } else if (legion2Ids.includes(player.id)) {
+        } else if (legion2Ids.includes(String(player.id))) {
           newAssignments.legion2.push(player);
         } else {
           newAssignments.unassigned.push(player);
@@ -375,22 +372,22 @@ ${formatLegion(formatLegionTitle("Legion 2", legionSchedules.legion_2), assignme
 
       // Handle substitutes if present in the JSON
       if (parsed.legion1.substitutes && Array.isArray(parsed.legion1.substitutes)) {
-        const substituteIds = parsed.legion1.substitutes.map((p: any) => p.id);
+        const substituteIds = toIds(parsed.legion1.substitutes);
         newAssignments.substituteLegion1 = newAssignments.legion1.filter((p) =>
-          substituteIds.includes(p.id),
+          substituteIds.includes(String(p.id)),
         );
         newAssignments.legion1 = newAssignments.legion1.filter(
-          (p) => !substituteIds.includes(p.id),
+          (p) => !substituteIds.includes(String(p.id)),
         );
       }
 
       if (parsed.legion2.substitutes && Array.isArray(parsed.legion2.substitutes)) {
-        const substituteIds = parsed.legion2.substitutes.map((p: any) => p.id);
+        const substituteIds = toIds(parsed.legion2.substitutes);
         newAssignments.substituteLegion2 = newAssignments.legion2.filter((p) =>
-          substituteIds.includes(p.id),
+          substituteIds.includes(String(p.id)),
         );
         newAssignments.legion2 = newAssignments.legion2.filter(
-          (p) => !substituteIds.includes(p.id),
+          (p) => !substituteIds.includes(String(p.id)),
         );
       }
 
@@ -414,10 +411,16 @@ ${formatLegion(formatLegionTitle("Legion 2", legionSchedules.legion_2), assignme
         );
       }
 
+      if (unknownCount > 0) {
+        toast.warning(
+          `${unknownCount} player${unknownCount === 1 ? " isn't" : "s aren't"} in this event and ${unknownCount === 1 ? "was" : "were"} skipped.`,
+        );
+      }
+
       setAssignments(newAssignments);
       setJsonInput("");
       setShowJsonModal(false);
-    } catch (error) {
+    } catch {
       setJsonModalError("Invalid JSON format. Please check and try again.");
     }
   };
@@ -431,6 +434,16 @@ ${formatLegion(formatLegionTitle("Legion 2", legionSchedules.legion_2), assignme
       "substituteLegion2",
     ] as const;
 
+    // Team + role of each legion player (same split as the generated string)
+    const positions = new Map<string, Pick<PlayerAssignment, "position" | "positionRole">>();
+    [assignments.legion1, assignments.legion2].forEach((legionPlayers) =>
+      splitLegion(legionPlayers).forEach((team, index) => {
+        const position = `Team ${index + 1}`;
+        team.offense.forEach((p) => positions.set(p.id, { position, positionRole: "offense" }));
+        team.support.forEach((p) => positions.set(p.id, { position, positionRole: "support" }));
+      }),
+    );
+
     categories.forEach((legion) => {
       assignments[legion].forEach((p) => {
         allAssignments.push({
@@ -439,28 +452,20 @@ ${formatLegion(formatLegionTitle("Legion 2", legionSchedules.legion_2), assignme
           name: p.name,
           triAlliancePower: p.trialliancePower,
           power: p.power,
-          });
+          totalPower: p.power,
+          ...(legion.startsWith("substitute") ? {} : positions.get(p.id)),
+        });
       });
     });
 
     // Results (points, places, MVPs) are only saved for completed events
-    await onSave(
-      allAssignments,
-      currentEventStatus,
-      currentEventStatus === "completed" ? pointsState.buildResults(pointsLegions) : undefined,
-      { [LEGION_SCHEDULE_FIELD]: legionSchedules },
-    );
-  };
-
-  const handleCopy = async (field: "string" | "json", text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopiedField(field);
-      setTimeout(() => setCopiedField(null), 2000);
-    } catch (error) {
-      console.error("Failed to copy:", error);
-      toast.error("Failed to copy to clipboard");
-    }
+    await onSave({
+      status: currentEventStatus,
+      assignments: allAssignments,
+      results: currentEventStatus === "completed" ? pointsState.buildResults(pointsLegions) : undefined,
+      legionSchedules,
+      notes,
+    });
   };
 
   const isCompleted = currentEventStatus === "completed";
@@ -574,6 +579,11 @@ ${formatLegion(formatLegionTitle("Legion 2", legionSchedules.legion_2), assignme
             </table>
           </div>
 
+          {/* The generated string in a modal */}
+          <div className={styles.viewAssignments}>
+            <ViewAssignmentsButton text={generatedString} />
+          </div>
+
           <h2 className={styles.legionsHeader}>Legion Assignments</h2>
 
           {/* One column per legion: players, then substitutes */}
@@ -611,85 +621,68 @@ ${formatLegion(formatLegionTitle("Legion 2", legionSchedules.legion_2), assignme
         </>
       )}
 
-      {/* Actions */}
-      <div className={styles.actions}>
-        <select
-          value={currentEventStatus}
-          onChange={(e) => setCurrentEventStatus(e.target.value as EventStatus)}
-          className={styles.statusSelect}
-          name="eventStatus"
-        >
-          <option value="not-started">Not Started</option>
-          <option value="ongoing">Ongoing</option>
-          <option value="completed">Completed</option>
-        </select>
+      {/* Note of the event's creator */}
+      <div className={styles.notesField}>
+        <label htmlFor="eventNotes" className={styles.label}>
+          Notes
+        </label>
+        <textarea
+          id="eventNotes"
+          className={styles.notesTextarea}
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Anything to remember about this event..."
+          rows={3}
+        />
+      </div>
 
+      {/* Generated String and JSON side by side, collapsed until opened (shown with the assignments) */}
+      {showAssignments && (
+        <div className={styles.outputsContainer}>
+          <GeneratedOutput id="generated-string" label="Generated String" value={generatedString} />
+          <GeneratedOutput id="generated-json" label="Generated JSON" value={generatedJson} />
+        </div>
+      )}
+
+      {/* ACTIONS: assignment tools (left) and status + save (right) */}
+      <div className={styles.actionsBar}>
         {showAssignments && (
-          <>
+          <div className={styles.actionGroup}>
             <button
-              onClick={handleReset}
-              className={styles.resetButton}
               type="button"
-            >
-              Reset
-            </button>
-
-            <button
-              onClick={() => setShowJsonModal(true)}
               className={styles.uploadJsonButton}
+              onClick={() => setShowJsonModal(true)}
             >
               Upload JSON
             </button>
-          </>
+            <button type="button" className={styles.resetButton} onClick={handleReset}>
+              Reset assignments
+            </button>
+          </div>
         )}
 
-        <button
-          onClick={handleSave}
-          className={styles.saveButton}
-          disabled={isSaving}
-        >
-          {isSaving ? "Saving..." : "Save"}
-        </button>
+        <div className={`${styles.actionGroup} ${styles.saveGroup}`}>
+          <select
+            value={currentEventStatus}
+            onChange={(e) => setCurrentEventStatus(e.target.value as EventStatus)}
+            className={styles.statusSelect}
+            name="eventStatus"
+            aria-label="Event status"
+          >
+            <option value="not-started">Not Started</option>
+            <option value="ongoing">Ongoing</option>
+            <option value="completed">Completed</option>
+          </select>
+          <button
+            type="button"
+            className={styles.saveButton}
+            onClick={handleSave}
+            disabled={isSaving}
+          >
+            {isSaving ? "Saving..." : "Save"}
+          </button>
+        </div>
       </div>
-
-      {/* Outputs are shown together with the assignments */}
-      {showAssignments && (
-        <>
-          {/* Generated String and JSON side by side */}
-          <div className={styles.outputsContainer}>
-            {[
-              { field: "string" as const, label: "Generated String", value: generatedString },
-              { field: "json" as const, label: "Generated JSON", value: generatedJson },
-            ]
-              .filter((output) => output.value)
-              .map((output) => (
-                <div key={output.field} className={styles.textAreaWrapper}>
-                  <div className={styles.outputHeader}>
-                    <label htmlFor={`generated-${output.field}`} className={styles.label}>
-                      {output.label}
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => handleCopy(output.field, output.value)}
-                      className={styles.copyButton}
-                      title={`Copy ${output.label.toLowerCase()}`}
-                      aria-label={`Copy ${output.label.toLowerCase()}`}
-                    >
-                      {copiedField === output.field ? <CheckIcon /> : <CopyIcon />}
-                      {copiedField === output.field ? "Copied" : "Copy"}
-                    </button>
-                  </div>
-                  <textarea
-                    id={`generated-${output.field}`}
-                    value={output.value}
-                    readOnly
-                    className={styles.textarea}
-                  />
-                </div>
-              ))}
-          </div>
-        </>
-      )}
 
       {/* JSON Import Modal */}
       {showJsonModal && (
@@ -725,6 +718,20 @@ ${formatLegion(formatLegionTitle("Legion 2", legionSchedules.legion_2), assignme
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Very bottom: delete, apart from the other actions (only while the event isn't completed) */}
+      {onDelete && eventStatus !== "completed" && (
+        <div className={styles.deleteRow}>
+          <button
+            type="button"
+            className={`${styles.resetButton} ${styles.deleteEventButton}`}
+            onClick={onDelete}
+            disabled={isSaving}
+          >
+            Delete event
+          </button>
         </div>
       )}
     </div>

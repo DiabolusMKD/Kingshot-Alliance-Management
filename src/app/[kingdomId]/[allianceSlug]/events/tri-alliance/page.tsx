@@ -2,26 +2,24 @@
 
 import { use, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Alliance, Player, AllianceEvent, PlayerAssignment, EventStatus, EventResults } from "@/types";
+import { Alliance, Player, AllianceEvent, EventStatus } from "@/types";
 import Navigation from "@/components/Navigation";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import EventHero from "@/components/EventHero";
 import TriAllianceEventLayout from "@/components/TriAllianceEventLayout";
 import EventList from "@/components/EventList";
 import { useToast } from "@/components/Toast";
+import { useEventEditorData } from "@/components/useEventEditorData";
 import { getPlayers } from "@/utils/playerService";
 import { getAlliancesByKingdomId } from "@/utils/allianceService";
 import { findAllianceBySlug } from "@/utils/allianceSlug";
 import { findEventBySlug, getEventSlug } from "@/utils/eventSlug";
-import { buildEventNotes, parseEventResults } from "@/utils/eventResults";
-import { parseLegionSchedules } from "@/utils/legionSchedule";
+import { EventSaveInput, saveEventData } from "@/utils/eventData";
+import { getLegionSchedules } from "@/utils/legionSchedule";
 import {
   getAllianceEvents,
   createAllianceEvent,
-  updateAllianceEvent,
   deleteAllianceEvent,
-  serializeAssignments,
-  deserializeAssignments,
 } from "@/utils/eventService";
 import styles from "./page.module.css";
 
@@ -57,16 +55,13 @@ export default function TriAlliancePage({ params, searchParams }: TriAlliancePag
   // The event being edited comes from the ?event= URL param
   const selectedEvent = eventSlug ? findEventBySlug(events, eventSlug) ?? null : null;
 
-  // Memoized so the editor isn't reset on every re-render of this page
-  const initialAssignments = useMemo(
-    () => deserializeAssignments(selectedEvent?.assignments || null),
-    [selectedEvent?.assignments],
-  );
+  // Saved players (event_player) + results of the open event; the editor waits for them
+  const editorData = useEventEditorData(selectedEvent, players, !isLoading);
 
-  // Points, results and MVPs of a completed event (stored in notes)
-  const initialResults = useMemo(
-    () => parseEventResults(selectedEvent?.notes),
-    [selectedEvent?.notes],
+  // Players saved in the event who left the alliance stay in it
+  const editorPlayers = useMemo(
+    () => (editorData.extraPlayers?.length ? [...players, ...editorData.extraPlayers] : players),
+    [players, editorData.extraPlayers],
   );
 
   const loadData = async (allianceId: number) => {
@@ -166,25 +161,13 @@ export default function TriAlliancePage({ params, searchParams }: TriAlliancePag
     }
   };
 
-  const handleSaveAssignments = async (
-    assignments: PlayerAssignment[],
-    eventStatus: EventStatus,
-    results: EventResults | undefined,
-    notesFields: Record<string, unknown>,
-  ) => {
+  const handleSaveAssignments = async (input: EventSaveInput) => {
     if (!selectedEvent || !alliance) return;
 
     setIsSaving(true);
     try {
-      const serialized = serializeAssignments(assignments);
-
-      await updateAllianceEvent(selectedEvent.id!, {
-        assignments: serialized,
-        updatedAt: new Date().toISOString(),
-        status: eventStatus,
-        // Results (completed events) and the legion start times
-        notes: buildEventNotes(selectedEvent.notes, { results, fields: notesFields }),
-      });
+      // Event columns (status, note, start times, results) + its event_player rows
+      await saveEventData(selectedEvent, input);
 
       toast.success("Event updated successfully");
       handleBackToList();
@@ -272,16 +255,26 @@ export default function TriAlliancePage({ params, searchParams }: TriAlliancePag
             // Event Editor View
             <>
               <EventHero eventType="tri-alliance" />
-              <TriAllianceEventLayout
-                key={selectedEvent.id}
-                players={players}
-                initialAssignments={initialAssignments}
-                initialResults={initialResults}
-                initialLegionSchedules={parseLegionSchedules(selectedEvent.notes, selectedEvent.startsAt)}
-                eventStatus={selectedEvent.status}
-                onSave={handleSaveAssignments}
-                isSaving={isSaving}
-              />
+              {editorData.error ? (
+                <p className={styles.loadError}>
+                  Couldn&apos;t load this event&apos;s players: {editorData.error}
+                </p>
+              ) : editorData.ready ? (
+                <TriAllianceEventLayout
+                  key={selectedEvent.id}
+                  players={editorPlayers}
+                  initialAssignments={editorData.assignments!}
+                  initialResults={editorData.results}
+                  initialLegionSchedules={getLegionSchedules(selectedEvent)}
+                  initialNotes={selectedEvent.notes ?? ""}
+                  eventStatus={selectedEvent.status}
+                  onSave={handleSaveAssignments}
+                  onDelete={() => handleDeleteEvent(selectedEvent.id!)}
+                  isSaving={isSaving}
+                />
+              ) : (
+                <p>Loading the event&apos;s players...</p>
+              )}
             </>
           ) : eventSlug && !isLoading ? (
             // Unknown event id in the URL

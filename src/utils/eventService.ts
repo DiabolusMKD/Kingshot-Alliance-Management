@@ -1,13 +1,7 @@
 'use client';
 
 import { supabase } from './supabaseClient';
-import {
-  AllianceEvent,
-  EventAssignments,
-  PlayerAssignment,
-  EventStatus,
-  EventType,
-} from '@/types';
+import { AllianceEvent } from '@/types';
 
 /**
  * Create a new alliance event
@@ -35,7 +29,8 @@ export async function getAllianceEvents(allianceId: number, eventId: number) {
   try {
     const { data, error } = await supabase
       .from('alliance_event')
-      .select('*')
+      // + number of assigned players (event_player rows)
+      .select('*, event_player(count)')
       .eq('allianceId', allianceId)
       .eq('eventId', eventId)
       .order('createdAt', { ascending: false });
@@ -103,111 +98,6 @@ export async function deleteAllianceEvent(id: number) {
     if (error) throw error;
   } catch (error) {
     console.error('Error deleting alliance event:', error);
-    throw error;
-  }
-}
-
-/**
- * Save assignments as JSON string
- */
-export function serializeAssignments(assignments: PlayerAssignment[]): string {
-  return JSON.stringify(assignments);
-}
-
-/**
- * Parse assignments from JSON string
- */
-export function deserializeAssignments(assignmentsJson: string | null): PlayerAssignment[] {
-  if (!assignmentsJson) return [];
-  try {
-    return JSON.parse(assignmentsJson);
-  } catch (error) {
-    console.error('Error parsing assignments:', error);
-    return [];
-  }
-}
-
-/**
- * Add or update players in an event
- */
-export async function addPlayersToEvent(
-  allianceEventId: number,
-  playerIds: number[]
-) {
-  try {
-    const eventPlayers = playerIds.map((playerId) => ({
-      playerId,
-      alliance_event_id: allianceEventId,
-      didShowUp: false,
-    }));
-
-    const { data, error } = await supabase
-      .from('event_player')
-      .upsert(eventPlayers, { onConflict: 'alliance_event_id,playerId' })
-      .select();
-
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error('Error adding players to event:', error);
-    throw error;
-  }
-}
-
-/**
- * Get players in an event
- */
-export async function getEventPlayers(allianceEventId: number) {
-  try {
-    const { data, error } = await supabase
-      .from('event_player')
-      .select('*')
-      .eq('alliance_event_id', allianceEventId);
-
-    if (error) throw error;
-    return data || [];
-  } catch (error) {
-    console.error('Error fetching event players:', error);
-    throw error;
-  }
-}
-
-/**
- * Update event player (didShowUp, score, notes)
- */
-export async function updateEventPlayer(
-  id: number,
-  updates: { didShowUp?: boolean; score?: number; notes?: string }
-) {
-  try {
-    const { data, error } = await supabase
-      .from('event_player')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error('Error updating event player:', error);
-    throw error;
-  }
-}
-
-/**
- * Remove player from event
- */
-export async function removePlayerFromEvent(id: number) {
-  try {
-    const { error } = await supabase
-      .from('event_player')
-      .delete()
-      .eq('id', id);
-
-    if (error) throw error;
-  } catch (error) {
-    console.error('Error removing player from event:', error);
     throw error;
   }
 }

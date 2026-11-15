@@ -41,6 +41,7 @@
 }
 
 .eventCard {
+  position: relative;
   display: flex;
   flex-direction: column;
   background-color: var(--bg-secondary);
@@ -50,7 +51,8 @@
   transition: all 0.3s ease;
 }
 
-.eventCard:hover {
+.eventCard:hover,
+.eventCard:focus-within {
   border-color: var(--accent-color);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
@@ -267,4 +269,40 @@
   color: #d97706;
   background-color: rgba(217, 119, 6, 0.12);
   border-color: rgba(217, 119, 6, 0.45);
+}
+
+/* Creator's note: keep its line breaks */
+.notes {
+  white-space: pre-wrap;
+}
+
+/* Full-card click target that opens the event; content sits above it but lets clicks through */
+.cardOpen {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.cardOpen:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: -2px;
+  border-radius: 8px;
+}
+
+.cardHeader,
+.cardBody {
+  position: relative;
+  pointer-events: none;
+}
+
+/* The delete button stays clickable on top of the card */
+.deleteBtn {
+  position: relative;
+  z-index: 1;
+  pointer-events: auto;
 }

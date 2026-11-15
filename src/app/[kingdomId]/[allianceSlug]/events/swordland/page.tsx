@@ -1,28 +1,27 @@
 "use client";
 
-import { use, useEffect, useMemo, useState } from "react";
+import { use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Alliance, Player, AllianceEvent, PlayerAssignment, EventStatus, EventResults, EventVariant } from "@/types";
+import { Alliance, Player, AllianceEvent, EventStatus, EventVariant } from "@/types";
 import Navigation from "@/components/Navigation";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import EventHero from "@/components/EventHero";
 import SwordlandEventLayout from "@/components/SwordlandEventLayout";
 import EventList from "@/components/EventList";
 import { useToast } from "@/components/Toast";
-import { getPlayers, getPlayersByIds } from "@/utils/playerService";
+import { useEventEditorData } from "@/components/useEventEditorData";
+import { getPlayers } from "@/utils/playerService";
 import { getAlliancesByKingdomId } from "@/utils/allianceService";
 import { findAllianceBySlug } from "@/utils/allianceSlug";
 import { findEventBySlug, getEventSlug } from "@/utils/eventSlug";
-import { buildEventNotes, parseEventResults } from "@/utils/eventResults";
-import { parsePowerMode } from "@/utils/powerMode";
-import { parseLegionSchedules } from "@/utils/legionSchedule";
+import { EventSaveInput, saveEventData } from "@/utils/eventData";
+import { getPowerMode } from "@/utils/powerMode";
+import { getLegionSchedules } from "@/utils/legionSchedule";
 import {
   getAllianceEvents,
   createAllianceEvent,
   updateAllianceEvent,
   deleteAllianceEvent,
-  serializeAssignments,
-  deserializeAssignments,
 } from "@/utils/eventService";
 import styles from "./page.module.css";
 
@@ -44,7 +43,7 @@ const VARIANT_OPTIONS: { value: EventVariant; label: string; hint: string }[] = 
   { value: "standard", label: "Standard", hint: "Only players from this alliance." },
   {
     value: "sls",
-    label: "SLS (Swordland Summit League)",
+    label: "SSL (Swordland Summit League)",
     hint: "Battle across kingdoms: the strongest players of the whole kingdom can be added, from any alliance.",
   },
 ];
@@ -64,9 +63,6 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
   const [events, setEvents] = useState<AllianceEvent[]>([]);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [formData, setFormData] = useState<EventFormData>(EMPTY_FORM);
-  // SLS: other-alliance players saved in the open event (loaded before the editor shows)
-  // Keyed by event + saved assignments, so reopening after a save reloads them
-  const [externalPlayers, setExternalPlayers] = useState<{ key: string; players: Player[] } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isChangingVariant, setIsChangingVariant] = useState(false);
@@ -74,60 +70,10 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
   // The event being edited comes from the ?event= URL param
   const selectedEvent = eventSlug ? findEventBySlug(events, eventSlug) ?? null : null;
 
-  // Memoized so the editor isn't reset on every re-render of this page
-  const initialAssignments = useMemo(
-    () => deserializeAssignments(selectedEvent?.assignments || null),
-    [selectedEvent?.assignments],
-  );
-
   const isSummitLeague = selectedEvent?.eventVariant === "sls";
 
-  // SLS: load the saved players that aren't in this alliance (other alliances of the kingdom)
-  const externalKey = selectedEvent ? `${selectedEvent.id}:${selectedEvent.assignments ?? ""}` : "";
-
-  const savedExternalIds = useMemo(() => {
-    const ownIds = new Set(players.map((p) => String(p.id)));
-    return initialAssignments
-      .map((a) => String(a.playerId))
-      .filter((id) => !ownIds.has(id));
-  }, [players, initialAssignments]);
-
-  useEffect(() => {
-    if (!selectedEvent || !isSummitLeague || isLoading) return;
-    if (savedExternalIds.length === 0) return;
-    if (externalPlayers?.key === externalKey) return;
-
-    const externalIds = savedExternalIds;
-
-    let isMounted = true;
-    getPlayersByIds(externalIds)
-      .then((found) => {
-        if (isMounted) setExternalPlayers({ key: externalKey, players: found });
-      })
-      .catch((error) => {
-        console.error("Failed to load players from other alliances:", error);
-        toast.error("Failed to load players from other alliances");
-        if (isMounted) setExternalPlayers({ key: externalKey, players: [] });
-      });
-    return () => {
-      isMounted = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [externalKey, isSummitLeague, isLoading, savedExternalIds]);
-
-  const externalReady =
-    !isSummitLeague || savedExternalIds.length === 0 || externalPlayers?.key === externalKey;
-  // Only passed when there are any, so the editor isn't re-initialized by a new empty list
-  const editorExternalPlayers =
-    isSummitLeague && externalPlayers?.key === externalKey && externalPlayers.players.length > 0
-      ? externalPlayers.players
-      : undefined;
-
-  // Points, results and MVPs of a completed event (stored in notes)
-  const initialResults = useMemo(
-    () => parseEventResults(selectedEvent?.notes),
-    [selectedEvent?.notes],
-  );
+  // Saved players (event_player) + results of the open event; the editor waits for them
+  const editorData = useEventEditorData(selectedEvent, players, !isLoading);
 
   const loadData = async (allianceId: number) => {
     try {
@@ -215,7 +161,7 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
         status: "not-started" as EventStatus,
         startsAt: utcString,
         assignments: undefined,
-        // Only sent for SLS, so standard events also work before the column exists
+        // Only sent for SSL, so standard events also work before the column exists
         ...(formData.variant === "sls" ? { eventVariant: "sls" as const } : {}),
       });
 
@@ -229,31 +175,19 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
       const message = error instanceof Error ? error.message : String((error as { message?: string })?.message ?? "");
       toast.error(
         message.includes("eventVariant")
-          ? "SLS events need the eventVariant column. Run the alliance_event migration in Supabase first."
+          ? "SSL events need the eventVariant column. Run the alliance_event migration in Supabase first."
           : "Failed to create event",
       );
     }
   };
 
-  const handleSaveAssignments = async (
-    assignments: PlayerAssignment[],
-    eventStatus: EventStatus,
-    results: EventResults | undefined,
-    notesFields: Record<string, unknown>,
-  ) => {
+  const handleSaveAssignments = async (input: EventSaveInput) => {
     if (!selectedEvent || !alliance) return;
 
     setIsSaving(true);
     try {
-      const serialized = serializeAssignments(assignments);
-
-      await updateAllianceEvent(selectedEvent.id!, {
-        assignments: serialized,
-        updatedAt: new Date().toISOString(),
-        status: eventStatus,
-        // Results (completed events), the power used for the assignments and the legion start times
-        notes: buildEventNotes(selectedEvent.notes, { results, fields: notesFields }),
-      });
+      // Event columns (status, note, start times, results, power mode) + its event_player rows
+      await saveEventData(selectedEvent, input);
 
       toast.success("Event updated successfully");
       handleBackToList();
@@ -266,19 +200,9 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
     }
   };
 
-  // Switch an existing event between standard and SLS (saved right away)
+  // Switch an existing event between standard and SSL (saved right away)
   const handleVariantChange = async (variant: EventVariant) => {
     if (!selectedEvent || variant === (selectedEvent.eventVariant ?? "standard")) return;
-
-    if (
-      variant === "standard" &&
-      savedExternalIds.length > 0 &&
-      !confirm(
-        "Players from other alliances will be removed from this event's assignments when you save. Continue?",
-      )
-    ) {
-      return;
-    }
 
     setIsChangingVariant(true);
     try {
@@ -286,13 +210,13 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
       setEvents((prev) =>
         prev.map((e) => (e.id === selectedEvent.id ? { ...e, eventVariant: variant } : e)),
       );
-      toast.success(variant === "sls" ? "Switched to SLS" : "Switched to Standard");
+      toast.success(variant === "sls" ? "Switched to SSL" : "Switched to Standard");
     } catch (error) {
       console.error("Failed to change event type:", error);
       const message = error instanceof Error ? error.message : String((error as { message?: string })?.message ?? "");
       toast.error(
         message.includes("eventVariant")
-          ? "SLS events need the eventVariant column. Run the alliance_event migration in Supabase first."
+          ? "SSL events need the eventVariant column. Run the alliance_event migration in Supabase first."
           : "Failed to change event type",
       );
     } finally {
@@ -400,7 +324,7 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
             <>
               <div className={styles.variantBanner}>
                 <strong>
-                  {isSummitLeague ? "SLS · Swordland Summit League" : "Standard Swordland"}
+                  {isSummitLeague ? "SSL · Swordland Summit League" : "Standard Swordland"}
                 </strong>
               </div>
               <div className={styles.variantPicker}>
@@ -423,26 +347,33 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
                 </small>
               </div>
               <EventHero eventType="swordland" />
-              {externalReady ? (
+              {editorData.error ? (
+                <p className={styles.loadError}>
+                  Couldn&apos;t load this event&apos;s players: {editorData.error}
+                </p>
+              ) : editorData.ready ? (
                 <SwordlandEventLayout
                   key={selectedEvent.id}
                   players={players}
-                  externalPlayers={editorExternalPlayers}
+                  // Only passed when there are any, so the editor isn't re-initialized by a new empty list
+                  externalPlayers={editorData.extraPlayers?.length ? editorData.extraPlayers : undefined}
                   summitLeague={
                     isSummitLeague && alliance
                       ? { kingdomId: kingdomIdNumber, allianceId: alliance.id }
                       : undefined
                   }
-                  initialAssignments={initialAssignments}
-                  initialResults={initialResults}
-                  initialPowerMode={parsePowerMode(selectedEvent.notes)}
-                  initialLegionSchedules={parseLegionSchedules(selectedEvent.notes, selectedEvent.startsAt)}
+                  initialAssignments={editorData.assignments!}
+                  initialResults={editorData.results}
+                  initialPowerMode={getPowerMode(selectedEvent)}
+                  initialLegionSchedules={getLegionSchedules(selectedEvent)}
+                  initialNotes={selectedEvent.notes ?? ""}
                   onSave={handleSaveAssignments}
+                  onDelete={() => handleDeleteEvent(selectedEvent.id!)}
                   isSaving={isSaving}
                   eventStatus={selectedEvent.status}
                 />
               ) : (
-                <p>Loading players from other alliances...</p>
+                <p>Loading the event&apos;s players...</p>
               )}
             </>
           ) : eventSlug && !isLoading ? (
