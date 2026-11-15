@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
+import { getPlayerHref } from '@/utils/playerLinks';
 import ZoomableImage from './ZoomableImage';
 import { Alliance, Player } from '@/types';
 import styles from './PlayersTable.module.css';
@@ -8,8 +10,6 @@ import { formatNumbers } from '@/utils/formatNumbers';
 import { isImageUrl, truncateLevelLabel } from '@/utils/isImageUrl';
 import { formatAllianceLabel } from '@/utils/allianceLabel';
 import { MAX_ALLIANCE_PLAYERS } from '@/utils/constants';
-import Dialog from './Dialog';
-import PlayerCard from './PlayerCard';
 
 interface PlayersTableProps {
   players: Player[];
@@ -37,22 +37,12 @@ export default function PlayersTable({
   emptyMessage = 'No players found. Add a new player to get started!',
 }: PlayersTableProps) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [viewedPlayer, setViewedPlayer] = useState<Player | null>(null);
 
   const getAllianceLabel = (player: Player) => {
     const alliance = alliances.find((a) => String(a.id) === String(player.allianceId));
     return alliance ? formatAllianceLabel(alliance) : undefined;
   };
 
-  const handleViewEdit = (player: Player) => {
-    setViewedPlayer(null);
-    onEdit(player);
-  };
-
-  const handleViewDelete = (id: string) => {
-    setViewedPlayer(null);
-    onDelete?.(id);
-  };
 
   const filteredPlayers = players.filter(
     (player) =>
@@ -125,17 +115,22 @@ export default function PlayersTable({
                     )}
                   </div>
                 </td>
-                <td>{player.name}</td>
+                <td>
+                  <Link href={getPlayerHref(player)} className={styles.playerLink}>
+                    {player.name}
+                  </Link>
+                </td>
                 {showAliasColumn && <td>{player.aliasName}</td>}
                 {showPlayerIdColumn && <td>{player.playerId}</td>}
                 <td>{formatNumbers(player.power)}</td>
                 {showAllianceColumn && <td>{getAllianceLabel(player) ?? '—'}</td>}
                 <td>
                   <div className={styles.actions}>
-                    <button
-                      onClick={() => setViewedPlayer(player)}
+                    <Link
+                      href={getPlayerHref(player)}
                       className={styles.viewButton}
                       title="View player"
+                      aria-label={`View ${player.name}`}
                     >
                       <svg
                         width="14"
@@ -151,7 +146,7 @@ export default function PlayersTable({
                         <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z" />
                         <circle cx="12" cy="12" r="3" />
                       </svg>
-                    </button>
+                    </Link>
                     <button
                       onClick={() => onEdit(player)}
                       className={styles.editButton}
@@ -181,20 +176,6 @@ export default function PlayersTable({
         )}
       </div>
 
-      <Dialog
-        isOpen={!!viewedPlayer}
-        title={viewedPlayer?.name ?? 'Player'}
-        onClose={() => setViewedPlayer(null)}
-      >
-        {viewedPlayer && (
-          <PlayerCard
-            player={viewedPlayer}
-            onEdit={handleViewEdit}
-            onDelete={onDelete ? handleViewDelete : undefined}
-            allianceLabel={getAllianceLabel(viewedPlayer)}
-          />
-        )}
-      </Dialog>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { Player } from '@/types';
 import ZoomableImage from './ZoomableImage';
 import styles from './PlayerCard.module.css';
@@ -12,11 +13,13 @@ interface PlayerCardProps {
   onDelete?: (id: string) => void;
   readOnly?: boolean;
   allianceLabel?: string;
+  /** Makes the whole card a link (read-only cards only: buttons can't sit inside a link) */
+  href?: string;
 }
 
-export default function PlayerCard({ player, onEdit, onDelete, readOnly = false, allianceLabel }: PlayerCardProps) {
-  return (
-    <div className={styles.card}>
+export default function PlayerCard({ player, onEdit, onDelete, readOnly = false, allianceLabel, href }: PlayerCardProps) {
+  const content = (
+    <>
       <div className={styles.cardHeader}>
         {player.profilePhoto && (
           <ZoomableImage
@@ -85,6 +88,14 @@ export default function PlayerCard({ player, onEdit, onDelete, readOnly = false,
           )}
         </div>
       )}
-    </div>
+    </>
+  );
+
+  return href && readOnly ? (
+    <Link href={href} className={`${styles.card} ${styles.cardLink}`} aria-label={`Open ${player.name}`}>
+      {content}
+    </Link>
+  ) : (
+    <div className={styles.card}>{content}</div>
   );
 }

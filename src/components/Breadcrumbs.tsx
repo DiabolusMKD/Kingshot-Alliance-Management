@@ -8,7 +8,7 @@ import { findAllianceBySlug } from '@/utils/allianceSlug';
 import { formatAllianceLabel } from '@/utils/allianceLabel';
 import styles from './Breadcrumbs.module.css';
 
-interface Crumb {
+export interface Crumb {
   label: string;
   /** Omitted for the current page and for path segments without a page of their own */
   href?: string;
@@ -31,7 +31,10 @@ const isAllianceSlug = (segment: string) => segment.startsWith('alliance');
  * Render it as the first child of a page's `.container` so it lines up with the content.
  * Hidden on the homepage.
  */
-export default function Breadcrumbs() {
+export default function Breadcrumbs({ items }: {
+  /** Custom trail after "Home" (e.g. a player page), instead of the one derived from the URL */
+  items?: Crumb[];
+} = {}) {
   const pathname = usePathname();
   const segments = pathname.split('/').filter(Boolean);
   const [kingdomSegment, allianceSegment] = segments;
@@ -57,7 +60,8 @@ export default function Breadcrumbs() {
   if (segments.length === 0) return null;
 
   const crumbs: Crumb[] = [{ label: 'Home', href: '/' }];
-  segments.forEach((segment, index) => {
+  if (items) crumbs.push(...items);
+  else segments.forEach((segment, index) => {
     const href = `/${segments.slice(0, index + 1).join('/')}`;
     let label: string;
     let hasPage = true;

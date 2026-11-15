@@ -12,6 +12,7 @@ import { describeSavedPlayer } from '@/utils/playerFeedback';
 import { useToast } from '@/components/Toast';
 import { usePlayersUpdater } from '@/components/usePlayersUpdater';
 import PlayerCard from '@/components/PlayerCard';
+import { getPlayerHref } from '@/utils/playerLinks';
 import { Alliance, Player } from '@/types';
 import { getAlliancesByKingdomId, updateAlliance } from '@/utils/allianceService';
 import { createPlayer, getPlayers, updatePlayer } from '@/utils/playerService';
@@ -238,7 +239,7 @@ export default function AlliancePage({ params }: AlliancePageProps) {
               </div>
               <div className={styles.playersGrid}>
                 {previewPlayers.map((player) => (
-                  <PlayerCard key={player.id} player={player} readOnly />
+                  <PlayerCard key={player.id} player={player} readOnly href={getPlayerHref(player)} />
                 ))}
                 {players.length < PLAYERS_PREVIEW_LIMIT && (
                   <button
