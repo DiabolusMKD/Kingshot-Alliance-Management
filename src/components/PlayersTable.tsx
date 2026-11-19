@@ -107,7 +107,7 @@ export default function PlayersTable({
                     {player.levelImage && (
                       <div className={styles.levelBadge} title="Level">
                         {isImageUrl(player.levelImage) ? (
-                          <ZoomableImage src={player.levelImage} alt={`${player.name} level`} width={24} height={24} />
+                          <ZoomableImage src={player.levelImage} alt={`${player.name} level`} width={30} height={30} />
                         ) : (
                           <span>{truncateLevelLabel(player.levelImage)}</span>
                         )}
