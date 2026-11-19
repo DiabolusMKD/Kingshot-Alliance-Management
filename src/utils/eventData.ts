@@ -6,6 +6,7 @@ import { LegionSchedules } from './legionSchedule';
 import { PowerMode } from './powerMode';
 import { SWORDLAND_MVP_TYPES, getEventMvps, getMvpColumn } from './swordlandMvps';
 import { getPowersAtOrNone, hasEventStarted, PowerSnapshot } from './powerHistory';
+import { getReliability } from './reliability';
 import {
   AllianceEvent,
   EventPlayer,
@@ -272,6 +273,7 @@ export async function saveEventData(event: AllianceEvent, input: EventSaveInput)
         ? {
             score: scores.get(playerId) ?? null,
             didShowUp: isCompleted ? (scores.get(playerId) ?? 0) > 0 : null,
+            reliability: isCompleted ? getReliability(legionInfo.isSubstitute, scores.get(playerId)) : null,
           }
         : {}),
     };
@@ -305,6 +307,7 @@ export async function saveEventData(event: AllianceEvent, input: EventSaveInput)
         return {
           score: null,
           didShowUp: null,
+          reliability: null,
           ...row,
           playerName: player.name,
           playerAllianceId: player.allianceId != null && player.allianceId !== '' ? Number(player.allianceId) : null,

@@ -7,6 +7,7 @@ import BuildingPreview from "./BuildingPreview";
 import EventPoints, { PointsLegion, useEventPoints } from "./EventPoints";
 import { CompletedStatus, LockToggleButton } from "./EventLock";
 import PlayerIdentity from "./PlayerIdentity";
+import NoShowBadge, { noShowRowClass } from "./NoShowBadge";
 import { useToast } from "./Toast";
 import LegionTimeSelect from "./LegionTimeSelect";
 import ViewAssignmentsButton from "./ViewAssignmentsButton";
@@ -55,6 +56,7 @@ const SWORDLAND_RESULTS = [
 
 // Stable default: a fresh [] per render would re-run the init effect endlessly
 const NO_PLAYERS: Player[] = [];
+const NO_IDS = new Set<string>();
 
 export default function SwordlandEventLayout({
   players,
@@ -65,6 +67,7 @@ export default function SwordlandEventLayout({
   initialPowerMode = "swordland",
   initialLegionSchedules = getLegionSchedules(null),
   initialNotes = "",
+  noShowIds = NO_IDS,
   eventStatus = "not-started",
   onSave,
   isSaving,
@@ -84,6 +87,8 @@ export default function SwordlandEventLayout({
   initialLegionSchedules?: LegionSchedules;
   /** Plain-text note of the event's creator */
   initialNotes?: string;
+  /** SSL season: players assigned to a building in the season's last event who scored 0 (marked red) */
+  noShowIds?: Set<string>;
   eventStatus?: EventStatus;
   onSave: (input: EventSaveInput) => Promise<void>;
   isSaving?: boolean;
@@ -696,9 +701,10 @@ ${buildingText}${substitutesText}`;
                       {filter(assignments.unassigned)
                         .sort((a, b) => powerOf(b) - powerOf(a))
                         .map((p) => (
-                          <tr key={`u-${p.id}`}>
+                          <tr key={`u-${p.id}`} className={noShowIds.has(String(p.id)) ? noShowRowClass : undefined}>
                             <td>
                               <PlayerIdentity player={p}>
+                                {noShowIds.has(String(p.id)) && <NoShowBadge />}
                                 {externalIds.has(p.id) && (
                                   <span
                                     className={styles.externalBadge}
@@ -778,6 +784,7 @@ ${buildingText}${substitutesText}`;
                   BUILDINGS={BUILDINGS}
                   filterPlayers={filter}
                   powerMode={powerMode}
+                  noShowIds={noShowIds}
                   handleManualBuildingAssign={handleManualBuildingAssign}
                   movePlayerToSubstitute={movePlayerToSubstitute}
                   movePlayer={movePlayer}
@@ -792,6 +799,7 @@ ${buildingText}${substitutesText}`;
                   selectedBuilding={"substitute"}
                   filterPlayers={filter}
                   powerMode={powerMode}
+                  noShowIds={noShowIds}
                   handleManualBuildingAssign={() => {}}
                   movePlayerToSubstitute={() => {}}
                   movePlayer={() => {}}
@@ -804,6 +812,7 @@ ${buildingText}${substitutesText}`;
                   legionData={preview[legion]}
                   BUILDINGS={BUILDINGS}
                   powerMode={powerMode}
+                  noShowIds={noShowIds}
                 />
               </div>
             ))}

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { BuildingAssignment, LegionBuildingData, Player } from "@/types";
 import PlayerIdentity from "./PlayerIdentity";
+import NoShowBadge, { noShowRowClass } from "./NoShowBadge";
 import { PowerMode, getPlayerPower } from "@/utils/powerMode";
 import { formatPower } from "@/utils/formatNumbers";
 import styles from "./BuildingPreview.module.css";
@@ -16,6 +17,8 @@ interface Props {
   BUILDINGS: string[];
   /** Which power is shown next to each player */
   powerMode: PowerMode;
+  /** Marked red: assigned in the season's last event but didn't show up */
+  noShowIds?: Set<string>;
 }
 
 const EMPTY_BUILDING: BuildingAssignment = { leader: null, support: [], manual: false };
@@ -26,17 +29,19 @@ interface RoleGroup {
   players: Player[];
 }
 
-function PlayerRow({ player, powerMode }: { player: Player; powerMode: PowerMode }) {
+function PlayerRow({ player, powerMode, noShow }: { player: Player; powerMode: PowerMode; noShow?: boolean }) {
   return (
-    <div className={styles.playerRow}>
-      <PlayerIdentity player={player} size={40} />
+    <div className={`${styles.playerRow} ${noShow ? noShowRowClass : ""}`}>
+      <PlayerIdentity player={player} size={40}>
+        {noShow && <NoShowBadge />}
+      </PlayerIdentity>
       <span className={styles.power}>{formatPower(getPlayerPower(player, powerMode))}</span>
     </div>
   );
 }
 
 /** One card per building, stacked in a single column (styled like the player cards) */
-export default function BuildingPreview({ title, legion, legionData, BUILDINGS, powerMode }: Props) {
+export default function BuildingPreview({ title, legion, legionData, BUILDINGS, powerMode, noShowIds }: Props) {
   const safe = legionData ?? { buildings: {}, substitutes: [] };
   // Cards start collapsed; only the expanded ones are tracked
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -124,6 +129,7 @@ export default function BuildingPreview({ title, legion, legionData, BUILDINGS, 
                             key={`${legion}-${card.name}-${player.id}`}
                             player={player}
                             powerMode={powerMode}
+                            noShow={noShowIds?.has(String(player.id))}
                           />
                         ))
                       ) : (

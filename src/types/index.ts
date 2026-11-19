@@ -87,6 +87,8 @@ export interface AllianceEvent {
   legion2LootMvp?: string | null;
   legion2GatheringMvp?: string | null;
   legion2KoMvp?: string | null;
+  /** SSL: the season (swordland_season.id) this event belongs to */
+  seasonId?: number | null;
   /** Embedded count of event_player rows (when selected) */
   event_player?: { count: number }[];
   createdAt?: string;
@@ -115,9 +117,19 @@ export interface EventPlayer {
   score: number | null;
   /** Completed events: score > 0 */
   didShowUp: boolean | null;
+  /** Completed events: +10 showed up, -10 assigned but no-show, +5 substitute showed up, 0 substitute no-show */
+  reliability?: number | null;
   notes?: string | null;
   createdAt?: string;
   updatedAt?: string;
+}
+
+/** A season of SSL (Swordland Summit League) events of one alliance */
+export interface SwordlandSeason {
+  id: number;
+  allianceId: number;
+  name: string;
+  createdAt?: string;
 }
 
 // Assignment structure for storing legion assignments

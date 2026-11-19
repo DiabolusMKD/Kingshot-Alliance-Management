@@ -2,12 +2,13 @@
 
 import { use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Alliance, Player, AllianceEvent, EventStatus, EventVariant } from "@/types";
+import { Alliance, Player, AllianceEvent, EventStatus, EventVariant, SwordlandSeason } from "@/types";
 import Navigation from "@/components/Navigation";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import EventHero from "@/components/EventHero";
 import SwordlandEventLayout from "@/components/SwordlandEventLayout";
 import EventList from "@/components/EventList";
+import ReliabilityStats from "@/components/ReliabilityStats";
 import { useToast } from "@/components/Toast";
 import { useEventEditorData } from "@/components/useEventEditorData";
 import { getPlayers } from "@/utils/playerService";
@@ -23,6 +24,15 @@ import {
   updateAllianceEvent,
   deleteAllianceEvent,
 } from "@/utils/eventService";
+import {
+  copyAssignmentsFromEvent,
+  createSeason,
+  deleteSeason,
+  getLastSeasonEvent,
+  getNextSeasonName,
+  getNoShowIds,
+  getSeasons,
+} from "@/utils/seasonService";
 import styles from "./page.module.css";
 
 const EVENT_ID = 1; // Swordland event ID
@@ -32,12 +42,26 @@ interface SwordlandPageProps {
   searchParams: Promise<{ event?: string | string[] }>;
 }
 
+/** Season picker value for a season that is created with the event */
+const NEW_SEASON = "new";
+
 interface EventFormData {
   startsAt: string;
   variant: EventVariant;
+  /** SSL: a season id, or NEW_SEASON */
+  season: string;
+  /** SSL: name of the new season */
+  seasonName: string;
 }
 
-const EMPTY_FORM: EventFormData = { startsAt: "", variant: "standard" };
+const EMPTY_FORM: EventFormData = { startsAt: "", variant: "standard", season: NEW_SEASON, seasonName: "" };
+
+const NO_SHOWS = new Set<string>();
+
+const formatEventDate = (startsAt?: string) =>
+  startsAt
+    ? new Date(startsAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+    : "no date";
 
 const VARIANT_OPTIONS: { value: EventVariant; label: string; hint: string }[] = [
   { value: "standard", label: "Standard", hint: "Only players from this alliance." },
@@ -61,6 +85,11 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
   const [alliance, setAlliance] = useState<Alliance | null | undefined>(undefined);
   const [players, setPlayers] = useState<Player[]>([]);
   const [events, setEvents] = useState<AllianceEvent[]>([]);
+  const [seasons, setSeasons] = useState<SwordlandSeason[]>([]);
+  const [isCreating, setIsCreating] = useState(false);
+  const [isChangingSeason, setIsChangingSeason] = useState(false);
+  // SSL season: who was assigned to a building in the season's previous event but scored 0
+  const [noShows, setNoShows] = useState<{ eventId: number; ids: Set<string> } | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [formData, setFormData] = useState<EventFormData>(EMPTY_FORM);
   const [isLoading, setIsLoading] = useState(true);
@@ -75,12 +104,41 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
   // Saved players (event_player) + results of the open event; the editor waits for them
   const editorData = useEventEditorData(selectedEvent, players, !isLoading);
 
+  // The season's event before the open one (its no-shows are marked red)
+  const previousSeasonEvent =
+    selectedEvent && isSummitLeague && selectedEvent.seasonId
+      ? getLastSeasonEvent(events, selectedEvent.seasonId, selectedEvent)
+      : null;
+  const previousSeasonEventId = previousSeasonEvent?.id;
+  const previousSeasonEventStatus = previousSeasonEvent?.status;
+
+  useEffect(() => {
+    if (!previousSeasonEvent) return;
+    let isMounted = true;
+    getNoShowIds(previousSeasonEvent)
+      .then((ids) => isMounted && setNoShows({ eventId: previousSeasonEvent.id!, ids }))
+      .catch((error) => console.error("Failed to load the last event's no-shows:", error));
+    return () => {
+      isMounted = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previousSeasonEventId, previousSeasonEventStatus]);
+
+  const noShowIds =
+    previousSeasonEvent && noShows && noShows.eventId === previousSeasonEvent.id ? noShows.ids : NO_SHOWS;
+  const selectedSeason = seasons.find((s) => s.id === selectedEvent?.seasonId);
+
   const loadData = async (allianceId: number) => {
     try {
       setIsLoading(true);
-      const [playersData, eventsData] = await Promise.all([
+      const [playersData, eventsData, seasonsData] = await Promise.all([
         getPlayers(allianceId, kingdomIdNumber),
         getAllianceEvents(allianceId, EVENT_ID),
+        // Before the season migration runs there's no table: no seasons then
+        getSeasons(allianceId).catch((error) => {
+          console.warn("Seasons unavailable:", error);
+          return [] as SwordlandSeason[];
+        }),
       ]);
 
       const sortedPlayers = playersData.sort(
@@ -88,6 +146,7 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
       );
       setPlayers(sortedPlayers);
       setEvents(eventsData);
+      setSeasons(seasonsData);
     } catch (error) {
       console.error("Failed to load data:", error);
       toast.error("Failed to load data");
@@ -131,15 +190,28 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
     router.push(basePath);
   };
 
+  // SSL defaults to the latest season (assignments copied from its last event)
+  const getEmptyForm = (): EventFormData => ({
+    ...EMPTY_FORM,
+    season: seasons.length > 0 ? String(seasons[seasons.length - 1].id) : NEW_SEASON,
+    seasonName: getNextSeasonName(seasons),
+  });
+
   const handleCreateEventClick = () => {
     setShowCreateForm(true);
-    setFormData(EMPTY_FORM);
+    setFormData(getEmptyForm());
   };
 
   const handleFormCancel = () => {
     setShowCreateForm(false);
-    setFormData(EMPTY_FORM);
+    setFormData(getEmptyForm());
   };
+
+  const isSslForm = formData.variant === "sls";
+  const isNewSeason = formData.season === NEW_SEASON;
+  // Existing season: its last event's assignments are copied into the new event
+  const copySourceEvent =
+    isSslForm && !isNewSeason ? getLastSeasonEvent(events, Number(formData.season)) : null;
 
   const handleFormSubmit = async () => {
     if (!alliance) return;
@@ -148,8 +220,25 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
       toast.warning("Please select a date and time");
       return;
     }
+    if (isSslForm && isNewSeason && !formData.seasonName.trim()) {
+      toast.warning("Please enter a name for the new season");
+      return;
+    }
 
+    setIsCreating(true);
+    let newSeason: SwordlandSeason | null = null;
     try {
+      // SSL: the season the event belongs to (a new one is created now)
+      let seasonId: number | null = null;
+      if (isSslForm) {
+        if (isNewSeason) {
+          newSeason = await createSeason(alliance.id, formData.seasonName);
+          seasonId = newSeason.id;
+        } else {
+          seasonId = Number(formData.season);
+        }
+      }
+
       // Convert datetime-local to UTC
       const localDate = new Date(formData.startsAt);
       const utcString = localDate.toISOString();
@@ -161,23 +250,67 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
         status: "not-started" as EventStatus,
         startsAt: utcString,
         assignments: undefined,
-        // Only sent for SSL, so standard events also work before the column exists
-        ...(formData.variant === "sls" ? { eventVariant: "sls" as const } : {}),
+        // Only sent for SSL, so standard events also work before the columns exist
+        ...(isSslForm ? { eventVariant: "sls" as const, seasonId } : {}),
       });
+      const createdSeason = newSeason;
+      newSeason = null; // The event exists: keep the season from here on
 
-      setEvents((prev) => [newEvent, ...prev]);
+      // Existing season: start from the assignments of its last event
+      let event: AllianceEvent = newEvent;
+      let copyFailed = false;
+      if (copySourceEvent) {
+        try {
+          event = await copyAssignmentsFromEvent(copySourceEvent, newEvent);
+        } catch (error) {
+          console.error("Failed to copy the last event's assignments:", error);
+          copyFailed = true;
+        }
+      }
+
+      if (createdSeason) setSeasons((prev) => [...prev, createdSeason]);
+      setEvents((prev) => [event, ...prev]);
       setShowCreateForm(false);
       setFormData(EMPTY_FORM);
-      toast.success("Event created");
-      openEvent(newEvent);
+      if (copyFailed) toast.warning("Event created, but the last event's assignments couldn't be copied");
+      else if (copySourceEvent) toast.success(`Event created with the assignments of ${formatEventDate(copySourceEvent.startsAt)}`);
+      else toast.success("Event created");
+      // A fresh load gives the event its player count
+      if (copySourceEvent) await loadData(alliance.id);
+      openEvent(event);
     } catch (error) {
       console.error("Failed to create event:", error);
+      // The event wasn't created: don't leave an empty new season behind
+      if (newSeason) await deleteSeason(newSeason.id).catch(() => {});
       const message = error instanceof Error ? error.message : String((error as { message?: string })?.message ?? "");
       toast.error(
         message.includes("eventVariant")
           ? "SSL events need the eventVariant column. Run the alliance_event migration in Supabase first."
-          : "Failed to create event",
+          : message.includes("season")
+            ? "SSL seasons need the season migration. Run it in Supabase first."
+            : "Failed to create event",
       );
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  // Move an SSL event to another season (saved right away)
+  const handleSeasonChange = async (value: string) => {
+    if (!selectedEvent) return;
+    const seasonId = value ? Number(value) : null;
+    if (seasonId === (selectedEvent.seasonId ?? null)) return;
+
+    setIsChangingSeason(true);
+    try {
+      await updateAllianceEvent(selectedEvent.id!, { seasonId });
+      setEvents((prev) => prev.map((e) => (e.id === selectedEvent.id ? { ...e, seasonId } : e)));
+      toast.success("Season updated");
+    } catch (error) {
+      console.error("Failed to change the season:", error);
+      toast.error("Failed to change the season");
+    } finally {
+      setIsChangingSeason(false);
     }
   };
 
@@ -290,6 +423,48 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
                   </small>
                 </div>
 
+                {isSslForm && (
+                  <div className={styles.formGroup}>
+                    <label htmlFor="eventSeason">Season</label>
+                    <select
+                      id="eventSeason"
+                      value={formData.season}
+                      onChange={(e) => setFormData({ ...formData, season: e.target.value })}
+                      className={styles.formInput}
+                    >
+                      {[...seasons].reverse().map((season) => (
+                        <option key={season.id} value={String(season.id)}>
+                          {season.name}
+                        </option>
+                      ))}
+                      <option value={NEW_SEASON}>+ New season</option>
+                    </select>
+                    {isNewSeason ? (
+                      <>
+                        <input
+                          id="seasonName"
+                          type="text"
+                          value={formData.seasonName}
+                          onChange={(e) => setFormData({ ...formData, seasonName: e.target.value })}
+                          className={`${styles.formInput} ${styles.seasonNameInput}`}
+                          placeholder="Season name"
+                          aria-label="New season name"
+                          maxLength={60}
+                        />
+                        <small className={styles.formHint}>
+                          The season is created together with the event. The event starts with no assignments.
+                        </small>
+                      </>
+                    ) : (
+                      <small className={styles.formHint}>
+                        {copySourceEvent
+                          ? `Assignments are copied from the season's last event (${formatEventDate(copySourceEvent.startsAt)}). Players who were on a building but scored 0 are marked red.`
+                          : "This season has no events yet: the event starts with no assignments."}
+                      </small>
+                    )}
+                  </div>
+                )}
+
                 <div className={styles.formGroup}>
                   <label htmlFor="startsAt">Event Date & Time</label>
                   <input
@@ -313,8 +488,9 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
                   <button
                     onClick={handleFormSubmit}
                     className={styles.submitButton}
+                    disabled={isCreating}
                   >
-                    Create Event
+                    {isCreating ? "Creating..." : "Create Event"}
                   </button>
                 </div>
               </div>
@@ -325,6 +501,7 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
               <div className={styles.variantBanner}>
                 <strong>
                   {isSummitLeague ? "SSL · Swordland Summit League" : "Standard Swordland"}
+                  {isSummitLeague && selectedSeason ? ` · ${selectedSeason.name}` : ""}
                 </strong>
               </div>
               <div className={styles.variantPicker}>
@@ -346,6 +523,32 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
                   {VARIANT_OPTIONS.find((o) => o.value === (isSummitLeague ? "sls" : "standard"))?.hint}
                 </small>
               </div>
+              {isSummitLeague && seasons.length > 0 && (
+                <div className={styles.variantPicker}>
+                  <label htmlFor="editEventSeason">Season</label>
+                  <select
+                    id="editEventSeason"
+                    value={selectedEvent.seasonId != null ? String(selectedEvent.seasonId) : ""}
+                    onChange={(e) => handleSeasonChange(e.target.value)}
+                    className={styles.variantSelect}
+                    disabled={isChangingSeason}
+                  >
+                    <option value="">No season</option>
+                    {[...seasons].reverse().map((season) => (
+                      <option key={season.id} value={String(season.id)}>
+                        {season.name}
+                      </option>
+                    ))}
+                  </select>
+                  {previousSeasonEvent && noShowIds.size > 0 && (
+                    <small className={`${styles.formHint} ${styles.noShowHint}`}>
+                      Marked red: {noShowIds.size} player{noShowIds.size === 1 ? " was" : "s were"} on a building
+                      in the season&apos;s previous event ({formatEventDate(previousSeasonEvent.startsAt)}) but
+                      scored 0 points.
+                    </small>
+                  )}
+                </div>
+              )}
               <EventHero eventType="swordland" />
               {editorData.usesStartPowers && (
                 <p className={styles.powerNote}>
@@ -372,6 +575,7 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
                   initialPowerMode={getPowerMode(selectedEvent)}
                   initialLegionSchedules={getLegionSchedules(selectedEvent)}
                   initialNotes={selectedEvent.notes ?? ""}
+                  noShowIds={noShowIds}
                   onSave={handleSaveAssignments}
                   onDelete={() => handleDeleteEvent(selectedEvent.id!)}
                   isSaving={isSaving}
@@ -401,12 +605,16 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
               {isLoading ? (
                 <p>Loading...</p>
               ) : (
-                <EventList
-                  events={events}
-                  onEventClick={openEvent}
-                  onDeleteEvent={handleDeleteEvent}
-                  isLoading={false}
-                />
+                <>
+                  <EventList
+                    events={events}
+                    seasons={seasons}
+                    onEventClick={openEvent}
+                    onDeleteEvent={handleDeleteEvent}
+                    isLoading={false}
+                  />
+                  <ReliabilityStats events={events} seasons={seasons} />
+                </>
               )}
             </>
           )}

@@ -2,6 +2,7 @@
 
 import { LegionBuildingData, Player } from "@/types";
 import PlayerIdentity from "./PlayerIdentity";
+import NoShowBadge, { noShowRowClass } from "./NoShowBadge";
 import { PowerMode, getPlayerPower, getPowerLabel } from "@/utils/powerMode";
 import { formatCompactPower, formatPower } from "@/utils/formatNumbers";
 import styles from "./LegionTable.module.css";
@@ -18,6 +19,8 @@ interface LegionTableProps {
   filterPlayers: (players: Player[]) => Player[];
   /** Which power is shown (and used to build the assignments) */
   powerMode: PowerMode;
+  /** Marked red: assigned in the season's last event but didn't show up */
+  noShowIds?: Set<string>;
 
   handleManualBuildingAssign: (
     legion: Legion,
@@ -94,6 +97,7 @@ export default function LegionTable({
   preview,
   filterPlayers,
   powerMode,
+  noShowIds,
   handleManualBuildingAssign,
   movePlayerToSubstitute,
   movePlayerFromSubstitute,
@@ -118,9 +122,14 @@ export default function LegionTable({
 
           <tbody>
             {filtered.map((player) => (
-              <tr key={`${legion}-${player.id}`}>
+              <tr
+                key={`${legion}-${player.id}`}
+                className={noShowIds?.has(String(player.id)) ? noShowRowClass : undefined}
+              >
                 <td>
-                  <PlayerIdentity player={player} />
+                  <PlayerIdentity player={player}>
+                    {noShowIds?.has(String(player.id)) && <NoShowBadge />}
+                  </PlayerIdentity>
                 </td>
                 <td className={styles.powerCell} title={formatPower(getPlayerPower(player, powerMode))}>
                   {formatCompactPower(getPlayerPower(player, powerMode))}

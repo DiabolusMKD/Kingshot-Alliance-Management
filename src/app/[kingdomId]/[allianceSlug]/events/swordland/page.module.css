@@ -272,3 +272,14 @@
   font-size: 0.85rem;
   color: var(--text-secondary);
 }
+
+/* SSL season: name of a season created with the event */
+.seasonNameInput {
+  margin-top: 8px;
+}
+
+/* Number of last event's no-shows (marked red in the editor) */
+.variantPicker .noShowHint {
+  flex-basis: 100%;
+  color: #f87171;
+}

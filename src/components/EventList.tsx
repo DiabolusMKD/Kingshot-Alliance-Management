@@ -1,6 +1,6 @@
 'use client';
 
-import { AllianceEvent, EventStatus } from '@/types';
+import { AllianceEvent, EventStatus, SwordlandSeason } from '@/types';
 import { LegionSchedule, getLegionSchedules } from '@/utils/legionSchedule';
 import styles from './EventList.module.css';
 
@@ -23,6 +23,8 @@ const RESULT_STYLES: Record<string, string> = {
 
 interface EventListProps {
   events: AllianceEvent[];
+  /** Swordland: SSL seasons, shown on the SSL badge */
+  seasons?: SwordlandSeason[];
   onEventClick: (event: AllianceEvent) => void;
   onDeleteEvent: (id: number) => Promise<void>;
   isLoading?: boolean;
@@ -30,6 +32,7 @@ interface EventListProps {
 
 export default function EventList({
   events,
+  seasons = [],
   onEventClick,
   onDeleteEvent,
   isLoading = false,
@@ -134,6 +137,9 @@ export default function EventList({
               {event.eventVariant === 'sls' && (
                 <span className={styles.variantBadge} title="Swordland Summit League">
                   SSL
+                  {seasons.find((s) => s.id === event.seasonId)
+                    ? ` · ${seasons.find((s) => s.id === event.seasonId)!.name}`
+                    : ''}
                 </span>
               )}
             </div>

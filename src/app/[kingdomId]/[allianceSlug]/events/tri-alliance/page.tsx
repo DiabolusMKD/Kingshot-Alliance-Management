@@ -8,6 +8,7 @@ import Breadcrumbs from "@/components/Breadcrumbs";
 import EventHero from "@/components/EventHero";
 import TriAllianceEventLayout from "@/components/TriAllianceEventLayout";
 import EventList from "@/components/EventList";
+import ReliabilityStats from "@/components/ReliabilityStats";
 import { useToast } from "@/components/Toast";
 import { useEventEditorData } from "@/components/useEventEditorData";
 import { getPlayers } from "@/utils/playerService";
@@ -304,12 +305,15 @@ export default function TriAlliancePage({ params, searchParams }: TriAlliancePag
               {isLoading ? (
                 <p>Loading...</p>
               ) : (
-                <EventList
-                  events={events}
-                  onEventClick={openEvent}
-                  onDeleteEvent={handleDeleteEvent}
-                  isLoading={false}
-                />
+                <>
+                  <EventList
+                    events={events}
+                    onEventClick={openEvent}
+                    onDeleteEvent={handleDeleteEvent}
+                    isLoading={false}
+                  />
+                  <ReliabilityStats events={events} />
+                </>
               )}
             </>
           )}

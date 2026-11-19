@@ -1,0 +1,26 @@
+.badge {
+  display: inline-block;
+  flex-shrink: 0;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.55);
+  background-color: rgba(239, 68, 68, 0.12);
+}
+
+/* Table rows (td) and building-card rows */
+.row,
+.row > td {
+  background-color: rgba(239, 68, 68, 0.12) !important;
+}
+
+.row {
+  box-shadow: inset 3px 0 0 var(--danger-color);
+}
+
+.row :global(span) {
+  color: #fca5a5;
+}

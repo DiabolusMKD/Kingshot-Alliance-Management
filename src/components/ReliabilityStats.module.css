@@ -1,0 +1,209 @@
+.section {
+  margin-top: 1rem;
+  padding-bottom: 2rem;
+}
+
+.header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.title {
+  font-size: 1.5rem;
+  margin: 0 0 0.25rem;
+  color: var(--text-primary);
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.filter {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.select {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+
+.message {
+  padding: 1.5rem;
+  text-align: center;
+  color: var(--text-secondary);
+  background-color: var(--bg-secondary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  margin: 0;
+}
+
+/* Same look as the legion tables: limited height, scrolls with a sticky header */
+.tableWrapper {
+  width: 100%;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  overflow: auto;
+  background-color: var(--bg-secondary);
+  max-height: 360px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background-color: var(--bg-tertiary);
+}
+
+.table th,
+.table td {
+  padding: 14px 16px;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.table th {
+  font-weight: 600;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.rank {
+  color: var(--text-secondary);
+  width: 2rem;
+}
+
+.playerCell {
+  max-width: 220px;
+}
+
+.playerLink {
+  display: block;
+  min-width: 0;
+  text-decoration: none;
+}
+
+.playerLink:hover :global(*) {
+  color: var(--accent-color);
+}
+
+.deleted {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.table .noShows {
+  color: var(--danger-color);
+  font-weight: 600;
+}
+
+.points {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Latest event's points after the total */
+.latest {
+  margin-left: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.table .positive {
+  color: #4ade80;
+}
+
+.table .negative {
+  color: var(--danger-color);
+}
+
+@media (max-width: 600px) {
+  .table th,
+  .table td {
+    padding: 12px 8px;
+  }
+
+  .playerCell {
+    max-width: 150px;
+  }
+}
+
+/* Compact player search with an always-visible clear button */
+.searchWrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: 320px;
+  margin-bottom: 1rem;
+}
+
+.searchInput {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  padding: 0 0.75rem;
+  font-size: 0.9rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.searchInput:focus {
+  outline: none;
+  border-color: var(--accent-color);
+}
+
+.clearButton {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: bold;
+  transition: all 0.2s ease;
+}
+
+.clearButton:hover:not(:disabled) {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+.clearButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+@media (max-width: 600px) {
+  .searchWrapper {
+    max-width: none;
+  }
+}
