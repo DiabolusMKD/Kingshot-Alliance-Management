@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { ToastProvider } from "@/components/Toast";
+import { fallbackFontVariables } from "./fonts";
 
 export const metadata: Metadata = {
   title: "Kingshot Alliance Management",
@@ -13,7 +14,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className={fallbackFontVariables}>
       <body>
         <ToastProvider>{children}</ToastProvider>
       </body>
