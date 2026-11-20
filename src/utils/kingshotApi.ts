@@ -48,6 +48,17 @@ function mapLevelImageToIconUrl(levelImage?: string): string | undefined {
 }
 
 /**
+ * Town Center level (1-30, then 35 = TG1, 40 = TG2 ... 70 = TG8) to the saved level image:
+ * the plain level up to 30, the TG icon above.
+ */
+export function tcLevelToLevelImage(level?: number | null): string | undefined {
+  if (!level || level <= 0) return undefined;
+  if (level <= 30) return String(level);
+  const tg = Math.max(1, Math.floor((level - 30) / 5));
+  return `https://got-global-avatar.akamaized.net/img/icon/stove_lv_${tg}.png`;
+}
+
+/**
  * Find the local alliance matching the player's in-game alliance within the
  * given kingdom. Prefers an exact tag + name match, then falls back to the tag
  * alone (an alliance may have been renamed in game).

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Navigation from '@/components/Navigation';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import Dialog from '@/components/Dialog';
-import AllianceForm from '@/components/AllianceForm';
+import AddAllianceForm from '@/components/AddAllianceForm';
 import AllianceTable from '@/components/AllianceTable';
 import AllianceCards from '@/components/AllianceCards';
 import PlayersTable from '@/components/PlayersTable';
@@ -13,7 +13,7 @@ import PlayerForm, { PlayerFormSubmitMeta } from '@/components/PlayerForm';
 import { useToast } from '@/components/Toast';
 import { usePlayersUpdater } from '@/components/usePlayersUpdater';
 import { Alliance, Player } from '@/types';
-import { getAlliancesByKingdomId, createAlliance } from '@/utils/allianceService';
+import { getAlliancesByKingdomId } from '@/utils/allianceService';
 import {
   AllianceStats,
   createPlayer,
@@ -110,10 +110,9 @@ export default function KingdomPage({ params }: KingdomPageProps) {
     setIsDialogOpen(false);
   };
 
-  const handleCreateAlliance = async (allianceData: Omit<Alliance, 'id' | 'created_at'>) => {
-    const newAlliance = await createAlliance(allianceData);
-    setAlliances((prev) => [...prev, newAlliance]);
-    closeDialog();
+  // The alliance + its players were saved from the game: refresh in place (the dialog shows the result)
+  const handleAllianceImported = async () => {
+    await loadAlliances({ silent: true });
   };
 
   const getStats = (alliance: Alliance): AllianceStats =>
@@ -217,7 +216,7 @@ export default function KingdomPage({ params }: KingdomPageProps) {
                   </div>
                 )}
                 <button className={styles.createButton} onClick={openCreateDialog}>
-                  + Create Alliance
+                  + Add Alliance
                 </button>
               </div>
             </div>
@@ -352,12 +351,14 @@ export default function KingdomPage({ params }: KingdomPageProps) {
         )}
       </Dialog>
 
-      <Dialog isOpen={isDialogOpen} title="Create Alliance" onClose={closeDialog}>
-        <AllianceForm
-          kingdomId={kingdomIdNumber}
-          onSubmit={handleCreateAlliance}
-          onCancel={closeDialog}
-        />
+      <Dialog isOpen={isDialogOpen} title="Add Alliance" onClose={closeDialog}>
+        {isDialogOpen && (
+          <AddAllianceForm
+            kingdomId={kingdomIdNumber}
+            onImported={handleAllianceImported}
+            onCancel={closeDialog}
+          />
+        )}
       </Dialog>
     </>
   );
