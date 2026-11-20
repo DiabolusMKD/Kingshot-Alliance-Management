@@ -1,6 +1,7 @@
 "use client";
 
 import { LEGION_START_TIMES, LegionSchedule } from "@/utils/legionSchedule";
+import { useCanEdit } from "./EditMode";
 import styles from "./LegionTimeSelect.module.css";
 
 interface LegionTimeSelectProps {
@@ -12,6 +13,7 @@ interface LegionTimeSelectProps {
 
 /** Start time (UTC) of a legion, shown next to the legion title */
 export default function LegionTimeSelect({ legionTitle, schedule, onChange }: LegionTimeSelectProps) {
+  const canEdit = useCanEdit();
   // Keep a saved time visible even if it was removed from the list
   const times =
     schedule.time && !LEGION_START_TIMES.includes(schedule.time)
@@ -25,6 +27,7 @@ export default function LegionTimeSelect({ legionTitle, schedule, onChange }: Le
         className={styles.select}
         value={schedule.time ?? ""}
         onChange={(e) => onChange(e.target.value || null)}
+        disabled={!canEdit}
         aria-label={`${legionTitle} start time`}
       >
         <option value="">Start time</option>

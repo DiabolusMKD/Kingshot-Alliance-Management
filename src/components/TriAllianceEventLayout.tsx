@@ -5,6 +5,7 @@ import { EventResults, EventStatus, Player, PlayerAssignment } from "@/types";
 import { useToast } from "./Toast";
 import EventPoints, { PointsLegion, useEventPoints } from "./EventPoints";
 import { CompletedStatus, LockToggleButton } from "./EventLock";
+import { useCanEdit } from "./EditMode";
 import PlayerIdentity from "./PlayerIdentity";
 import LegionTimeSelect from "./LegionTimeSelect";
 import ViewAssignmentsButton from "./ViewAssignmentsButton";
@@ -90,6 +91,7 @@ function PlayerSelectBox({
   category: string;
   onMove: (playerId: string, fromCategory: string, toCategory: string) => void;
 }) {
+  const canEdit = useCanEdit();
   return (
     <div className={styles.column}>
       <h3 className={styles.columnTitle}>{title}</h3>
@@ -105,6 +107,7 @@ function PlayerSelectBox({
               value={category}
               onChange={(e) => onMove(player.id, category, e.target.value)}
               className={styles.select}
+              disabled={!canEdit}
             >
               <option value="unassigned">Unassigned</option>
               <option value="legion1">Legion 1</option>
@@ -143,6 +146,9 @@ export default function TriAllianceEventLayout({
   );
   // A saved completed event opens locked (view only); Unlock makes it editable again
   const [isLocked, setIsLocked] = useState(eventStatus === "completed");
+  // View only (no edit key in the URL, see EditMode): everything is shown as if locked, assignments without changing them
+  const canEdit = useCanEdit();
+  const readOnly = isLocked || !canEdit;
   // Choosing Completed switches to the points view, like a saved completed event
   const changeStatus = (status: EventStatus) => {
     setCurrentEventStatus(status);
@@ -522,18 +528,18 @@ ${formatLegion(formatLegionTitle("Legion 2", legionSchedules.legion_2), assignme
   return (
     <div className={styles.container}>
       {/* Opponents of each legion */}
-      {renderOpponents?.(isLocked)}
+      {renderOpponents?.(readOnly)}
 
       {/* Points (completed events only) */}
       {isCompleted && (
         <>
-          {isLocked && <CompletedStatus />}
+          {readOnly && <CompletedStatus />}
           <EventPoints
             legions={pointsLegions}
             resultLabel="Place"
             resultOptions={TRI_ALLIANCE_PLACES}
             state={pointsState}
-            readOnly={isLocked}
+            readOnly={readOnly}
             schedules={legionSchedules}
           />
           {!isLocked && (
@@ -593,6 +599,7 @@ ${formatLegion(formatLegionTitle("Legion 2", legionSchedules.legion_2), assignme
                     <td>
                       <select
                         value="unassigned"
+                        disabled={!canEdit}
                         onChange={(e) =>
                           movePlayer(player.id, "unassigned", e.target.value)
                         }
@@ -661,8 +668,8 @@ ${formatLegion(formatLegionTitle("Legion 2", legionSchedules.legion_2), assignme
           className={styles.notesTextarea}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          readOnly={isLocked}
-          placeholder={isLocked ? "No notes." : "Anything to remember about this event..."}
+          readOnly={readOnly}
+          placeholder={readOnly ? "No notes." : "Anything to remember about this event..."}
           rows={3}
         />
       </div>
@@ -676,7 +683,7 @@ ${formatLegion(formatLegionTitle("Legion 2", legionSchedules.legion_2), assignme
       )}
 
       {/* ACTIONS: assignment tools (left) and status + save (right) */}
-      {!isLocked && (
+      {!readOnly && (
       <div className={styles.actionsBar}>
         {showAssignments && (
           <div className={styles.actionGroup}>
@@ -755,7 +762,7 @@ ${formatLegion(formatLegionTitle("Legion 2", legionSchedules.legion_2), assignme
       )}
 
       {/* Very bottom: delete, apart from the other actions (only while the event isn't completed) */}
-      {onDelete && eventStatus !== "completed" && (
+      {onDelete && canEdit && eventStatus !== "completed" && (
         <div className={styles.deleteRow}>
           <button
             type="button"
@@ -769,7 +776,7 @@ ${formatLegion(formatLegionTitle("Legion 2", legionSchedules.legion_2), assignme
       )}
 
       {/* Very bottom of a saved completed event: Unlock to edit, Lock to go back to the view */}
-      {eventStatus === "completed" && <LockToggleButton isLocked={isLocked} onToggle={toggleLock} />}
+      {eventStatus === "completed" && canEdit && <LockToggleButton isLocked={isLocked} onToggle={toggleLock} />}
     </div>
   );
 }

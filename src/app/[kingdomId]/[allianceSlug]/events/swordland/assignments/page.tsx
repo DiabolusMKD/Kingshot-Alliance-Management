@@ -24,6 +24,7 @@ import {
 import { formatAllianceLabel } from "@/utils/allianceLabel";
 import { formatCompactPower, formatNumbers } from "@/utils/formatNumbers";
 import { MAX_LEGION_PLAYERS, MAX_LEGION_SUBSTITUTES } from "@/utils/constants";
+import { useCanEdit } from "@/components/EditMode";
 import styles from "./page.module.css";
 
 const EVENT_ID = 1; // Swordland
@@ -67,6 +68,7 @@ export default function SwordlandAssignmentsPage({ params, searchParams }: PageP
   const [event, setEvent] = useState<AllianceEvent | null | undefined>(undefined);
   const [opponents, setOpponents] = useState<OpponentsState | null>(null);
   const [showSimulation, setShowSimulation] = useState(false);
+  const canEdit = useCanEdit();
 
   useEffect(() => {
     let isMounted = true;
@@ -197,9 +199,11 @@ export default function SwordlandAssignmentsPage({ params, searchParams }: PageP
           Open the event
         </Link>
       </header>
-      <p className={styles.hint}>
-        The saved assignments. Changes in the event show here after saving it and reloading this page.
-      </p>
+      {canEdit && (
+        <p className={styles.hint}>
+          The saved assignments. Changes in the event show here after saving it and reloading this page.
+        </p>
+      )}
 
       {editorData.error ? (
         <p className={styles.error}>Couldn&apos;t load the event&apos;s players: {editorData.error}</p>
@@ -265,7 +269,7 @@ export default function SwordlandAssignmentsPage({ params, searchParams }: PageP
           eventId={event.id!}
           eventType="swordland"
           ownAllianceId={alliance.id}
-          readOnly={event.status === "completed"}
+          readOnly={event.status === "completed" || !canEdit}
           onChange={setOpponents}
         />
         <div>

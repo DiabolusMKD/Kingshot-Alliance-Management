@@ -5,6 +5,7 @@ import PlayerIdentity from "./PlayerIdentity";
 import NoShowBadge, { noShowRowClass } from "./NoShowBadge";
 import { PowerMode, getPlayerPower, getPowerLabel } from "@/utils/powerMode";
 import { formatCompactPower, formatPower } from "@/utils/formatNumbers";
+import { useCanEdit } from "./EditMode";
 import styles from "./LegionTable.module.css";
 
 type Legion = "legion1" | "legion2";
@@ -104,6 +105,8 @@ export default function LegionTable({
   movePlayer,
 }: LegionTableProps) {
   const filtered = filterPlayers(players);
+  // View only: the building is shown, not changed, and there's no Remove
+  const canEdit = useCanEdit();
 
   return (
     <div className={styles.legionTable}>
@@ -116,7 +119,7 @@ export default function LegionTable({
               <th>Player</th>
               <th>{getPowerLabel(powerMode)}</th>
               <th>Building</th>
-              <th>Remove</th>
+              {canEdit && <th>Remove</th>}
             </tr>
           </thead>
 
@@ -138,6 +141,7 @@ export default function LegionTable({
                 <td>
                   <select
                     className={styles.tableSelect}
+                    disabled={!canEdit}
                     value={
                       getBuildingNameByPlayer(
                         preview?.buildings || {},
@@ -169,14 +173,16 @@ export default function LegionTable({
                   </select>
                 </td>
 
-                <td>
-                  <UnassignPlayerButton
-                    player={player}
-                    legion={legion}
-                    movePlayer={movePlayer}
-                    movePlayerFromSubstitute={movePlayerFromSubstitute}
-                  />
-                </td>
+                {canEdit && (
+                  <td>
+                    <UnassignPlayerButton
+                      player={player}
+                      legion={legion}
+                      movePlayer={movePlayer}
+                      movePlayerFromSubstitute={movePlayerFromSubstitute}
+                    />
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

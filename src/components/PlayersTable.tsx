@@ -11,6 +11,7 @@ import { isImageUrl, truncateLevelLabel } from '@/utils/isImageUrl';
 import { formatAllianceLabel } from '@/utils/allianceLabel';
 import { MAX_ALLIANCE_PLAYERS } from '@/utils/constants';
 import { getRankOrder } from '@/utils/allianceRank';
+import { useCanEdit } from './EditMode';
 
 interface PlayersTableProps {
   players: Player[];
@@ -41,6 +42,7 @@ export default function PlayersTable({
   emptyMessage = 'No players found. Add a new player to get started!',
 }: PlayersTableProps) {
   const [searchTerm, setSearchTerm] = useState('');
+  const canEdit = useCanEdit();
 
   const getAllianceLabel = (player: Player) => {
     const alliance = alliances.find((a) => String(a.id) === String(player.allianceId));
@@ -166,13 +168,15 @@ export default function PlayersTable({
                         <circle cx="12" cy="12" r="3" />
                       </svg>
                     </Link>
-                    <button
-                      onClick={() => onEdit(player)}
-                      className={styles.editButton}
-                      title="Edit player"
-                    >
-                      ✎
-                    </button>
+                    {canEdit && (
+                      <button
+                        onClick={() => onEdit(player)}
+                        className={styles.editButton}
+                        title="Edit player"
+                      >
+                        ✎
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>

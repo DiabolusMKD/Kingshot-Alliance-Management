@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { AllianceEvent, EventStatus, SwordlandSeason } from '@/types';
 import { LegionSchedule, formatEventDateTimeUtc, getLegionSchedules } from '@/utils/legionSchedule';
 import { OpponentSummary, formatOpponentLabel, getOpponentsByEvent } from '@/utils/opponentService';
+import { useCanEdit } from './EditMode';
 import styles from './EventList.module.css';
 
 const RESULT_LABELS: Record<string, string> = {
@@ -39,6 +40,7 @@ export default function EventList({
   onDeleteEvent,
   isLoading = false,
 }: EventListProps) {
+  const canEdit = useCanEdit();
   // Opponents of every listed event (one request; reloaded when the list changes)
   const [opponents, setOpponents] = useState<Map<number, OpponentSummary[]>>(new Map());
   const eventIdsKey = events.map((e) => e.id).join(',');
@@ -178,7 +180,7 @@ export default function EventList({
               )}
             </div>
             {/* Completed events keep their results and player history: they can't be deleted */}
-            {allowDelete && event.status !== 'completed' && (
+            {allowDelete && canEdit && event.status !== 'completed' && (
               <button
                 onClick={() => onDeleteEvent(event.id!)}
                 className={styles.deleteBtn}

@@ -12,6 +12,7 @@ import EventOpponents, { OpponentsState } from "@/components/EventOpponents";
 import { saveDraftOpponents } from "@/utils/opponentService";
 import ReliabilityStats from "@/components/ReliabilityStats";
 import SwordlandPowerDialog from "@/components/SwordlandPowerDialog";
+import { useCanEdit } from "@/components/EditMode";
 import { useToast } from "@/components/Toast";
 import { useEventEditorData } from "@/components/useEventEditorData";
 import { getPlayers } from "@/utils/playerService";
@@ -140,6 +141,9 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
   const selectedSeason = seasons.find((s) => s.id === selectedEvent?.seasonId);
   // Completed events: event type and season are shown, not changed
   const isEventCompleted = selectedEvent?.status === "completed";
+  // View only (no edit key in the URL, see EditMode): event type, season and date are shown, not changed
+  const canEdit = useCanEdit();
+  const isReadOnlyEvent = isEventCompleted || !canEdit;
 
   const loadData = async (allianceId: number) => {
     try {
@@ -437,7 +441,7 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
       <main className={styles.main}>
         <div className={styles.container}>
           <Breadcrumbs />
-          {showCreateForm ? (
+          {showCreateForm && canEdit ? (
             // Create Event Form
             <div className={styles.formModal}>
               <div className={`${styles.formContent} ${styles.formContentWide}`}>
@@ -559,7 +563,7 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
               {/* Event type and season side by side */}
               <div className={styles.pickerRow}>
                 <div className={styles.variantPicker}>
-                  {isEventCompleted ? (
+                  {isReadOnlyEvent ? (
                     <>
                       <span className={styles.pickerLabel}>Event Type</span>
                       <span className={styles.readOnlyValue}>
@@ -590,7 +594,7 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
                 </div>
                 {isSummitLeague && seasons.length > 0 && (
                   <div className={styles.variantPicker}>
-                    {isEventCompleted ? (
+                    {isReadOnlyEvent ? (
                       <>
                         <span className={styles.pickerLabel}>Season</span>
                         <span className={styles.readOnlyValue}>{selectedSeason?.name ?? "No season"}</span>
@@ -624,7 +628,7 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
                   </div>
                 )}
                 <div className={styles.variantPicker}>
-                  {isEventCompleted ? (
+                  {isReadOnlyEvent ? (
                     <>
                       <span className={styles.pickerLabel}>Event Date &amp; Time</span>
                       <span className={styles.readOnlyValue}>{formatEventDateTime(selectedEvent.startsAt)}</span>
@@ -656,7 +660,7 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
                 >
                   Open assignments in new tab ↗
                 </a>
-                <small className={styles.formHint}>Shows the saved assignments: save first.</small>
+                {canEdit && <small className={styles.formHint}>Shows the saved assignments: save first.</small>}
               </div>
               {editorData.usesStartPowers && (
                 <p className={styles.powerNote}>
@@ -711,6 +715,7 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
             <>
               <div className={styles.header}>
                 <h1 className={styles.title}>Swordland Event Management</h1>
+                {canEdit && (
                 <div className={styles.headerActions}>
                   <button
                     onClick={() => setIsPowerDialogOpen(true)}
@@ -728,6 +733,7 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
                     + Create New Event
                   </button>
                 </div>
+                )}
               </div>
               <SwordlandPowerDialog
                 isOpen={isPowerDialogOpen}

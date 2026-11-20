@@ -14,6 +14,7 @@ import {
   syncGiftCodes,
 } from '@/utils/giftCodeService';
 import styles from './GiftCodesManager.module.css';
+import { useCanEdit } from './EditMode';
 
 interface GiftCodesManagerProps {
   /** Loads the players codes are redeemed for (an alliance, or players without one) */
@@ -68,6 +69,7 @@ export default function GiftCodesManager({
 }: GiftCodesManagerProps) {
   const toast = useToast();
 
+  const canEdit = useCanEdit();
   const [players, setPlayers] = useState<Player[]>([]);
   const [codes, setCodes] = useState<GiftCode[]>([]);
   const [redemptions, setRedemptions] = useState<Map<string, GiftCodeRedemption>>(new Map());
@@ -338,6 +340,7 @@ export default function GiftCodesManager({
                 {codes.length} active code(s) · {players.length} player(s) · {groupLabel}
               </p>
             </div>
+            {canEdit && (
             <div className={styles.actions}>
               <button
                 type="button"
@@ -356,8 +359,10 @@ export default function GiftCodesManager({
                 {isRedeeming ? 'Redeeming...' : 'Redeem Codes'}
               </button>
             </div>
+            )}
           </div>
 
+          {canEdit && (
           <label className={`${styles.forceOption} ${isBusy ? styles.disabled : ''}`}>
             <input
               type="checkbox"
@@ -367,6 +372,7 @@ export default function GiftCodesManager({
             />
             Also send codes to players already marked as redeemed
           </label>
+          )}
 
           {syncError && (
             <div className={`${styles.banner} ${styles.bannerError}`} role="alert">

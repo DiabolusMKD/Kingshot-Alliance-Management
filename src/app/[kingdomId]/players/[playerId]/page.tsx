@@ -24,6 +24,7 @@ import {
   getPlayerEventHistory,
   summarizeEntries,
 } from "@/utils/playerHistory";
+import { useCanEdit } from "@/components/EditMode";
 import styles from "./page.module.css";
 
 interface PlayerPageProps {
@@ -274,6 +275,7 @@ export default function PlayerPage({ params }: PlayerPageProps) {
   // Alliances of the player's kingdom, for the edit form (loaded when it opens)
   const [kingdomAlliances, setKingdomAlliances] = useState<Alliance[]>([]);
   const toast = useToast();
+  const canEdit = useCanEdit();
 
   const openEdit = async () => {
     if (!player) return;
@@ -396,6 +398,7 @@ export default function PlayerPage({ params }: PlayerPageProps) {
                 </div>
 
                 <div className={styles.powers}>
+                  {canEdit && (
                   <button type="button" className={styles.editButton} onClick={openEdit} title="Edit player">
                     <svg
                       width="16"
@@ -413,6 +416,7 @@ export default function PlayerPage({ params }: PlayerPageProps) {
                     </svg>
                     Edit
                   </button>
+                  )}
                   <StatTile label="Power" value={formatPower(player.power)} />
                   <StatTile label="Swordland power" value={formatPower(player.swordlandPower)} />
                   <StatTile label="Tri Alliance power" value={formatPower(player.trialliancePower)} />

@@ -23,6 +23,7 @@ import {
   updatePlayer,
 } from '@/utils/playerService';
 import { describeSavedPlayer } from '@/utils/playerFeedback';
+import { useCanEdit } from '@/components/EditMode';
 import styles from './page.module.css';
 
 interface KingdomPageProps {
@@ -51,6 +52,7 @@ async function loadTopPlayers(kingdomId: number, count: number) {
 export default function KingdomPage({ params }: KingdomPageProps) {
   const { kingdomId } = use(params);
   const kingdomIdNumber = Number(kingdomId);
+  const canEdit = useCanEdit();
 
   const [alliances, setAlliances] = useState<Alliance[]>([]);
   const toast = useToast();
@@ -215,9 +217,11 @@ export default function KingdomPage({ params }: KingdomPageProps) {
                     </button>
                   </div>
                 )}
-                <button className={styles.createButton} onClick={openCreateDialog}>
-                  + Add Alliance
-                </button>
+                {canEdit && (
+                  <button className={styles.createButton} onClick={openCreateDialog}>
+                    + Add Alliance
+                  </button>
+                )}
               </div>
             </div>
 
@@ -246,11 +250,13 @@ export default function KingdomPage({ params }: KingdomPageProps) {
                     Kingdom {kingdomId} players across all alliances, strongest first.
                   </p>
                 </div>
-                <div className={styles.sectionActions}>
-                  <button type="button" className={styles.createButton} onClick={() => setIsAddPlayerOpen(true)}>
-                    + Add Player
-                  </button>
-                </div>
+                {canEdit && (
+                  <div className={styles.sectionActions}>
+                    <button type="button" className={styles.createButton} onClick={() => setIsAddPlayerOpen(true)}>
+                      + Add Player
+                    </button>
+                  </div>
+                )}
               </div>
               <PlayersTable
                 players={topPlayers}
@@ -290,7 +296,7 @@ export default function KingdomPage({ params }: KingdomPageProps) {
                     Kingdom {kingdomId} players not assigned to any alliance. Edit a player to assign one.
                   </p>
                 </div>
-                {unassignedPlayers.length > 0 && (
+                {unassignedPlayers.length > 0 && canEdit && (
                   <div className={styles.sectionActions}>
                     <button
                       type="button"

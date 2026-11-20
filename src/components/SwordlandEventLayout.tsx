@@ -12,6 +12,7 @@ import { useToast } from "./Toast";
 import LegionTimeSelect from "./LegionTimeSelect";
 import ViewAssignmentsButton from "./ViewAssignmentsButton";
 import GeneratedOutput from "./GeneratedOutput";
+import { useCanEdit } from "./EditMode";
 import { LegionSchedules, formatLegionTitle, getLegionSchedules } from "@/utils/legionSchedule";
 import { EventSaveInput } from "@/utils/eventData";
 import {
@@ -121,6 +122,9 @@ export default function SwordlandEventLayout({
   );
   // A saved completed event opens locked (view only); Unlock makes it editable again
   const [isLocked, setIsLocked] = useState(eventStatus === "completed");
+  // View only (no edit key in the URL, see EditMode): everything is shown as if locked, assignments without changing them
+  const canEdit = useCanEdit();
+  const readOnly = isLocked || !canEdit;
   // Choosing Completed switches to the points view, like a saved completed event
   const changeStatus = (status: EventStatus) => {
     setCurrentEventStatus(status);
@@ -598,18 +602,18 @@ ${buildingText}${substitutesText}`;
   return (
     <div className={styles.container}>
       {/* OPPONENTS of each legion */}
-      {renderOpponents?.(isLocked)}
+      {renderOpponents?.(readOnly)}
 
       {/* POINTS (completed events only) */}
       {isCompleted && (
         <>
-          {isLocked && <CompletedStatus />}
+          {readOnly && <CompletedStatus />}
           <EventPoints
             legions={pointsLegions}
             resultLabel="Result"
             resultOptions={SWORDLAND_RESULTS}
             state={pointsState}
-            readOnly={isLocked}
+            readOnly={readOnly}
             schedules={legionSchedules}
             mvpTypes={SWORDLAND_MVP_TYPES}
           />
@@ -650,6 +654,7 @@ ${buildingText}${substitutesText}`;
               <span className={styles.powerModeLabel}>Assign by</span>
               <select
                 className={styles.statusSelect}
+                disabled={!canEdit}
                 value={powerMode}
                 onChange={(e) => setPowerMode(e.target.value as PowerMode)}
                 name="powerMode"
@@ -664,7 +669,7 @@ ${buildingText}${substitutesText}`;
           </div>
 
           {/* UNASSIGNED (+ SSL kingdom players side by side) */}
-          <div className={summitLeague ? styles.poolGrid : undefined}>
+          <div className={summitLeague && canEdit ? styles.poolGrid : undefined}>
             <div className={styles.poolColumn}>
               <div className={styles.poolHeader}>
                 <h2 className={styles.playersHeader}>
@@ -706,6 +711,7 @@ ${buildingText}${substitutesText}`;
                             <td>
                               <select
                                 className={styles.tableSelect}
+                                disabled={!canEdit}
                                 onChange={(e) =>
                                   e.target.value === "remove"
                                     ? removeExternalPlayer(p.id)
@@ -730,7 +736,7 @@ ${buildingText}${substitutesText}`;
             </div>
 
             {/* SSL: players of the kingdom from other alliances */}
-            {summitLeague && (
+            {summitLeague && canEdit && (
               <div className={styles.poolColumn}>
                 <KingdomPlayerPicker
                   kingdomId={summitLeague.kingdomId}
@@ -815,8 +821,8 @@ ${buildingText}${substitutesText}`;
           className={styles.notesTextarea}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          readOnly={isLocked}
-          placeholder={isLocked ? "No notes." : "Anything to remember about this event..."}
+          readOnly={readOnly}
+          placeholder={readOnly ? "No notes." : "Anything to remember about this event..."}
           rows={3}
         />
       </div>
@@ -830,7 +836,7 @@ ${buildingText}${substitutesText}`;
       )}
 
       {/* ACTIONS: assignment tools (left) and status + save (right) */}
-      {!isLocked && (
+      {!readOnly && (
       <div className={styles.actionsBar}>
         {showAssignments && (
           <div className={styles.actionGroup}>
@@ -909,7 +915,7 @@ ${buildingText}${substitutesText}`;
       )}
 
       {/* Very bottom: delete, apart from the other actions (only while the event isn't completed) */}
-      {onDelete && eventStatus !== "completed" && (
+      {onDelete && canEdit && eventStatus !== "completed" && (
         <div className={styles.deleteRow}>
           <button
             type="button"
@@ -923,7 +929,7 @@ ${buildingText}${substitutesText}`;
       )}
 
       {/* Very bottom of a saved completed event: Unlock to edit, Lock to go back to the view */}
-      {eventStatus === "completed" && <LockToggleButton isLocked={isLocked} onToggle={toggleLock} />}
+      {eventStatus === "completed" && canEdit && <LockToggleButton isLocked={isLocked} onToggle={toggleLock} />}
     </div>
   );
 }

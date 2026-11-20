@@ -23,6 +23,7 @@ import {
   createAllianceEvent,
   deleteAllianceEvent,
 } from "@/utils/eventService";
+import { useCanEdit } from "@/components/EditMode";
 import styles from "./page.module.css";
 
 const EVENT_ID = 2; // Tri Alliance event ID
@@ -45,6 +46,7 @@ export default function TriAlliancePage({ params, searchParams }: TriAlliancePag
 
   const router = useRouter();
   const toast = useToast();
+  const canEdit = useCanEdit();
 
   const [alliance, setAlliance] = useState<Alliance | null | undefined>(undefined);
   const [players, setPlayers] = useState<Player[]>([]);
@@ -221,7 +223,7 @@ export default function TriAlliancePage({ params, searchParams }: TriAlliancePag
       <main className={styles.main}>
         <div className={styles.container}>
           <Breadcrumbs />
-          {showCreateForm ? (
+          {showCreateForm && canEdit ? (
             // Create Event Form
             <div className={styles.formModal}>
               <div className={styles.formContent}>
@@ -304,13 +306,15 @@ export default function TriAlliancePage({ params, searchParams }: TriAlliancePag
             <>
               <div className={styles.header}>
                 <h1 className={styles.title}>Tri-Alliance Event Management</h1>
-                <button
-                  onClick={handleCreateEventClick}
-                  className={styles.createButton}
-                  disabled={isLoading}
-                >
-                  + Create New Event
-                </button>
+                {canEdit && (
+                  <button
+                    onClick={handleCreateEventClick}
+                    className={styles.createButton}
+                    disabled={isLoading}
+                  >
+                    + Create New Event
+                  </button>
+                )}
               </div>
 
               {isLoading ? (

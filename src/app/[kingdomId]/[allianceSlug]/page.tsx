@@ -23,6 +23,7 @@ import { ALLIANCE_RANKS, compareByRankThenPower } from '@/utils/allianceRank';
 import { formatTimeAgo, formatTimeUntil, getNextGameSync } from '@/utils/gameSync';
 import { formatCompactPower } from '@/utils/formatNumbers';
 import styles from './page.module.css';
+import { useCanEdit } from '@/components/EditMode';
 
 // Two full rows at the widest layout (4 columns). Smaller breakpoints show fewer
 // (6 / 4) by hiding the extra cards in CSS, see .playersGrid in page.module.css.
@@ -40,6 +41,7 @@ export default function AlliancePage({ params }: AlliancePageProps) {
   const kingdomIdNumber = Number(kingdomId);
 
   const toast = useToast();
+  const canEdit = useCanEdit();
   const [alliance, setAlliance] = useState<Alliance | null | undefined>(undefined);
   const [kingdomAlliances, setKingdomAlliances] = useState<Alliance[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
@@ -298,9 +300,11 @@ export default function AlliancePage({ params }: AlliancePageProps) {
               {nextGameSync && ` · Update Alliance available again ${formatTimeUntil(nextGameSync)}`}
             </p>
             <div className={styles.ctas}>
-              <button className={styles.ctaButton} onClick={openEditDialog}>
-                Edit
-              </button>
+              {canEdit && (
+                <button className={styles.ctaButton} onClick={openEditDialog}>
+                  Edit
+                </button>
+              )}
               <Link href={`/${kingdomId}/${allianceSlug}/events`} className={styles.ctaButton}>
                 Events
               </Link>
@@ -314,12 +318,14 @@ export default function AlliancePage({ params }: AlliancePageProps) {
             <div className={styles.playersSection}>
               <div className={styles.emptyPlayers}>
                 <p className={styles.emptyPlayersText}>No players added to this alliance yet.</p>
-                <div className={styles.headerButtons}>
-                  {updateAllianceButton}
-                  <button className={styles.ctaButton} onClick={() => setIsAddPlayerDialogOpen(true)}>
-                    + Add Player
-                  </button>
-                </div>
+                {canEdit && (
+                  <div className={styles.headerButtons}>
+                    {updateAllianceButton}
+                    <button className={styles.ctaButton} onClick={() => setIsAddPlayerDialogOpen(true)}>
+                      + Add Player
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -336,6 +342,7 @@ export default function AlliancePage({ params }: AlliancePageProps) {
                     ({players.length}/{MAX_ALLIANCE_PLAYERS})
                   </span>
                 </h2>
+                {canEdit && (
                 <div className={styles.headerButtons}>
                   {updateAllianceButton}
                   <button
@@ -348,12 +355,13 @@ export default function AlliancePage({ params }: AlliancePageProps) {
                     {isUpdating ? 'Updating...' : 'Update Players'}
                   </button>
                 </div>
+                )}
               </div>
               <div className={styles.playersGrid}>
                 {previewPlayers.map((player) => (
                   <PlayerCard key={player.id} player={player} readOnly href={getPlayerHref(player)} />
                 ))}
-                {players.length < PLAYERS_PREVIEW_LIMIT && (
+                {players.length < PLAYERS_PREVIEW_LIMIT && canEdit && (
                   <button
                     type="button"
                     className={styles.addPlayerCard}

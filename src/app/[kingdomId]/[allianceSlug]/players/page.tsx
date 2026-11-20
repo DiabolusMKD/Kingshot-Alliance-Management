@@ -12,6 +12,7 @@ import Dialog from '@/components/Dialog';
 import { useToast } from '@/components/Toast';
 import { usePlayersUpdater } from '@/components/usePlayersUpdater';
 import SwordlandPowerDialog from '@/components/SwordlandPowerDialog';
+import { useCanEdit } from '@/components/EditMode';
 import { getPlayers, createPlayer, updatePlayer } from '@/utils/playerService';
 import { getSessionPlayers, setSessionPlayers } from '@/utils/sessionStorageService';
 import { getAlliancesByKingdomId } from '@/utils/allianceService';
@@ -44,6 +45,7 @@ export default function PlayersPage({ params }: PlayersPageProps) {
   const { kingdomId, allianceSlug } = use(params);
   const kingdomIdNumber = Number(kingdomId);
   const toast = useToast();
+  const canEdit = useCanEdit();
 
   const [alliance, setAlliance] = useState<Alliance | null | undefined>(undefined);
   const [kingdomAlliances, setKingdomAlliances] = useState<Alliance[]>([]);
@@ -287,6 +289,8 @@ export default function PlayersPage({ params }: PlayersPageProps) {
                   ≣ Card
                 </button>
               </div>
+              {canEdit && (
+              <>
               <button onClick={handleAddPlayer} className={styles.addButton}>
                 + Add Player
               </button>
@@ -304,6 +308,8 @@ export default function PlayersPage({ params }: PlayersPageProps) {
               >
                 Update Swordland Power
               </button>
+              </>
+              )}
             </div>
           </div>
 
