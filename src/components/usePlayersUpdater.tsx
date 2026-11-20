@@ -121,7 +121,7 @@ export function usePlayersUpdater({
     if (isUpdating || players.length === 0) return;
 
     const playersToUpdate = [...players];
-    setRows(playersToUpdate.map((p) => ({ id: p.id, name: p.aliasName || p.name, status: 'pending' })));
+    setRows(playersToUpdate.map((p) => ({ id: p.id, name: p.name || p.aliasName, status: 'pending' })));
     setIsUpdating(true);
 
     // Per-run caches, so each kingdom is looked up once and new alliances are created once

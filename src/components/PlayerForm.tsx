@@ -397,11 +397,12 @@ export default function PlayerForm({ player, kingdomId, allianceId, alliances, o
             id="name"
             name="name"
             value={formData.name}
-            onChange={handleChange}
-            className={styles.input}
+            className={`${styles.input} ${styles.readOnlyInput}`}
             placeholder="Player name"
-            readOnly={lockedFromApi}
+            readOnly
+            tabIndex={-1}
           />
+          <small className={styles.readOnlyHint}>Read-only: from the game</small>
         </div>
 
         <div className={styles.formGroup}>

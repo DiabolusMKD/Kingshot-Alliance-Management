@@ -193,7 +193,7 @@ export async function importGameAlliance(
       .update({ allianceId: null })
       .in('id', leavers.map((p) => p.id));
     if (removeError) throw new Error(`Failed to remove players who left: ${removeError.message}`);
-    result.removed = leavers.map((p) => p.aliasName || p.name);
+    result.removed = leavers.map((p) => p.name || p.aliasName);
   }
 
   return result;
