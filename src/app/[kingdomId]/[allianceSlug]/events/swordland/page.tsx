@@ -10,6 +10,7 @@ import SwordlandEventLayout from "@/components/SwordlandEventLayout";
 import EventList from "@/components/EventList";
 import EventOpponents from "@/components/EventOpponents";
 import ReliabilityStats from "@/components/ReliabilityStats";
+import SwordlandPowerDialog from "@/components/SwordlandPowerDialog";
 import { useToast } from "@/components/Toast";
 import { useEventEditorData } from "@/components/useEventEditorData";
 import { getPlayers } from "@/utils/playerService";
@@ -101,6 +102,7 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isChangingVariant, setIsChangingVariant] = useState(false);
+  const [isPowerDialogOpen, setIsPowerDialogOpen] = useState(false);
 
   // The event being edited comes from the ?event= URL param
   const selectedEvent = eventSlug ? findEventBySlug(events, eventSlug) ?? null : null;
@@ -670,14 +672,32 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
             <>
               <div className={styles.header}>
                 <h1 className={styles.title}>Swordland Event Management</h1>
-                <button
-                  onClick={handleCreateEventClick}
-                  className={styles.createButton}
-                  disabled={isLoading}
-                >
-                  + Create New Event
-                </button>
+                <div className={styles.headerActions}>
+                  <button
+                    onClick={() => setIsPowerDialogOpen(true)}
+                    className={styles.backButton}
+                    disabled={isLoading || players.length === 0}
+                    title="Type the players' Swordland power from the game before creating the event"
+                  >
+                    Update Swordland Power
+                  </button>
+                  <button
+                    onClick={handleCreateEventClick}
+                    className={styles.createButton}
+                    disabled={isLoading}
+                  >
+                    + Create New Event
+                  </button>
+                </div>
               </div>
+              <SwordlandPowerDialog
+                isOpen={isPowerDialogOpen}
+                players={players}
+                onClose={() => setIsPowerDialogOpen(false)}
+                onSaved={async () => {
+                  if (alliance) await loadData(alliance.id);
+                }}
+              />
 
               {isLoading ? (
                 <p>Loading...</p>

@@ -11,6 +11,7 @@ import { describeSavedPlayer } from '@/utils/playerFeedback';
 import Dialog from '@/components/Dialog';
 import { useToast } from '@/components/Toast';
 import { usePlayersUpdater } from '@/components/usePlayersUpdater';
+import SwordlandPowerDialog from '@/components/SwordlandPowerDialog';
 import { getPlayers, createPlayer, updatePlayer } from '@/utils/playerService';
 import { getSessionPlayers, setSessionPlayers } from '@/utils/sessionStorageService';
 import { getAlliancesByKingdomId } from '@/utils/allianceService';
@@ -52,6 +53,7 @@ export default function PlayersPage({ params }: PlayersPageProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'table' | 'card'>('table');
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [isSwordlandDialogOpen, setIsSwordlandDialogOpen] = useState(false);
   const [selectedColumns, setSelectedColumns] = useState<Record<string, boolean>>(
     () => Object.fromEntries(CSV_COLUMNS.map((column) => [column.key, true]))
   );
@@ -295,6 +297,13 @@ export default function PlayersPage({ params }: PlayersPageProps) {
               >
                 {isUpdatingPlayers ? 'Updating...' : 'Update All Players'}
               </button>
+              <button
+                onClick={() => setIsSwordlandDialogOpen(true)}
+                className={styles.secondaryButton}
+                disabled={players.length === 0}
+              >
+                Update Swordland Power
+              </button>
             </div>
           </div>
 
@@ -318,6 +327,15 @@ export default function PlayersPage({ params }: PlayersPageProps) {
       </main>
 
       {updatePlayersDialog}
+
+      <SwordlandPowerDialog
+        isOpen={isSwordlandDialogOpen}
+        players={players}
+        onClose={() => setIsSwordlandDialogOpen(false)}
+        onSaved={async () => {
+          if (alliance) await loadPlayers(alliance.id);
+        }}
+      />
 
       <Dialog
         isOpen={isDialogOpen}

@@ -129,6 +129,26 @@ export async function updatePlayer(
 }
 
 /**
+ * Save new Swordland powers (entered by hand: the game API doesn't expose them).
+ * One update per player, a few at a time; returns the ids that failed with their errors.
+ */
+export async function updateSwordlandPowers(
+  changes: { id: string; swordlandPower: number }[]
+): Promise<{ id: string; error: string }[]> {
+  const failed: { id: string; error: string }[] = [];
+  const BATCH_SIZE = 10;
+  for (let i = 0; i < changes.length; i += BATCH_SIZE) {
+    await Promise.all(
+      changes.slice(i, i + BATCH_SIZE).map(async ({ id, swordlandPower }) => {
+        const { error } = await supabase.from('player').update({ swordlandPower }).eq('id', id);
+        if (error) failed.push({ id, error: error.message });
+      })
+    );
+  }
+  return failed;
+}
+
+/**
  * Remove player from alliance by setting allianceId to NULL
  */
 export async function removePlayerFromAlliance(id: string): Promise<Player> {

@@ -1,0 +1,258 @@
+/* Fills the large dialog: hint + search on top, scrolling table, footer at the bottom */
+.container {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hint {
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px solid var(--border-color);
+  border-left: 3px solid var(--accent-color);
+  border-radius: 6px;
+  background-color: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.hint code,
+.hint kbd {
+  padding: 1px 5px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.searchWrapper {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.searchInput {
+  flex: 1;
+  min-width: 0;
+  max-width: 400px;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.9rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.searchInput:focus {
+  outline: none;
+  border-color: var(--accent-color);
+}
+
+.clearButton {
+  width: 38px;
+  flex-shrink: 0;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.clearButton:hover:not(:disabled) {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+.clearButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.tableWrapper {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.table thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background-color: var(--bg-secondary);
+}
+
+.table th {
+  padding: 0.6rem 0.75rem;
+  text-align: left;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.table td {
+  padding: 0.4rem 0.75rem;
+  color: var(--text-primary);
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.table .numeric {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.changedRow {
+  background-color: color-mix(in srgb, var(--accent-color) 8%, transparent);
+}
+
+.muted {
+  color: var(--text-secondary) !important;
+}
+
+.nameCell {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+
+.rankBadge {
+  display: inline-block;
+  min-width: 2.5rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-tertiary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.rankHigh {
+  border-color: rgba(230, 184, 92, 0.6);
+  background-color: rgba(230, 184, 92, 0.12);
+  color: #e6b85c;
+}
+
+.powerInput {
+  width: 160px;
+  padding: 0.4rem 0.6rem;
+  font: inherit;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.powerInput::placeholder {
+  color: var(--text-secondary);
+  font-weight: 400;
+  opacity: 0.6;
+}
+
+.powerInput:focus {
+  outline: none;
+  border-color: var(--accent-color);
+}
+
+.powerInput.invalid {
+  border-color: var(--danger-color);
+}
+
+.up {
+  color: #22c55e;
+  font-weight: 600;
+}
+
+.down {
+  color: var(--danger-color);
+  font-weight: 600;
+}
+
+.empty {
+  margin: 0;
+  padding: 1rem;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.summary {
+  margin-right: auto;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.cancelButton,
+.saveButton {
+  padding: 0.65rem 1.25rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.cancelButton {
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.cancelButton:hover:not(:disabled) {
+  border-color: var(--accent-color);
+}
+
+.saveButton {
+  border: 1px solid var(--accent-color);
+  background-color: var(--accent-color);
+  color: #fff;
+}
+
+.saveButton:hover:not(:disabled) {
+  background-color: var(--accent-hover);
+}
+
+.saveButton:disabled,
+.cancelButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 600px) {
+  .powerInput {
+    width: 120px;
+  }
+
+  .nameCell {
+    max-width: 140px;
+  }
+}
