@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { formatAllianceLabel } from '@/utils/allianceLabel';
 import {
+  AllianceCooldownError,
   AllianceImportResult,
   AllianceNotFoundError,
   fetchGameAlliance,
@@ -13,6 +14,10 @@ import styles from './AddAllianceForm.module.css';
 
 interface AddAllianceFormProps {
   kingdomId: number;
+  /** "Update Alliance": this alliance's tag, fixed; the update starts right away */
+  updateTag?: string;
+  /** Busy while the game is called / players are saved (e.g. to keep the dialog open) */
+  onBusyChange?: (busy: boolean) => void;
   /** After the alliance and its players were saved (e.g. reload the page) */
   onImported: (result: AllianceImportResult) => Promise<void> | void;
   onCancel: () => void;
@@ -25,18 +30,35 @@ type Step =
   | { kind: 'done'; result: AllianceImportResult };
 
 /** "Add Alliance": the tag is looked up in the game; the alliance and all its players are added / updated */
-export default function AddAllianceForm({ kingdomId, onImported, onCancel }: AddAllianceFormProps) {
-  const [tag, setTag] = useState('');
+export default function AddAllianceForm({
+  kingdomId,
+  updateTag,
+  onBusyChange,
+  onImported,
+  onCancel,
+}: AddAllianceFormProps) {
+  const isUpdate = updateTag !== undefined;
+  const [tag, setTag] = useState(updateTag ?? '');
   const [step, setStep] = useState<Step>({ kind: 'idle' });
   const [error, setError] = useState<{ title: string; message: string } | null>(null);
 
   const isBusy = step.kind === 'fetching' || step.kind === 'saving';
   const isValid = [...tag].length === 3 && !/\s/.test(tag);
 
+  const started = useRef(false);
+
+  useEffect(() => {
+    onBusyChange?.(isBusy);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isBusy]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isValid || isBusy) return;
+    await run();
+  };
 
+  const run = async () => {
     setError(null);
     setStep({ kind: 'fetching' });
     try {
@@ -52,10 +74,20 @@ export default function AddAllianceForm({ kingdomId, onImported, onCancel }: Add
       setError(
         err instanceof AllianceNotFoundError
           ? { title: `[${tag}] isn't created yet`, message: err.message }
-          : { title: 'Something went wrong', message: err instanceof Error ? err.message : 'Failed to add the alliance' },
+          : err instanceof AllianceCooldownError
+            ? { title: 'Updated recently', message: err.message }
+            : { title: 'Something went wrong', message: err instanceof Error ? err.message : 'Failed to add the alliance' },
       );
     }
   };
+
+  // Update Alliance starts as soon as the dialog opens (once, also in Strict Mode)
+  useEffect(() => {
+    if (!isUpdate || started.current) return;
+    started.current = true;
+    run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (step.kind === 'done') {
     const { result } = step;
@@ -97,9 +129,9 @@ export default function AddAllianceForm({ kingdomId, onImported, onCancel }: Add
   return (
     <form className={formStyles.form} onSubmit={handleSubmit}>
       <p className={styles.intro}>
-        Enter the alliance tag as it is in the game. The alliance is looked up in Kingdom {kingdomId}: its players
-        already in the app are updated (and moved here), the missing ones are added, and players who left it in the
-        game are removed from it.
+        {isUpdate
+          ? `[${tag}] is pulled from the game: its players are updated, new members are added and players who left are removed from it.`
+          : `Enter the alliance tag as it is in the game. The alliance is looked up in Kingdom ${kingdomId}: its players already in the app are updated (and moved here), the missing ones are added, and players who left it in the game are removed from it.`}
       </p>
 
       {error && (
@@ -109,29 +141,31 @@ export default function AddAllianceForm({ kingdomId, onImported, onCancel }: Add
         </div>
       )}
 
-      <div className={formStyles.formGroup}>
-        <label htmlFor="allianceTag" className={formStyles.label}>
-          Alliance tag<span className={formStyles.required}>*</span>
-        </label>
-        <input
-          id="allianceTag"
-          type="text"
-          value={tag}
-          onChange={(e) => {
-            setTag(e.target.value.replace(/\s/g, ''));
-            setError(null);
-          }}
-          className={`${formStyles.input} ${styles.tagInput}`}
-          placeholder="fKn"
-          maxLength={3}
-          autoComplete="off"
-          autoCapitalize="off"
-          spellCheck={false}
-          disabled={isBusy}
-          autoFocus
-        />
-        <small className={styles.hint}>3 characters, case-sensitive: fKn, FKN and Fkn are different alliances.</small>
-      </div>
+      {!isUpdate && (
+        <div className={formStyles.formGroup}>
+          <label htmlFor="allianceTag" className={formStyles.label}>
+            Alliance tag<span className={formStyles.required}>*</span>
+          </label>
+          <input
+            id="allianceTag"
+            type="text"
+            value={tag}
+            onChange={(e) => {
+              setTag(e.target.value.replace(/\s/g, ''));
+              setError(null);
+            }}
+            className={`${formStyles.input} ${styles.tagInput}`}
+            placeholder="fKn"
+            maxLength={3}
+            autoComplete="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            disabled={isBusy}
+            autoFocus
+          />
+          <small className={styles.hint}>3 characters, case-sensitive: fKn, FKN and Fkn are different alliances.</small>
+        </div>
+      )}
 
       {isBusy && (
         <div className={styles.progress} aria-live="polite">
@@ -144,11 +178,13 @@ export default function AddAllianceForm({ kingdomId, onImported, onCancel }: Add
 
       <div className={formStyles.actions}>
         <button type="button" className={formStyles.cancelButton} onClick={onCancel} disabled={isBusy}>
-          Cancel
+          {isUpdate ? 'Close' : 'Cancel'}
         </button>
-        <button type="submit" className={formStyles.saveButton} disabled={!isValid || isBusy}>
-          {isBusy ? 'Adding...' : 'Add'}
-        </button>
+        {!isUpdate && (
+          <button type="submit" className={formStyles.saveButton} disabled={!isValid || isBusy}>
+            {isBusy ? 'Adding...' : 'Add'}
+          </button>
+        )}
       </div>
     </form>
   );

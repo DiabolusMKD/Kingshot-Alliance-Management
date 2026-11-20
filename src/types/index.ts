@@ -10,6 +10,14 @@ export interface Alliance {
   description?: string | null;
   allianceImageUrl?: string | null;
   kingdomId: number;
+  /** Game's alliance id (MightPulse aid): stays the same when the tag / name change */
+  gameAllianceId?: number | null;
+  /** Rank by power in the kingdom (1 = strongest), from the game */
+  powerRank?: number | null;
+  /** Leader's in-game player id (player.playerId) */
+  leaderPlayerId?: string | number | null;
+  /** Last pull from MightPulse (Add / Update Alliance); limited to one per cooldown */
+  gameSyncedAt?: string | null;
   created_at?: string;
 }
 
@@ -29,6 +37,10 @@ export interface Player {
   profilePhoto?: string;
   marchSize?: number;
   numberOfMarches?: number;
+  /** Rank in the alliance from the game: 'Leader', 'R4', 'R3', 'R2', 'R1' */
+  allianceRank?: string | null;
+  /** Total kills, from the game */
+  kills?: number | null;
   kingdomId: number;
   created_at?: string;
   updated_at?: string;
