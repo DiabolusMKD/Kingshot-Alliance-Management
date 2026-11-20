@@ -5,15 +5,15 @@ import { Alliance, Player } from '@/types';
 import PlayerCard from './PlayerCard';
 import styles from './PlayersCard.module.css';
 import { formatAllianceLabel } from '@/utils/allianceLabel';
+import { getPlayerHref } from '@/utils/playerLinks';
 
 interface PlayersCardProps {
   players: Player[];
   alliances: Alliance[];
-  onEdit: (player: Player) => void;
-  onDelete: (id: string) => void;
 }
 
-export default function PlayersCard({ players, alliances, onEdit, onDelete }: PlayersCardProps) {
+/** Player cards; clicking one opens the player page */
+export default function PlayersCard({ players, alliances }: PlayersCardProps) {
   const [searchTerm, setSearchTerm] = useState('');
 
   const getAllianceLabel = (player: Player) => {
@@ -48,8 +48,8 @@ export default function PlayersCard({ players, alliances, onEdit, onDelete }: Pl
           <PlayerCard
             key={player.id}
             player={player}
-            onEdit={onEdit}
-            onDelete={onDelete}
+            readOnly
+            href={getPlayerHref(player)}
             allianceLabel={getAllianceLabel(player)}
           />
         ))}

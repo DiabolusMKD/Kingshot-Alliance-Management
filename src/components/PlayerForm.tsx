@@ -52,7 +52,7 @@ type FormData = {
   allianceId: string;
 };
 
-type DataSource = 'database' | 'api' | 'manual' | null;
+type DataSource = 'database' | 'api' | null;
 
 export default function PlayerForm({ player, kingdomId, allianceId, alliances, onSubmit, onCancel }: PlayerFormProps) {
   const [formData, setFormData] = useState<FormData>(EMPTY_FORM_DATA);
@@ -183,6 +183,7 @@ export default function PlayerForm({ player, kingdomId, allianceId, alliances, o
     }
   };
 
+  /** Add mode: the player must be found in the game; an existing app player is moved / refreshed */
   const handleFetchPlayer = async () => {
     if (!formData.playerId) {
       setError('Please enter a Player ID');
@@ -194,44 +195,41 @@ export default function PlayerForm({ player, kingdomId, allianceId, alliances, o
     setInfoMessage(null);
 
     try {
-      const existingPlayer = await getPlayerByPlayerId(formData.playerId);
-
-      if (existingPlayer) {
-        setFormData((prev) => ({
-          ...prev,
-          name: existingPlayer.name || '',
-          aliasName: existingPlayer.aliasName || existingPlayer.name || '',
-          power: existingPlayer.power ?? 0,
-          swordlandPower: existingPlayer.swordlandPower ?? 0,
-          trialliancePower: existingPlayer.trialliancePower || existingPlayer.power || 0,
-          profilePhoto: existingPlayer.profilePhoto || '',
-          levelImage: existingPlayer.levelImage || '',
-        }));
-        setDataSource('database');
-        setFoundPlayerId(existingPlayer.id);
-        setDetailsStage(true);
-
-        // Still ask the game for fresh power + current alliance
-        try {
-          const kingshotData = await fetchPlayerFromKingshot(formData.playerId);
-          setFormData((prev) => ({ ...prev, power: kingshotData.power ?? prev.power, trialliancePower: kingshotData.power ?? prev.trialliancePower }));
-          setInfoMessage(`Existing player found; in game: ${applyGameAlliance(kingshotData)}.`);
-        } catch {
-          setInfoMessage('Existing player found. Fields are editable below.');
-        }
+      let kingshotData: KingshotPlayerData;
+      try {
+        kingshotData = await fetchPlayerFromKingshot(formData.playerId);
+      } catch (err) {
+        setError(
+          `Player ${formData.playerId} wasn't found in the game${
+            err instanceof Error && err.message ? ` (${err.message})` : ''
+          }. Check the ID and try again.`
+        );
         return;
       }
 
-      try {
-        const kingshotData = await fetchPlayerFromKingshot(formData.playerId);
+      const existingPlayer = await getPlayerByPlayerId(formData.playerId);
+      if (existingPlayer) {
+        // Already in the app (another alliance / kingdom): keep its alias + Swordland power
+        setFormData((prev) =>
+          mergeKingshotData(
+            {
+              ...prev,
+              aliasName: existingPlayer.aliasName || existingPlayer.name || '',
+              swordlandPower: existingPlayer.swordlandPower ?? 0,
+              profilePhoto: existingPlayer.profilePhoto || '',
+              levelImage: existingPlayer.levelImage || '',
+            },
+            kingshotData
+          )
+        );
+        setFoundPlayerId(existingPlayer.id);
+        setDataSource('database');
+        setInfoMessage(`Existing player found; in game: ${applyGameAlliance(kingshotData)}.`);
+      } else {
         setFormData((prev) => mergeKingshotData(prev, kingshotData));
         setDataSource('api');
-        setInfoMessage(`Player found via the Kingshot API: ${applyGameAlliance(kingshotData)}.`);
-      } catch {
-        setDataSource('manual');
-        setInfoMessage('Player not found. Please enter the details manually.');
+        setInfoMessage(`Player found in the game: ${applyGameAlliance(kingshotData)}.`);
       }
-
       setDetailsStage(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch player data');
@@ -275,37 +273,50 @@ export default function PlayerForm({ player, kingdomId, allianceId, alliances, o
     onSubmit({ ...formData, kingdomId, allianceId: targetAllianceId }, foundPlayerId ?? undefined, { createdAlliance });
   };
 
-  const allianceField = pendingAlliance ? (
+  // Read-only: the alliance comes from the game (Refetch / Update All Players / Add Alliance)
+  const currentAlliance = kingdomAlliances.find((a) => String(a.id) === formData.allianceId);
+  const allianceLabel = pendingAlliance
+    ? `[${pendingAlliance.tag}]${pendingAlliance.name} (new, created when you save)`
+    : currentAlliance
+      ? formatAllianceLabel(currentAlliance)
+      : 'No alliance';
+  const allianceField = (
     <div className={styles.formGroup}>
-      <span className={styles.label}>Alliance</span>
-      <div className={styles.infoMessage}>
-        [{pendingAlliance.tag}]{pendingAlliance.name} isn&apos;t in the app yet. It will be created when you save.
-      </div>
-    </div>
-  ) : (
-    <div className={styles.formGroup}>
-      <label htmlFor="allianceId" className={styles.label}>
+      <label htmlFor="allianceLabel" className={styles.label}>
         Alliance
       </label>
-      <select
-        id="allianceId"
-        name="allianceId"
-        value={formData.allianceId}
-        onChange={(e) => setFormData((prev) => ({ ...prev, allianceId: e.target.value }))}
-        className={styles.input}
-      >
-        <option value="">No alliance</option>
-        {kingdomAlliances.map((a) => (
-          <option key={a.id} value={String(a.id)}>
-            {formatAllianceLabel(a)}
-          </option>
-        ))}
-      </select>
-      {otherKingdom && (
-        <small className={styles.readOnlyHint}>
-          The game shows this player in Kingdom {otherKingdom}; their alliance there isn&apos;t applied.
-        </small>
-      )}
+      <input
+        type="text"
+        id="allianceLabel"
+        value={allianceLabel}
+        className={`${styles.input} ${styles.readOnlyInput}`}
+        readOnly
+        tabIndex={-1}
+      />
+      <small className={styles.readOnlyHint}>
+        {otherKingdom
+          ? `The game shows this player in Kingdom ${otherKingdom}; their alliance there isn't applied.`
+          : 'Read-only: set from the game'}
+      </small>
+    </div>
+  );
+
+  /** Power / Tri Alliance power / level image only come from the game */
+  const gameField = (id: 'power' | 'trialliancePower' | 'levelImage', label: string) => (
+    <div className={styles.formGroup}>
+      <label htmlFor={id} className={styles.label}>
+        {label}
+      </label>
+      <input
+        type={id === 'levelImage' ? 'text' : 'number'}
+        id={id}
+        name={id}
+        value={formData[id]}
+        className={`${styles.input} ${styles.readOnlyInput}`}
+        readOnly
+        tabIndex={-1}
+      />
+      <small className={styles.readOnlyHint}>Read-only: from the game</small>
     </div>
   );
 
@@ -375,21 +386,7 @@ export default function PlayerForm({ player, kingdomId, allianceId, alliances, o
 
         {allianceField}
 
-        <div className={styles.formGroup}>
-          <label htmlFor="power" className={styles.label}>
-            Power
-          </label>
-          <input
-            type="number"
-            id="power"
-            name="power"
-            value={formData.power}
-            onChange={handleChange}
-            className={styles.input}
-            placeholder="0"
-            min="0"
-          />
-        </div>
+        {gameField('power', 'Power')}
 
         <div className={styles.formGroup}>
           <label htmlFor="swordlandPower" className={styles.label}>
@@ -409,38 +406,9 @@ export default function PlayerForm({ player, kingdomId, allianceId, alliances, o
           {lockedFromApi && <small className={styles.readOnlyHint}>Read-only (from API)</small>}
         </div>
 
-        <div className={styles.formGroup}>
-          <label htmlFor="trialliancePower" className={styles.label}>
-            Tri Alliance Power
-          </label>
-          <input
-            type="number"
-            id="trialliancePower"
-            name="trialliancePower"
-            value={formData.trialliancePower}
-            onChange={handleChange}
-            className={styles.input}
-            placeholder="0"
-            min="0"
-            readOnly={lockedFromApi}
-          />
-          {lockedFromApi && <small className={styles.readOnlyHint}>Read-only (from API)</small>}
-        </div>
+        {gameField('trialliancePower', 'Tri Alliance Power')}
 
-        <div className={styles.formGroup}>
-          <label htmlFor="levelImage" className={styles.label}>
-            Level Image URL
-          </label>
-          <input
-            type="text"
-            id="levelImage"
-            name="levelImage"
-            value={formData.levelImage}
-            onChange={handleChange}
-            className={styles.input}
-            placeholder="https://example.com/level.png"
-          />
-        </div>
+        {gameField('levelImage', 'Level Image URL')}
 
         <div className={styles.actions}>
           <button type="button" onClick={onCancel} className={styles.cancelButton}>
@@ -550,21 +518,7 @@ export default function PlayerForm({ player, kingdomId, allianceId, alliances, o
 
           {allianceField}
 
-          <div className={styles.formGroup}>
-            <label htmlFor="power" className={styles.label}>
-              Power
-            </label>
-            <input
-              type="number"
-              id="power"
-              name="power"
-              value={formData.power}
-              onChange={handleChange}
-              className={styles.input}
-              placeholder="0"
-              min="0"
-            />
-          </div>
+          {gameField('power', 'Power')}
 
           <div className={styles.formGroup}>
             <label htmlFor="swordlandPower" className={styles.label}>
@@ -582,21 +536,7 @@ export default function PlayerForm({ player, kingdomId, allianceId, alliances, o
             />
           </div>
 
-          <div className={styles.formGroup}>
-            <label htmlFor="trialliancePower" className={styles.label}>
-              Tri Alliance Power
-            </label>
-            <input
-              type="number"
-              id="trialliancePower"
-              name="trialliancePower"
-              value={formData.trialliancePower}
-              onChange={handleChange}
-              className={styles.input}
-              placeholder="0"
-              min="0"
-            />
-          </div>
+          {gameField('trialliancePower', 'Tri Alliance Power')}
 
           <div className={styles.formGroup}>
             <label htmlFor="profilePhoto" className={styles.label}>
@@ -613,20 +553,7 @@ export default function PlayerForm({ player, kingdomId, allianceId, alliances, o
             />
           </div>
 
-          <div className={styles.formGroup}>
-            <label htmlFor="levelImage" className={styles.label}>
-              Level Image URL
-            </label>
-            <input
-              type="text"
-              id="levelImage"
-              name="levelImage"
-              value={formData.levelImage}
-              onChange={handleChange}
-              className={styles.input}
-              placeholder="https://example.com/level.png"
-            />
-          </div>
+          {gameField('levelImage', 'Level Image URL')}
 
           <div className={styles.actions}>
             <button

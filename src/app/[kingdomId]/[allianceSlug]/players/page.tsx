@@ -11,8 +11,8 @@ import { describeSavedPlayer } from '@/utils/playerFeedback';
 import Dialog from '@/components/Dialog';
 import { useToast } from '@/components/Toast';
 import { usePlayersUpdater } from '@/components/usePlayersUpdater';
-import { getPlayers, createPlayer, updatePlayer, removePlayerFromAlliance } from '@/utils/playerService';
-import { getSessionPlayers, setSessionPlayers, removeSessionPlayer } from '@/utils/sessionStorageService';
+import { getPlayers, createPlayer, updatePlayer } from '@/utils/playerService';
+import { getSessionPlayers, setSessionPlayers } from '@/utils/sessionStorageService';
 import { getAlliancesByKingdomId } from '@/utils/allianceService';
 import { findAllianceBySlug } from '@/utils/allianceSlug';
 import { formatAllianceLabel } from '@/utils/allianceLabel';
@@ -114,19 +114,6 @@ export default function PlayersPage({ params }: PlayersPageProps) {
   const handleEditPlayer = (player: Player) => {
     setSelectedPlayer(player);
     setIsDialogOpen(true);
-  };
-
-  const handleDeletePlayer = async (playerId: string) => {
-    if (confirm('Are you sure you want to remove this player from the alliance?')) {
-      try {
-        await removePlayerFromAlliance(playerId);
-        setPlayers((prev) => prev.filter((p) => p.id !== playerId));
-        removeSessionPlayer(playerId);
-      } catch (error) {
-        console.error('Failed to remove player from alliance:', error);
-        toast.error('Failed to remove player from alliance');
-      }
-    }
   };
 
   const allianceLabelById = (allianceId?: string | null) => {
@@ -315,15 +302,10 @@ export default function PlayersPage({ params }: PlayersPageProps) {
               players={players}
               alliances={kingdomAlliances}
               onEdit={handleEditPlayer}
-              onDelete={handleDeletePlayer}
             />
           ) : (
-            <PlayersCard
-              players={players}
-              alliances={kingdomAlliances}
-              onEdit={handleEditPlayer}
-              onDelete={handleDeletePlayer}
-            />
+            // Cards open the player page (edit from there)
+            <PlayersCard players={players} alliances={kingdomAlliances} />
           )}
 
           <button className={styles.exportButton} onClick={() => setIsExportDialogOpen(true)}>

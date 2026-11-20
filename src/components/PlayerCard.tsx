@@ -9,15 +9,14 @@ import { isImageUrl, truncateLevelLabel } from '@/utils/isImageUrl';
 
 interface PlayerCardProps {
   player: Player;
-  onEdit?: (player: Player) => void;
-  onDelete?: (id: string) => void;
+  /** Kept for callers; cards have no actions (edit from the player page) */
   readOnly?: boolean;
   allianceLabel?: string;
-  /** Makes the whole card a link (read-only cards only: buttons can't sit inside a link) */
+  /** Makes the whole card a link to the player page */
   href?: string;
 }
 
-export default function PlayerCard({ player, onEdit, onDelete, readOnly = false, allianceLabel, href }: PlayerCardProps) {
+export default function PlayerCard({ player, allianceLabel, href }: PlayerCardProps) {
   const content = (
     <>
       <div className={styles.cardHeader}>
@@ -68,30 +67,10 @@ export default function PlayerCard({ player, onEdit, onDelete, readOnly = false,
         )}
       </div>
 
-      {!readOnly && (
-        <div className={styles.cardActions}>
-          <button
-            onClick={() => onEdit?.(player)}
-            className={styles.editButton}
-            title="Edit player"
-          >
-            ✎ Edit
-          </button>
-          {onDelete && (
-            <button
-              onClick={() => onDelete(player.id)}
-              className={styles.deleteButton}
-              title="Delete player"
-            >
-              ✕ Remove
-            </button>
-          )}
-        </div>
-      )}
     </>
   );
 
-  return href && readOnly ? (
+  return href ? (
     <Link href={href} className={`${styles.card} ${styles.cardLink}`} aria-label={`Open ${player.name}`}>
       {content}
     </Link>

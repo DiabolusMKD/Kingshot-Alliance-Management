@@ -115,3 +115,25 @@
     transform: rotate(360deg);
   }
 }
+
+/* What "Update All Players" does automatically */
+.updateInfo {
+  padding: 10px 14px;
+  border: 1px solid var(--border-color);
+  border-left: 3px solid var(--accent-color);
+  border-radius: 6px;
+  background-color: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.updateInfo strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.updateInfo ul {
+  margin: 6px 0 0;
+  padding-left: 1.1rem;
+}

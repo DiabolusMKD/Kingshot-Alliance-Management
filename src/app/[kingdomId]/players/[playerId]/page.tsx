@@ -7,8 +7,11 @@ import Navigation from "@/components/Navigation";
 import Breadcrumbs, { Crumb } from "@/components/Breadcrumbs";
 import ZoomableImage from "@/components/ZoomableImage";
 import PlayerStatsChart, { ChartPoint } from "@/components/PlayerStatsChart";
-import { getPlayerById, getPlayerByPlayerId } from "@/utils/playerService";
-import { getAllianceById } from "@/utils/allianceService";
+import Dialog from "@/components/Dialog";
+import PlayerForm, { PlayerFormSubmitMeta } from "@/components/PlayerForm";
+import { useToast } from "@/components/Toast";
+import { getPlayerById, getPlayerByPlayerId, updatePlayer } from "@/utils/playerService";
+import { getAllianceById, getAlliancesByKingdomId } from "@/utils/allianceService";
 import { getAllianceSlug } from "@/utils/allianceSlug";
 import { formatAllianceLabel } from "@/utils/allianceLabel";
 import { formatPower } from "@/utils/formatNumbers";
@@ -288,6 +291,41 @@ export default function PlayerPage({ params }: PlayerPageProps) {
   const [alliance, setAlliance] = useState<Alliance | null>(null);
   const [entries, setEntries] = useState<PlayerEventEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  // Alliances of the player's kingdom, for the edit form (loaded when it opens)
+  const [kingdomAlliances, setKingdomAlliances] = useState<Alliance[]>([]);
+  const toast = useToast();
+
+  const openEdit = async () => {
+    if (!player) return;
+    setIsEditOpen(true);
+    try {
+      setKingdomAlliances(await getAlliancesByKingdomId(player.kingdomId));
+    } catch (err) {
+      console.error("Failed to load the kingdom's alliances:", err);
+    }
+  };
+
+  const handleEditSubmit = async (
+    formData: Omit<Player, "id" | "created_at" | "updated_at">,
+    _existingId?: string,
+    meta?: PlayerFormSubmitMeta,
+  ) => {
+    if (!player) return;
+    try {
+      const updated = await updatePlayer(player.id, formData);
+      const ownAlliance =
+        meta?.createdAlliance ??
+        (updated.allianceId ? await getAllianceById(Number(updated.allianceId)).catch(() => null) : null);
+      setPlayer(updated);
+      setAlliance(ownAlliance);
+      setIsEditOpen(false);
+      toast.success(`Updated ${updated.aliasName || updated.name}`);
+    } catch (err) {
+      console.error("Failed to update player:", err);
+      toast.error(err instanceof Error ? err.message : "Failed to update player");
+    }
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -379,6 +417,23 @@ export default function PlayerPage({ params }: PlayerPageProps) {
                 </div>
 
                 <div className={styles.powers}>
+                  <button type="button" className={styles.editButton} onClick={openEdit} title="Edit player">
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M12 20h9" />
+                      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                    </svg>
+                    Edit
+                  </button>
                   <StatTile label="Power" value={formatPower(player.power)} />
                   <StatTile label="Swordland power" value={formatPower(player.swordlandPower)} />
                   <StatTile label="Tri Alliance power" value={formatPower(player.trialliancePower)} />
@@ -392,6 +447,19 @@ export default function PlayerPage({ params }: PlayerPageProps) {
           )}
         </div>
       </main>
+
+      {player && (
+        <Dialog isOpen={isEditOpen} title="Edit Player" onClose={() => setIsEditOpen(false)}>
+          <PlayerForm
+            player={player}
+            kingdomId={player.kingdomId}
+            allianceId={player.allianceId ? String(player.allianceId) : ""}
+            alliances={kingdomAlliances}
+            onSubmit={handleEditSubmit}
+            onCancel={() => setIsEditOpen(false)}
+          />
+        </Dialog>
+      )}
     </>
   );
 }

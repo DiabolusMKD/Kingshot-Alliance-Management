@@ -200,6 +200,16 @@ export function usePlayersUpdater({
     <Dialog isOpen={rows !== null} title="Updating Players" onClose={close} closeDisabled={isUpdating} size="large">
       {rows && (
         <div className={styles.updateProgress}>
+          {/* What the update does on its own, so nobody removes / moves players by hand */}
+          <div className={styles.updateInfo}>
+            <strong>Each player is refreshed from the game automatically:</strong>
+            <ul>
+              <li>Name, power (+ Tri Alliance power), profile photo and TC level are updated; alias and Swordland power are kept.</li>
+              <li>Players who left the alliance are removed from it.</li>
+              <li>Players who joined another alliance are moved to it{createMissingAlliances ? ' (the alliance is created when it isn\'t in the app yet)' : ''}.</li>
+              <li>Players who transferred to another kingdom are moved there (when that kingdom is in the app).</li>
+            </ul>
+          </div>
           <p className={styles.updateCounter} aria-live="polite">
             {finishedCount} / {rows.length} processed
           </p>

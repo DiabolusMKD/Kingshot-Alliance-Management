@@ -107,16 +107,49 @@
   color: var(--text-secondary);
 }
 
+/* Edit button, then the three power tiles (the button stretches to the tiles' height) */
 .powers {
   display: grid;
-  grid-template-columns: repeat(3, minmax(140px, 1fr));
+  grid-template-columns: auto repeat(3, minmax(140px, 1fr));
   gap: 12px;
+}
+
+.editButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 120px;
+  padding: 12px 28px;
+  border: 1px solid var(--accent-color);
+  border-radius: 6px;
+  background-color: transparent;
+  color: var(--accent-color);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.editButton:hover {
+  background-color: var(--accent-color);
+  color: white;
+}
+
+.editButton:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
 }
 
 @media (max-width: 768px) {
   .powers {
     grid-template-columns: 1fr;
     width: 100%;
+  }
+
+  /* Own row on phones: same height as a power tile */
+  .editButton {
+    min-height: 72px;
   }
 }
 

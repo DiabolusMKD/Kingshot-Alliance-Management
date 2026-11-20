@@ -15,8 +15,6 @@ interface PlayersTableProps {
   players: Player[];
   alliances: Alliance[];
   onEdit: (player: Player) => void;
-  /** Omit to hide the "remove from alliance" action */
-  onDelete?: (id: string) => void;
   showAllianceColumn?: boolean;
   showAliasColumn?: boolean;
   showPlayerIdColumn?: boolean;
@@ -29,7 +27,6 @@ export default function PlayersTable({
   players,
   alliances,
   onEdit,
-  onDelete,
   showAllianceColumn = true,
   showAliasColumn = true,
   showPlayerIdColumn = true,
@@ -154,15 +151,6 @@ export default function PlayersTable({
                     >
                       ✎
                     </button>
-                    {onDelete && (
-                      <button
-                        onClick={() => onDelete(player.id)}
-                        className={styles.deleteButton}
-                        title="Remove player from alliance"
-                      >
-                        ✕
-                      </button>
-                    )}
                   </div>
                 </td>
               </tr>

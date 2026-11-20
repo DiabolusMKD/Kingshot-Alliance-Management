@@ -146,3 +146,12 @@
   font-style: italic;
   margin-top: 2px;
 }
+
+/* Values that only come from the game */
+.readOnlyInput,
+.readOnlyInput:focus {
+  background-color: var(--bg-secondary);
+  color: var(--text-secondary);
+  border-color: var(--border-color);
+  cursor: default;
+}
