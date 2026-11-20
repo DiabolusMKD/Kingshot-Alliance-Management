@@ -1,0 +1,24 @@
+.result {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  vertical-align: middle;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.lose {
+  color: var(--text-secondary);
+}
+
+.icon {
+  flex-shrink: 0;
+}
+
+/* Place number inside the Tri Alliance trophy */
+.trophyNumber {
+  fill: #1a1a1a;
+  font-size: 8px;
+  font-weight: 700;
+  font-family: inherit;
+}

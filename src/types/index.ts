@@ -136,6 +136,24 @@ export interface EventPlayer {
   updatedAt?: string;
 }
 
+/** An alliance a legion fights in a Swordland (1 per legion) / Tri Alliance (2 per legion) event */
+export interface EventOpponent {
+  id: number;
+  alliance_event_id: number;
+  legion: LegionResultKey;
+  /** Server (kingdom) of the opponent */
+  kingdomId: number;
+  /** Tag as entered (case-sensitive) */
+  allianceTag: string;
+  /** The opponent's alliance in the app (imported from the game); null once it was deleted */
+  allianceId: number | null;
+  registeredCombatants: number;
+  /** 0 - 20 */
+  registeredSubstitutes: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 /** A season of SSL (Swordland Summit League) events of one alliance */
 export interface SwordlandSeason {
   id: number;

@@ -364,29 +364,9 @@
   outline-offset: 2px;
 }
 
-/* Result column: icon + label */
-.result {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  vertical-align: middle;
-}
 
-.resultLose {
-  color: var(--text-secondary);
-}
 
-.resultIcon {
-  flex-shrink: 0;
-}
 
-/* Place number inside the Tri Alliance trophy */
-.trophyNumber {
-  fill: #1a1a1a;
-  font-size: 8px;
-  font-weight: 700;
-  font-family: inherit;
-}
 
 /* SSL: same gold as on the Swordland events page */
 .sslBadge {

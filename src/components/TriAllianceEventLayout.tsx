@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { ReactNode, useState, useEffect } from "react";
 import { EventResults, EventStatus, Player, PlayerAssignment } from "@/types";
 import { useToast } from "./Toast";
 import EventPoints, { PointsLegion, useEventPoints } from "./EventPoints";
@@ -12,10 +12,9 @@ import GeneratedOutput from "./GeneratedOutput";
 import { LegionSchedules, formatLegionTitle, getLegionSchedules } from "@/utils/legionSchedule";
 import { EventSaveInput } from "@/utils/eventData";
 import { formatCompactPower, formatPower } from "@/utils/formatNumbers";
+// 30 players across the areas and 20 substitutes per legion
+import { MAX_LEGION_PLAYERS, MAX_LEGION_SUBSTITUTES } from "@/utils/constants";
 import styles from "./TriAllianceEventLayout.module.css";
-
-const MAX_LEGION_PLAYERS = 30;
-const MAX_SUBSTITUTES = 10;
 
 const TRI_ALLIANCE_PLACES = [
   { value: "1st", label: "1st place" },
@@ -37,6 +36,8 @@ interface TriAllianceEventLayoutProps {
   isSaving?: boolean;
   /** Deletes the event (shown only while it isn't completed) */
   onDelete?: () => void;
+  /** The opponents section; read-only while a completed event is locked */
+  renderOpponents?: (readOnly: boolean) => ReactNode;
 }
 
 const TEAM_LABELS = [
@@ -129,6 +130,7 @@ export default function TriAllianceEventLayout({
   onSave,
   isSaving = false,
   onDelete,
+  renderOpponents,
 }: TriAllianceEventLayoutProps) {
   const toast = useToast();
   const [currentEventStatus, setCurrentEventStatus] =
@@ -233,9 +235,9 @@ export default function TriAllianceEventLayout({
 
     if (
       (toCategory === "substituteLegion1" || toCategory === "substituteLegion2") &&
-      assignments[toCategory].length >= MAX_SUBSTITUTES
+      assignments[toCategory].length >= MAX_LEGION_SUBSTITUTES
     ) {
-      toast.warning(`A legion can't have more than ${MAX_SUBSTITUTES} substitutes.`);
+      toast.warning(`A legion can't have more than ${MAX_LEGION_SUBSTITUTES} substitutes.`);
       return;
     }
 
@@ -411,8 +413,8 @@ ${formatLegion(formatLegionTitle("Legion 2", legionSchedules.legion_2), assignme
       const limits: [keyof LegionAssignments, number][] = [
         ["legion1", MAX_LEGION_PLAYERS],
         ["legion2", MAX_LEGION_PLAYERS],
-        ["substituteLegion1", MAX_SUBSTITUTES],
-        ["substituteLegion2", MAX_SUBSTITUTES],
+        ["substituteLegion1", MAX_LEGION_SUBSTITUTES],
+        ["substituteLegion2", MAX_LEGION_SUBSTITUTES],
       ];
       const overflow: Player[] = [];
       limits.forEach(([key, max]) => {
@@ -423,7 +425,7 @@ ${formatLegion(formatLegionTitle("Legion 2", legionSchedules.legion_2), assignme
       if (overflow.length > 0) {
         newAssignments.unassigned.push(...overflow);
         toast.warning(
-          `Too many players in the JSON (max ${MAX_LEGION_PLAYERS} per legion and ${MAX_SUBSTITUTES} substitutes). These players were left unassigned: ${overflow.map((p) => p.name).join(", ")}`,
+          `Too many players in the JSON (max ${MAX_LEGION_PLAYERS} per legion and ${MAX_LEGION_SUBSTITUTES} substitutes). These players were left unassigned: ${overflow.map((p) => p.name).join(", ")}`,
         );
       }
 
@@ -519,6 +521,9 @@ ${formatLegion(formatLegionTitle("Legion 2", legionSchedules.legion_2), assignme
 
   return (
     <div className={styles.container}>
+      {/* Opponents of each legion */}
+      {renderOpponents?.(isLocked)}
+
       {/* Points (completed events only) */}
       {isCompleted && (
         <>
@@ -529,6 +534,7 @@ ${formatLegion(formatLegionTitle("Legion 2", legionSchedules.legion_2), assignme
             resultOptions={TRI_ALLIANCE_PLACES}
             state={pointsState}
             readOnly={isLocked}
+            schedules={legionSchedules}
           />
           {!isLocked && (
           <div className={styles.editAssignmentsBar}>
@@ -634,7 +640,7 @@ ${formatLegion(formatLegionTitle("Legion 2", legionSchedules.legion_2), assignme
                   onMove={movePlayer}
                 />
                 <PlayerSelectBox
-                  title={`Substitutes (${assignments[column.substitutes].length}/${MAX_SUBSTITUTES})`}
+                  title={`Substitutes (${assignments[column.substitutes].length}/${MAX_LEGION_SUBSTITUTES})`}
                   players={filterPlayers(assignments[column.substitutes])}
                   category={column.substitutes}
                   onMove={movePlayer}

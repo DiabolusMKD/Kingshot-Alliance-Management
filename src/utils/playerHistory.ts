@@ -6,6 +6,7 @@ import { LegionSchedule, getLegionSchedules } from './legionSchedule';
 import { getAllianceSlug } from './allianceSlug';
 import { getEventSlug } from './eventSlug';
 import { SWORDLAND_MVP_COLUMNS, getEventMvps, getMvpTypeLabel, getPlayerMvpTypes } from './swordlandMvps';
+import { OpponentSummary, getOpponentsByEvent } from './opponentService';
 import { Alliance, AllianceEvent, EventPlayer, EventStatus, EventType, LegionResultKey } from '@/types';
 
 /** alliance_event.eventId -> event type */
@@ -48,6 +49,8 @@ export interface PlayerEventEntry {
   /** MVP awards won, e.g. ["Control MVP", "KO MVP"] (older events: ["MVP"]) */
   mvpLabels: string[];
   schedule: LegionSchedule;
+  /** Opponents of the player's legion */
+  opponents: OpponentSummary[];
   /** Link to the event editor */
   href: string | null;
 }
@@ -97,6 +100,7 @@ export function buildPlayerEntries(
   playerId: string,
   alliances: Map<number, Alliance>,
   powerRecords: PowerRecord[] = [],
+  opponentsByEvent: Map<number, OpponentSummary[]> = new Map(),
 ): PlayerEventEntry[] {
   const entries: PlayerEventEntry[] = [];
 
@@ -142,6 +146,7 @@ export function buildPlayerEntries(
       isMvp: mvpLabels.length > 0,
       mvpLabels,
       schedule: getLegionSchedules(event)[row.legion],
+      opponents: (opponentsByEvent.get(event.id) ?? []).filter((o) => o.legion === row.legion),
       href: alliance
         ? `/${alliance.kingdomId}/${getAllianceSlug(alliance.id)}/events/${type}?event=${getEventSlug(event.id)}`
         : null,
@@ -210,7 +215,11 @@ export async function getPlayerEventHistory(playerId: string): Promise<PlayerEve
   const alliances = new Map<number, Alliance>();
   found.forEach((a) => a && alliances.set(a.id, a));
 
-  return buildPlayerEntries(rows, playerId, alliances, await getPowerRecords(playerId));
+  const [powerRecords, opponentsByEvent] = await Promise.all([
+    getPowerRecords(playerId),
+    getOpponentsByEvent(rows.map((r) => r.alliance_event?.id).filter((id): id is number => id != null)),
+  ]);
+  return buildPlayerEntries(rows, playerId, alliances, powerRecords, opponentsByEvent);
 }
 
 /** The player's power history, oldest first (empty when it can't be read) */

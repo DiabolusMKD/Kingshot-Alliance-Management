@@ -8,6 +8,7 @@ import Breadcrumbs from "@/components/Breadcrumbs";
 import EventHero from "@/components/EventHero";
 import TriAllianceEventLayout from "@/components/TriAllianceEventLayout";
 import EventList from "@/components/EventList";
+import EventOpponents from "@/components/EventOpponents";
 import ReliabilityStats from "@/components/ReliabilityStats";
 import { useToast } from "@/components/Toast";
 import { useEventEditorData } from "@/components/useEventEditorData";
@@ -16,7 +17,7 @@ import { getAlliancesByKingdomId } from "@/utils/allianceService";
 import { findAllianceBySlug } from "@/utils/allianceSlug";
 import { findEventBySlug, getEventSlug } from "@/utils/eventSlug";
 import { EventSaveInput, saveEventData } from "@/utils/eventData";
-import { getLegionSchedules } from "@/utils/legionSchedule";
+import { getLegionSchedules, utcInputToIso } from "@/utils/legionSchedule";
 import {
   getAllianceEvents,
   createAllianceEvent,
@@ -141,9 +142,9 @@ export default function TriAlliancePage({ params, searchParams }: TriAlliancePag
     }
 
     try {
-      // Convert datetime-local to UTC
-      const localDate = new Date(formData.startsAt);
-      const utcString = localDate.toISOString();
+      // The time is entered in UTC (like the legion start times)
+      const utcString = utcInputToIso(formData.startsAt);
+      if (!utcString) throw new Error("Invalid date");
 
       // Create new event with UTC datetime
       const newEvent = await createAllianceEvent({
@@ -226,11 +227,11 @@ export default function TriAlliancePage({ params, searchParams }: TriAlliancePag
               <div className={styles.formContent}>
                 <h2>Create New Tri-Alliance Event</h2>
                 <p>
-                  Choose a date and time for this event (will be stored as UTC)
+                  Choose a date and time for this event, in UTC (game time)
                 </p>
 
                 <div className={styles.formGroup}>
-                  <label htmlFor="startsAt">Event Date & Time</label>
+                  <label htmlFor="startsAt">Event Date & Time (UTC)</label>
                   <input
                     id="startsAt"
                     type="datetime-local"
@@ -280,6 +281,16 @@ export default function TriAlliancePage({ params, searchParams }: TriAlliancePag
                   onSave={handleSaveAssignments}
                   onDelete={() => handleDeleteEvent(selectedEvent.id!)}
                   isSaving={isSaving}
+                  renderOpponents={(readOnly) =>
+                    alliance && (
+                      <EventOpponents
+                        eventId={selectedEvent.id!}
+                        eventType="tri-alliance"
+                        ownAllianceId={alliance.id}
+                        readOnly={readOnly}
+                      />
+                    )
+                  }
                 />
               ) : (
                 <p>Loading the event&apos;s players...</p>

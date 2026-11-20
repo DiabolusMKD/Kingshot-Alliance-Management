@@ -6,6 +6,7 @@ import { Alliance, EventType, Player } from "@/types";
 import Navigation from "@/components/Navigation";
 import Breadcrumbs, { Crumb } from "@/components/Breadcrumbs";
 import ZoomableImage from "@/components/ZoomableImage";
+import ResultLabel, { formatResult } from "@/components/ResultLabel";
 import PlayerStatsChart, { ChartPoint } from "@/components/PlayerStatsChart";
 import Dialog from "@/components/Dialog";
 import PlayerForm, { PlayerFormSubmitMeta } from "@/components/PlayerForm";
@@ -14,6 +15,7 @@ import { getPlayerById, getPlayerByPlayerId, updatePlayer } from "@/utils/player
 import { getAllianceById, getAlliancesByKingdomId } from "@/utils/allianceService";
 import { getAllianceSlug } from "@/utils/allianceSlug";
 import { formatAllianceLabel } from "@/utils/allianceLabel";
+import { formatOpponentLabel } from "@/utils/opponentService";
 import { formatPower } from "@/utils/formatNumbers";
 import { isImageUrl, truncateLevelLabel } from "@/utils/isImageUrl";
 import {
@@ -37,51 +39,6 @@ const STATUS_STYLES: Record<string, string> = {
   completed: styles.statusCompleted,
 };
 
-const RESULT_LABELS: Record<string, string> = { win: "Win", lose: "Lose" };
-const formatResult = (result: string) => RESULT_LABELS[result] ?? result;
-
-// Tri Alliance places: gold, silver, bronze
-const PLACE_COLORS: Record<string, string> = { "1st": "#f5c542", "2nd": "#c0c7d1", "3rd": "#cd7f32" };
-
-/** Trophy; Tri Alliance shows the place number in the cup */
-function TrophyIcon({ color, place }: { color: string; place?: string }) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" className={styles.resultIcon}>
-      <path d="M7 5H4v1a3 3 0 0 0 3 3M17 5h3v1a3 3 0 0 1-3 3" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" />
-      <path d="M6.5 2.5h11V9a5.5 5.5 0 0 1-11 0z" fill={color} />
-      <rect x="11" y="14" width="2" height="4" fill={color} />
-      <rect x="7" y="18" width="10" height="3.5" rx="1" fill={color} />
-      {place && (
-        <text x="12" y="8.6" textAnchor="middle" dominantBaseline="middle" className={styles.trophyNumber}>
-          {place}
-        </text>
-      )}
-    </svg>
-  );
-}
-
-/** White flag: the legion lost */
-function FlagIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" className={styles.resultIcon}>
-      <path d="M5 21V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <path d="M5 4h12l-2.5 4 2.5 4H5z" fill="currentColor" opacity="0.85" />
-    </svg>
-  );
-}
-
-/** Result with its icon: Win trophy / Lose flag, Tri Alliance place trophy */
-function ResultLabel({ result }: { result: string }) {
-  const place = PLACE_COLORS[result] ? result.replace(/\D/g, "") : null;
-  return (
-    <span className={`${styles.result} ${result === "lose" ? styles.resultLose : ""}`}>
-      {result === "win" && <TrophyIcon color={PLACE_COLORS["1st"]} />}
-      {result === "lose" && <FlagIcon />}
-      {place && <TrophyIcon color={PLACE_COLORS[result]} place={place} />}
-      {formatResult(result)}
-    </span>
-  );
-}
 
 const formatDate = (iso: string | null, options: Intl.DateTimeFormatOptions) =>
   iso ? new Date(iso).toLocaleDateString("en-US", { timeZone: "UTC", ...options }) : "—";
@@ -132,6 +89,7 @@ function EventTypeSection({ type, entries }: { type: EventType; entries: PlayerE
       details: [
         formatDate(e.startsAt, { weekday: "short", month: "short", day: "numeric", year: "numeric" }),
         `${legionLabel(e)}${e.isSubstitute ? " · substitute" : ""}`,
+        ...(e.opponents.length > 0 ? [`vs ${e.opponents.map(formatOpponentLabel).join(", ")}`] : []),
         ...(e.result ? [`Result: ${formatResult(e.result)}`] : []),
         ...e.mvpLabels,
         ...(!e.attended ? ["Didn't show up (no score)"] : []),
@@ -219,6 +177,7 @@ function EventTypeSection({ type, entries }: { type: EventType; entries: PlayerE
               <th>Date</th>
               <th>Alliance</th>
               <th>Legion</th>
+              <th>Opponents</th>
               <th>Position</th>
               <th>Status</th>
               <th>Result</th>
@@ -247,6 +206,26 @@ function EventTypeSection({ type, entries }: { type: EventType; entries: PlayerE
                   {legionLabel(e)}
                   {e.schedule.time && <span className={styles.muted}> · {e.schedule.time} UTC</span>}
                   {e.isSubstitute && <span className={styles.badge}>sub</span>}
+                </td>
+                <td>
+                  {e.opponents.length === 0
+                    ? "—"
+                    : e.opponents.map((o, i) => (
+                        <span key={`${o.kingdomId}-${o.allianceTag}`}>
+                          {i > 0 && ", "}
+                          {o.alliance ? (
+                            <Link
+                              href={`/${o.alliance.kingdomId}/${getAllianceSlug(o.alliance.id)}`}
+                              className={styles.link}
+                            >
+                              {formatOpponentLabel(o)}
+                            </Link>
+                          ) : (
+                            formatOpponentLabel(o)
+                          )}
+                          <span className={styles.muted}> #{o.kingdomId}</span>
+                        </span>
+                      ))}
                 </td>
                 <td>
                   {e.position ?? "—"}

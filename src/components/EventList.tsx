@@ -1,7 +1,9 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { AllianceEvent, EventStatus, SwordlandSeason } from '@/types';
-import { LegionSchedule, getLegionSchedules } from '@/utils/legionSchedule';
+import { LegionSchedule, formatEventDateTimeUtc, getLegionSchedules } from '@/utils/legionSchedule';
+import { OpponentSummary, formatOpponentLabel, getOpponentsByEvent } from '@/utils/opponentService';
 import styles from './EventList.module.css';
 
 const RESULT_LABELS: Record<string, string> = {
@@ -37,6 +39,18 @@ export default function EventList({
   onDeleteEvent,
   isLoading = false,
 }: EventListProps) {
+  // Opponents of every listed event (one request; reloaded when the list changes)
+  const [opponents, setOpponents] = useState<Map<number, OpponentSummary[]>>(new Map());
+  const eventIdsKey = events.map((e) => e.id).join(',');
+  useEffect(() => {
+    let isMounted = true;
+    getOpponentsByEvent(events.map((e) => e.id!)).then((map) => isMounted && setOpponents(map));
+    return () => {
+      isMounted = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventIdsKey]);
+
   const getStatusColor = (status: EventStatus) => {
     switch (status) {
       case 'not-started':
@@ -50,17 +64,7 @@ export default function EventList({
     }
   };
 
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return 'No date set';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
+  const formatDate = (dateString?: string) => formatEventDateTimeUtc(dateString) ?? 'No date set';
 
   // Separate upcoming and past events
   const now = new Date();
@@ -107,6 +111,36 @@ export default function EventList({
               </span>
               <span className={`${styles.resultBadge} ${RESULT_STYLES[status] ?? ''}`}>
                 {RESULT_LABELS[status] ?? status}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  };
+
+  // Opponents per legion: "Legion 1  vs [fKn]Name #1079"
+  const renderOpponents = (event: AllianceEvent) => {
+    const list = opponents.get(event.id!) ?? [];
+    if (list.length === 0) return null;
+    const legions = (['legion_1', 'legion_2'] as const)
+      .map((key, index) => ({ title: `Legion ${index + 1}`, list: list.filter((o) => o.legion === key) }))
+      .filter((legion) => legion.list.length > 0);
+
+    return (
+      <div className={styles.field}>
+        <label>Opponents:</label>
+        <ul className={styles.resultList}>
+          {legions.map(({ title, list: legionOpponents }) => (
+            <li key={title} className={styles.opponentRow}>
+              <span className={styles.opponentLegion}>{title}</span>
+              <span className={styles.opponentNames}>
+                {legionOpponents.map((o) => (
+                  <span key={`${o.kingdomId}-${o.allianceTag}`} className={styles.opponentChip}>
+                    {formatOpponentLabel(o)}
+                    <span className={styles.opponentServer}>#{o.kingdomId}</span>
+                  </span>
+                ))}
               </span>
             </li>
           ))}
@@ -162,6 +196,8 @@ export default function EventList({
                 <p>{event.rules}</p>
               </div>
             )}
+
+            {renderOpponents(event)}
 
             {renderResults(event)}
 

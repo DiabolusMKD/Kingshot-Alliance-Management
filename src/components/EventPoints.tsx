@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { EventResults, LegionResultKey, Player, PlayerAssignment, SwordlandMvpType, SwordlandMvps } from "@/types";
 import { getResultsPoints } from "@/utils/eventResults";
+import { LegionSchedules } from "@/utils/legionSchedule";
+import ResultLabel from "./ResultLabel";
 import PointsChart from "./PointsChart";
 import styles from "./EventPoints.module.css";
 
@@ -130,6 +132,8 @@ interface EventPointsProps {
   mvpTypes?: MvpTypeOption[];
   /** Locked completed event: values are shown, nothing can be changed */
   readOnly?: boolean;
+  /** Legion start times, shown before the result */
+  schedules?: LegionSchedules;
 }
 
 /** Swordland: one dropdown per MVP type, listing the legion's players and substitutes */
@@ -258,6 +262,7 @@ export default function EventPoints({
   state,
   mvpTypes,
   readOnly = false,
+  schedules,
 }: EventPointsProps) {
   // Players with their MVP labels per legion (chart)
   const mvpLabels = (key: LegionResultKey): Record<string, string[]> => {
@@ -290,11 +295,19 @@ export default function EventPoints({
               <div key={legion.key} className={styles.legionGroup}>
                 <div className={styles.legionGroupHeader}>
                   <h3 className={styles.legionGroupTitle}>{legion.title}</h3>
-                  {readOnly ? (
-                    <span className={styles.resultValue}>
-                      {resultOptions.find((o) => o.value === state.legionMeta[legion.key].status)?.label ??
-                        `No ${resultLabel.toLowerCase()}`}
+                  <div className={styles.legionGroupMeta}>
+                  {/* Start time, then the result */}
+                  {schedules?.[legion.key].time && (
+                    <span className={styles.legionStart}>
+                      {[schedules[legion.key].weekday, `${schedules[legion.key].time} UTC`].filter(Boolean).join(", ")}
                     </span>
+                  )}
+                  {readOnly ? (
+                    state.legionMeta[legion.key].status ? (
+                      <ResultLabel result={state.legionMeta[legion.key].status!} className={styles.resultLabel} />
+                    ) : (
+                      <span className={styles.noResult}>No {resultLabel.toLowerCase()}</span>
+                    )
                   ) : (
                   <select
                     value={state.legionMeta[legion.key].status ?? ""}
@@ -310,6 +323,7 @@ export default function EventPoints({
                     ))}
                   </select>
                   )}
+                  </div>
                 </div>
                 {mvpTypes && <MvpPicker legion={legion} mvpTypes={mvpTypes} state={state} readOnly={readOnly} />}
                 <PointsList

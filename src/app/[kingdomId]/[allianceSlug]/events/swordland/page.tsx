@@ -8,6 +8,7 @@ import Breadcrumbs from "@/components/Breadcrumbs";
 import EventHero from "@/components/EventHero";
 import SwordlandEventLayout from "@/components/SwordlandEventLayout";
 import EventList from "@/components/EventList";
+import EventOpponents from "@/components/EventOpponents";
 import ReliabilityStats from "@/components/ReliabilityStats";
 import { useToast } from "@/components/Toast";
 import { useEventEditorData } from "@/components/useEventEditorData";
@@ -17,7 +18,7 @@ import { findAllianceBySlug } from "@/utils/allianceSlug";
 import { findEventBySlug, getEventSlug } from "@/utils/eventSlug";
 import { EventSaveInput, saveEventData } from "@/utils/eventData";
 import { getPowerMode } from "@/utils/powerMode";
-import { getLegionSchedules } from "@/utils/legionSchedule";
+import { formatEventDateTimeUtc, getLegionSchedules, isoToUtcInput, utcInputToIso } from "@/utils/legionSchedule";
 import {
   getAllianceEvents,
   createAllianceEvent,
@@ -63,6 +64,10 @@ const formatEventDate = (startsAt?: string) =>
     ? new Date(startsAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
     : "no date";
 
+/** "Nov 22, 2026, 14:00 UTC" */
+const formatEventDateTime = (startsAt?: string) => formatEventDateTimeUtc(startsAt) ?? "No date set";
+
+
 const VARIANT_OPTIONS: { value: EventVariant; label: string; hint: string }[] = [
   { value: "standard", label: "Standard", hint: "Only players from this alliance." },
   {
@@ -88,6 +93,7 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
   const [seasons, setSeasons] = useState<SwordlandSeason[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [isChangingSeason, setIsChangingSeason] = useState(false);
+  const [isChangingStartsAt, setIsChangingStartsAt] = useState(false);
   // SSL season: who was assigned to a building in the season's previous event but scored 0
   const [noShows, setNoShows] = useState<{ eventId: number; ids: Set<string> } | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -127,6 +133,8 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
   const noShowIds =
     previousSeasonEvent && noShows && noShows.eventId === previousSeasonEvent.id ? noShows.ids : NO_SHOWS;
   const selectedSeason = seasons.find((s) => s.id === selectedEvent?.seasonId);
+  // Completed events: event type and season are shown, not changed
+  const isEventCompleted = selectedEvent?.status === "completed";
 
   const loadData = async (allianceId: number) => {
     try {
@@ -239,9 +247,9 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
         }
       }
 
-      // Convert datetime-local to UTC
-      const localDate = new Date(formData.startsAt);
-      const utcString = localDate.toISOString();
+      // The time is entered in UTC (like the legion start times)
+      const utcString = utcInputToIso(formData.startsAt);
+      if (!utcString) throw new Error("Invalid date");
 
       // Create new event with UTC datetime
       const newEvent = await createAllianceEvent({
@@ -292,6 +300,26 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
       );
     } finally {
       setIsCreating(false);
+    }
+  };
+
+  // Change the event's start (saved right away, when the field is left)
+  const handleStartsAtChange = async (value: string) => {
+    if (!selectedEvent || !value) return;
+    const startsAt = utcInputToIso(value);
+    if (!startsAt) return;
+    if (selectedEvent.startsAt && new Date(selectedEvent.startsAt).getTime() === new Date(startsAt).getTime()) return;
+
+    setIsChangingStartsAt(true);
+    try {
+      await updateAllianceEvent(selectedEvent.id!, { startsAt });
+      setEvents((prev) => prev.map((e) => (e.id === selectedEvent.id ? { ...e, startsAt } : e)));
+      toast.success("Event date updated");
+    } catch (error) {
+      console.error("Failed to change the event date:", error);
+      toast.error("Failed to change the event date");
+    } finally {
+      setIsChangingStartsAt(false);
     }
   };
 
@@ -399,7 +427,7 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
               <div className={styles.formContent}>
                 <h2>Create New Swordland Event</h2>
                 <p>
-                  Choose a date and time for this event (will be stored as UTC)
+                  Choose a date and time for this event, in UTC (game time)
                 </p>
 
                 <div className={styles.formGroup}>
@@ -466,7 +494,7 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
                 )}
 
                 <div className={styles.formGroup}>
-                  <label htmlFor="startsAt">Event Date & Time</label>
+                  <label htmlFor="startsAt">Event Date & Time (UTC)</label>
                   <input
                     id="startsAt"
                     type="datetime-local"
@@ -498,58 +526,97 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
           ) : selectedEvent ? (
             // Event Editor View
             <>
-              <div className={styles.variantBanner}>
-                <strong>
-                  {isSummitLeague ? "SSL · Swordland Summit League" : "Standard Swordland"}
-                  {isSummitLeague && selectedSeason ? ` · ${selectedSeason.name}` : ""}
-                </strong>
-              </div>
-              <div className={styles.variantPicker}>
-                <label htmlFor="editEventVariant">Event Type</label>
-                <select
-                  id="editEventVariant"
-                  value={isSummitLeague ? "sls" : "standard"}
-                  onChange={(e) => handleVariantChange(e.target.value as EventVariant)}
-                  className={styles.variantSelect}
-                  disabled={isChangingVariant}
-                >
-                  {VARIANT_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                <small className={styles.formHint}>
-                  {VARIANT_OPTIONS.find((o) => o.value === (isSummitLeague ? "sls" : "standard"))?.hint}
-                </small>
-              </div>
-              {isSummitLeague && seasons.length > 0 && (
+              <EventHero eventType="swordland" />
+              {/* Event type and season side by side */}
+              <div className={styles.pickerRow}>
                 <div className={styles.variantPicker}>
-                  <label htmlFor="editEventSeason">Season</label>
+                  {isEventCompleted ? (
+                    <>
+                      <span className={styles.pickerLabel}>Event Type</span>
+                      <span className={styles.readOnlyValue}>
+                        {VARIANT_OPTIONS.find((o) => o.value === (isSummitLeague ? "sls" : "standard"))?.label}
+                      </span>
+                    </>
+                  ) : (
+                  <>
+                  <label htmlFor="editEventVariant">Event Type</label>
                   <select
-                    id="editEventSeason"
-                    value={selectedEvent.seasonId != null ? String(selectedEvent.seasonId) : ""}
-                    onChange={(e) => handleSeasonChange(e.target.value)}
+                    id="editEventVariant"
+                    value={isSummitLeague ? "sls" : "standard"}
+                    onChange={(e) => handleVariantChange(e.target.value as EventVariant)}
                     className={styles.variantSelect}
-                    disabled={isChangingSeason}
+                    disabled={isChangingVariant}
                   >
-                    <option value="">No season</option>
-                    {[...seasons].reverse().map((season) => (
-                      <option key={season.id} value={String(season.id)}>
-                        {season.name}
+                    {VARIANT_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
                       </option>
                     ))}
                   </select>
-                  {previousSeasonEvent && noShowIds.size > 0 && (
-                    <small className={`${styles.formHint} ${styles.noShowHint}`}>
-                      Marked red: {noShowIds.size} player{noShowIds.size === 1 ? " was" : "s were"} on a building
-                      in the season&apos;s previous event ({formatEventDate(previousSeasonEvent.startsAt)}) but
-                      scored 0 points.
-                    </small>
+                  <small className={styles.formHint}>
+                    {VARIANT_OPTIONS.find((o) => o.value === (isSummitLeague ? "sls" : "standard"))?.hint}
+                  </small>
+                  </>
                   )}
                 </div>
-              )}
-              <EventHero eventType="swordland" />
+                {isSummitLeague && seasons.length > 0 && (
+                  <div className={styles.variantPicker}>
+                    {isEventCompleted ? (
+                      <>
+                        <span className={styles.pickerLabel}>Season</span>
+                        <span className={styles.readOnlyValue}>{selectedSeason?.name ?? "No season"}</span>
+                      </>
+                    ) : (
+                    <>
+                    <label htmlFor="editEventSeason">Season</label>
+                    <select
+                      id="editEventSeason"
+                      value={selectedEvent.seasonId != null ? String(selectedEvent.seasonId) : ""}
+                      onChange={(e) => handleSeasonChange(e.target.value)}
+                      className={styles.variantSelect}
+                      disabled={isChangingSeason}
+                    >
+                      <option value="">No season</option>
+                      {[...seasons].reverse().map((season) => (
+                        <option key={season.id} value={String(season.id)}>
+                          {season.name}
+                        </option>
+                      ))}
+                    </select>
+                    </>
+                    )}
+                    {previousSeasonEvent && noShowIds.size > 0 && (
+                      <small className={`${styles.formHint} ${styles.noShowHint}`}>
+                        Marked red: {noShowIds.size} player{noShowIds.size === 1 ? " was" : "s were"} on a building
+                        in the season&apos;s previous event ({formatEventDate(previousSeasonEvent.startsAt)}) but
+                        scored 0 points.
+                      </small>
+                    )}
+                  </div>
+                )}
+                <div className={styles.variantPicker}>
+                  {isEventCompleted ? (
+                    <>
+                      <span className={styles.pickerLabel}>Event Date &amp; Time</span>
+                      <span className={styles.readOnlyValue}>{formatEventDateTime(selectedEvent.startsAt)}</span>
+                    </>
+                  ) : (
+                    <>
+                      <label htmlFor="editEventStartsAt">Event Date &amp; Time (UTC)</label>
+                      <input
+                        key={`${selectedEvent.id}:${selectedEvent.startsAt ?? ""}`}
+                        id="editEventStartsAt"
+                        type="datetime-local"
+                        defaultValue={isoToUtcInput(selectedEvent.startsAt)}
+                        onBlur={(e) => handleStartsAtChange(e.target.value)}
+                        className={styles.variantSelect}
+                        disabled={isChangingStartsAt}
+                      />
+                      <small className={styles.formHint}>In UTC. Saved when you leave the field.</small>
+                    </>
+                  )}
+                </div>
+              </div>
               {editorData.usesStartPowers && (
                 <p className={styles.powerNote}>
                   This event has started: powers are each player&apos;s latest recorded power before the start.
@@ -580,6 +647,16 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
                   onDelete={() => handleDeleteEvent(selectedEvent.id!)}
                   isSaving={isSaving}
                   eventStatus={selectedEvent.status}
+                  renderOpponents={(readOnly) =>
+                    alliance && (
+                      <EventOpponents
+                        eventId={selectedEvent.id!}
+                        eventType="swordland"
+                        ownAllianceId={alliance.id}
+                        readOnly={readOnly}
+                      />
+                    )
+                  }
                 />
               ) : (
                 <p>Loading the event&apos;s players...</p>

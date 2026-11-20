@@ -5,7 +5,8 @@ import styles from './Dialog.module.css';
 
 interface DialogProps {
   isOpen: boolean;
-  title: string;
+  /** Text, or e.g. a link */
+  title: ReactNode;
   onClose: () => void;
   children: ReactNode;
   /** Blocks every way of closing (X button, backdrop click, Esc) while true. */

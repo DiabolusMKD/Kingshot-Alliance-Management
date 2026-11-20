@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import LegionTable from "./LegionTable";
 import KingdomPlayerPicker from "./KingdomPlayerPicker";
 import BuildingPreview from "./BuildingPreview";
@@ -25,6 +25,7 @@ import {
 } from "@/utils/swordlandBuildings";
 import { formatCompactPower, formatPower } from "@/utils/formatNumbers";
 import { SWORDLAND_MVP_TYPES } from "@/utils/swordlandMvps";
+import { MAX_LEGION_PLAYERS, MAX_LEGION_SUBSTITUTES } from "@/utils/constants";
 import {
   PowerMode,
   POWER_MODE_OPTIONS,
@@ -72,6 +73,7 @@ export default function SwordlandEventLayout({
   onSave,
   isSaving,
   onDelete,
+  renderOpponents,
 }: {
   /** The alliance's own players */
   players: Player[];
@@ -94,6 +96,8 @@ export default function SwordlandEventLayout({
   isSaving?: boolean;
   /** Deletes the event (shown only while it isn't completed) */
   onDelete?: () => void;
+  /** The opponents section; read-only while a completed event is locked */
+  renderOpponents?: (readOnly: boolean) => ReactNode;
 }) {
   // SSL: other-alliance players in this event (saved ones + ones added now)
   const [addedPlayers, setAddedPlayers] = useState<Player[]>(externalPlayers);
@@ -215,9 +219,23 @@ export default function SwordlandEventLayout({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [players, externalPlayers, initialAssignments]);
 
+  // ---------------- LIMITS ----------------
+  // 30 players on the buildings and 20 substitutes per legion
+  const isLegionFull = (legion: string) => {
+    if ((legion !== "legion1" && legion !== "legion2") || assignments[legion].length < MAX_LEGION_PLAYERS) return false;
+    toast.warning(`A legion can't have more than ${MAX_LEGION_PLAYERS} players on the buildings. Add them as substitutes instead.`);
+    return true;
+  };
+  const areSubstitutesFull = (legion: Legion) => {
+    if (legionSubstitutes[legion].length < MAX_LEGION_SUBSTITUTES) return false;
+    toast.warning(`A legion can't have more than ${MAX_LEGION_SUBSTITUTES} substitutes.`);
+    return true;
+  };
+
   // ---------------- SSL: ADD / REMOVE OTHER-ALLIANCE PLAYERS ----------------
   const addExternalPlayer = (player: Player, to: keyof LegionAssignments) => {
     if (allPlayers.some((p) => p.id === player.id)) return;
+    if (isLegionFull(to)) return;
     setAddedPlayers((prev) => [...prev, player]);
     setAssignments((prev) => ({ ...prev, [to]: [...prev[to], player] }));
   };
@@ -231,7 +249,7 @@ export default function SwordlandEventLayout({
   // ---------------- MOVE ----------------
   const movePlayer = (id: string, from: string, to: string) => {
     const player = allPlayers.find((p) => p.id === id);
-    if (!player) return;
+    if (!player || isLegionFull(to)) return;
 
     setAssignments((prev) => {
       const copy = {
@@ -253,7 +271,7 @@ export default function SwordlandEventLayout({
   // Move player to/from substitute
   const movePlayerToSubstitute = (id: string, legion: Legion) => {
     const player = allPlayers.find((p) => p.id === id);
-    if (!player) return;
+    if (!player || areSubstitutesFull(legion)) return;
 
     // Remove from legion
     setAssignments((prev) => ({
@@ -273,6 +291,7 @@ export default function SwordlandEventLayout({
   };
 
   const movePlayerFromSubstitute = (id: string, legion: Legion) => {
+    if (isLegionFull(legion)) return;
     // Remove from substitutes
     setLegionSubstitutes((prev) => ({
       ...prev,
@@ -571,6 +590,16 @@ ${buildingText}${substitutesText}`;
     }
 
     const { legion1, legion2 } = parsed.legions;
+    // Players over the limits stay unassigned
+    const overflow: Player[] = [];
+    const cap = (list: Player[], max: number) => {
+      overflow.push(...list.slice(max));
+      return list.slice(0, max);
+    };
+    [legion1, legion2].forEach((l) => {
+      l.players = cap(l.players, MAX_LEGION_PLAYERS);
+      l.substitutes = cap(l.substitutes, MAX_LEGION_SUBSTITUTES);
+    });
     const inEvent = new Set(
       [legion1, legion2].flatMap((l) => [...l.players, ...l.substitutes]).map((p) => String(p.id)),
     );
@@ -588,6 +617,12 @@ ${buildingText}${substitutesText}`;
     setLegionSubstitutes(nextSubstitutes);
     setShowJsonModal(false);
     setJsonInput("");
+
+    if (overflow.length > 0) {
+      toast.warning(
+        `Too many players in the JSON (max ${MAX_LEGION_PLAYERS} per legion and ${MAX_LEGION_SUBSTITUTES} substitutes). These players were left unassigned: ${overflow.map((p) => p.name).join(", ")}`,
+      );
+    }
 
     if (parsed.unknownIds.length > 0) {
       toast.warning(
@@ -616,6 +651,9 @@ ${buildingText}${substitutesText}`;
 
   return (
     <div className={styles.container}>
+      {/* OPPONENTS of each legion */}
+      {renderOpponents?.(isLocked)}
+
       {/* POINTS (completed events only) */}
       {isCompleted && (
         <>
@@ -626,6 +664,7 @@ ${buildingText}${substitutesText}`;
             resultOptions={SWORDLAND_RESULTS}
             state={pointsState}
             readOnly={isLocked}
+            schedules={legionSchedules}
             mvpTypes={SWORDLAND_MVP_TYPES}
           />
           {!isLocked && (
@@ -778,7 +817,7 @@ ${buildingText}${substitutesText}`;
                   />
                 </h3>
                 <LegionTable
-                  title={`Players (${assignments[legion].length})`}
+                  title={`Players (${assignments[legion].length}/${MAX_LEGION_PLAYERS})`}
                   players={assignments[legion]}
                   legion={legion}
                   BUILDINGS={BUILDINGS}
@@ -792,7 +831,7 @@ ${buildingText}${substitutesText}`;
                 />
 
                 <LegionTable
-                  title={`Substitutes (${legionSubstitutes[legion].length})`}
+                  title={`Substitutes (${legionSubstitutes[legion].length}/${MAX_LEGION_SUBSTITUTES})`}
                   players={legionSubstitutes[legion]}
                   legion={legion}
                   BUILDINGS={[]}
