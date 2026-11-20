@@ -99,6 +99,28 @@ export async function lookupOpponentAlliance(
   return result.alliance;
 }
 
+/**
+ * Saves the opponents entered while creating an event (draft ones, see EventOpponents).
+ * Returns how many couldn't be saved.
+ */
+export async function saveDraftOpponents(eventId: number, drafts: EventOpponent[]): Promise<number> {
+  const results = await Promise.allSettled(
+    drafts.map((draft) =>
+      addEventOpponent({
+        alliance_event_id: eventId,
+        legion: draft.legion,
+        kingdomId: draft.kingdomId,
+        allianceTag: draft.allianceTag,
+        allianceId: draft.allianceId,
+        registeredCombatants: draft.registeredCombatants,
+        registeredSubstitutes: draft.registeredSubstitutes,
+      }),
+    ),
+  );
+  results.forEach((r) => r.status === 'rejected' && console.error('Failed to save an opponent:', r.reason));
+  return results.filter((r) => r.status === 'rejected').length;
+}
+
 export const newOpponent = (
   eventId: number,
   legion: LegionResultKey,

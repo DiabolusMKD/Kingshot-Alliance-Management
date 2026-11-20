@@ -20,6 +20,7 @@ import {
   emptyBuildings,
   emptyPreview,
   buildingsFromPlacements,
+  generateBuildings,
   parseBuildingsJson,
   previewToJson,
 } from "@/utils/swordlandBuildings";
@@ -38,7 +39,6 @@ import {
   EventResults,
   EventStatus,
   LegionBuildingData,
-  BuildingAssignment,
 } from "@/types";
 import styles from "./SwordlandEventLayout.module.css";
 
@@ -405,64 +405,10 @@ export default function SwordlandEventLayout({
         .includes(search.toLowerCase()),
     );
 
-  // ---------------- BUILD LOGIC ----------------
-  const generateBuildings = (
-    list: Player[],
-    substitutes: Player[],
-  ): LegionBuildingData => {
-    const substituteIds = new Set(substitutes.map((p) => p.id));
-
-    const sorted = [...list]
-      .filter((p) => !substituteIds.has(p.id))
-      .sort((a, b) => powerOf(b) - powerOf(a));
-
-    const buildings: Record<string, BuildingAssignment> = emptyBuildings();
-
-    if (!sorted.length) {
-      return { buildings, substitutes: [] };
-    }
-
-    const under = sorted.slice(-2);
-    const rest = sorted.slice(0, -2);
-
-    const [u1, u2] = under.sort((a, b) => powerOf(b) - powerOf(a));
-
-    buildings["Undercellars"].leader = u1 ?? null;
-    if (u2) buildings["Undercellars"].support.push(u2);
-
-    const leaders = rest.slice(0, 8);
-    const leaderIds = new Set(leaders.map((p) => p.id));
-
-    BUILDINGS.slice(0, 8).forEach((b, i) => {
-      buildings[b].leader = leaders[i] ?? null;
-    });
-
-    const supportPool = rest.filter((p) => !leaderIds.has(p.id));
-
-    let i = 0;
-    for (const p of supportPool) {
-      const b = BUILDINGS[i % 8];
-      buildings[b].support.push(p);
-      i++;
-    }
-
-    return {
-      buildings,
-      substitutes,
-    };
-  };
-
   // ---------------- GENERATE ----------------
   const handleGenerate = () => {
-    const l1 = generateBuildings(
-      assignments.legion1,
-      legionSubstitutes.legion1,
-    );
-
-    const l2 = generateBuildings(
-      assignments.legion2,
-      legionSubstitutes.legion2,
-    );
+    const l1 = generateBuildings(assignments.legion1, legionSubstitutes.legion1, powerOf);
+    const l2 = generateBuildings(assignments.legion2, legionSubstitutes.legion2, powerOf);
 
     setPreview({ legion1: l1, legion2: l2 });
   };

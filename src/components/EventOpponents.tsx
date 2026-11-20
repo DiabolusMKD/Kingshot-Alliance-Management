@@ -50,20 +50,43 @@ const isValidCombatants = (value: number) => Number.isInteger(value) && value > 
 /** 0 up to 20 substitutes */
 const isValidSubstitutes = (value: number) => Number.isInteger(value) && value >= 0 && value <= MAX_LEGION_SUBSTITUTES;
 
+/** The opponents with their alliances and players (keyed by alliance id) */
+export interface OpponentsState {
+  opponents: EventOpponent[];
+  alliances: Map<number, Alliance>;
+  players: Map<number, Player[]>;
+}
+
+/** Draft opponents (no event yet) get temporary negative ids */
+let nextDraftId = -1;
+
 interface EventOpponentsProps {
-  eventId: number;
+  /** null while creating the event: opponents are kept as a draft (see onChange) and saved with it */
+  eventId: number | null;
   eventType: EventType;
   /** The event's own alliance (can't be its own opponent) */
   ownAllianceId: number;
   /** Locked completed event: opponents are shown, not changed */
   readOnly?: boolean;
+  /** Called with the opponents whenever they load or change */
+  onChange?: (state: OpponentsState) => void;
+  /** Hides the title and subtitle (when the page has its own) */
+  hideHeader?: boolean;
 }
 
 /**
  * Opponents of each legion (Swordland 1, Tri Alliance 2), looked up in the game by server +
  * tag. Changes are saved right away (opponents are usually known only after the matchmaking).
  */
-export default function EventOpponents({ eventId, eventType, ownAllianceId, readOnly = false }: EventOpponentsProps) {
+export default function EventOpponents({
+  eventId,
+  eventType,
+  ownAllianceId,
+  readOnly = false,
+  onChange,
+  hideHeader = false,
+}: EventOpponentsProps) {
+  const isDraft = eventId === null;
   const toast = useToast();
   const maxPerLegion = OPPONENTS_PER_LEGION[eventType];
 
@@ -71,9 +94,15 @@ export default function EventOpponents({ eventId, eventType, ownAllianceId, read
   const [alliances, setAlliances] = useState<Map<number, Alliance>>(new Map());
   const [players, setPlayers] = useState<Map<number, Player[]>>(new Map());
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(!isDraft);
 
   useEffect(() => {
+    onChange?.({ opponents, alliances, players });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opponents, alliances, players]);
+
+  useEffect(() => {
+    if (eventId === null) return;
     let isMounted = true;
     (async () => {
       try {
@@ -112,7 +141,7 @@ export default function EventOpponents({ eventId, eventType, ownAllianceId, read
     const label = `[${opponent.allianceTag}] (Server ${opponent.kingdomId})`;
     if (!confirm(`Remove ${label} from the opponents? The alliance and its players stay in the app.`)) return;
     try {
-      await removeEventOpponent(opponent.id);
+      if (!isDraft) await removeEventOpponent(opponent.id);
       setOpponents((prev) => prev.filter((o) => o.id !== opponent.id));
       toast.success(`${label} removed`);
     } catch (error) {
@@ -123,9 +152,9 @@ export default function EventOpponents({ eventId, eventType, ownAllianceId, read
 
   const handleRegistrationChange = async (opponent: EventOpponent, changes: Partial<Registration>) => {
     try {
-      await updateOpponentRegistration(opponent.id, changes);
+      if (!isDraft) await updateOpponentRegistration(opponent.id, changes);
       setOpponents((prev) => prev.map((o) => (o.id === opponent.id ? { ...o, ...changes } : o)));
-      toast.success("Saved");
+      if (!isDraft) toast.success("Saved");
     } catch (error) {
       console.error(error);
       toast.error("Failed to save the opponent");
@@ -134,16 +163,19 @@ export default function EventOpponents({ eventId, eventType, ownAllianceId, read
 
   return (
     <section className={styles.section} aria-labelledby="opponentsTitle">
-      <div className={styles.sectionHeader}>
-        <h2 id="opponentsTitle" className={styles.title}>
-          Opponents
-        </h2>
-        <p className={styles.subtitle}>
-          {maxPerLegion === 1 ? "1 opponent per legion" : `${maxPerLegion} opponents per legion`}. Enter the server and
-          the alliance tag once the matchmaking is known: the alliance and its players are looked up in the game and
-          saved right away.
-        </p>
-      </div>
+      {!hideHeader && (
+        <div className={styles.sectionHeader}>
+          <h2 id="opponentsTitle" className={styles.title}>
+            Opponents
+          </h2>
+          <p className={styles.subtitle}>
+            {maxPerLegion === 1 ? "1 opponent per legion" : `${maxPerLegion} opponents per legion`}.{" "}
+            {isDraft
+              ? "Optional: enter the server and the alliance tag if the matchmaking is already known. The alliance is looked up in the game now and saved as an opponent when the event is created."
+              : "Enter the server and the alliance tag once the matchmaking is known: the alliance and its players are looked up in the game and saved right away."}
+          </p>
+        </div>
+      )}
 
       {isLoading ? (
         <p className={styles.muted}>Loading the opponents...</p>
@@ -206,7 +238,7 @@ function AddOpponentForm({
   takenAllianceIds,
   onAdded,
 }: {
-  eventId: number;
+  eventId: number | null;
   legion: LegionResultKey;
   ownAllianceId: number;
   takenAllianceIds: Set<number>;
@@ -248,8 +280,15 @@ function AddOpponentForm({
         setError({ title: "Already added", message: `[${tag}] is already an opponent of this legion.` });
         return;
       }
+      // Draft (no event yet): saved with the event, see saveDraftOpponents
+      const draft = (): EventOpponent => ({
+        ...newOpponent(0, legion, alliance, tag, combatantsNumber, substitutesNumber),
+        id: nextDraftId--,
+      });
       const [opponent, alliancePlayers] = await Promise.all([
-        addEventOpponent(newOpponent(eventId, legion, alliance, tag, combatantsNumber, substitutesNumber)),
+        eventId === null
+          ? Promise.resolve(draft())
+          : addEventOpponent(newOpponent(eventId, legion, alliance, tag, combatantsNumber, substitutesNumber)),
         getAlliancePlayers(allianceId),
       ]);
       onAdded(opponent, alliance, alliancePlayers);

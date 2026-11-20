@@ -21,6 +21,7 @@ const SEGMENT_LABELS: Record<string, { label: string; hasPage?: boolean }> = {
   swordland: { label: 'Swordland' },
   'tri-alliance': { label: 'Tri Alliance' },
   'gift-codes': { label: 'Gift Codes' },
+  assignments: { label: 'Assignments' },
   'no-alliance': { label: 'Without Alliance', hasPage: false },
 };
 

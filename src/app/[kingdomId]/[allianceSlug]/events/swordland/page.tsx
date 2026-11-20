@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Alliance, Player, AllianceEvent, EventStatus, EventVariant, SwordlandSeason } from "@/types";
 import Navigation from "@/components/Navigation";
@@ -8,7 +8,8 @@ import Breadcrumbs from "@/components/Breadcrumbs";
 import EventHero from "@/components/EventHero";
 import SwordlandEventLayout from "@/components/SwordlandEventLayout";
 import EventList from "@/components/EventList";
-import EventOpponents from "@/components/EventOpponents";
+import EventOpponents, { OpponentsState } from "@/components/EventOpponents";
+import { saveDraftOpponents } from "@/utils/opponentService";
 import ReliabilityStats from "@/components/ReliabilityStats";
 import SwordlandPowerDialog from "@/components/SwordlandPowerDialog";
 import { useToast } from "@/components/Toast";
@@ -103,6 +104,8 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
   const [isSaving, setIsSaving] = useState(false);
   const [isChangingVariant, setIsChangingVariant] = useState(false);
   const [isPowerDialogOpen, setIsPowerDialogOpen] = useState(false);
+  // Opponents entered in the create form, saved once the event exists
+  const draftOpponents = useRef<OpponentsState["opponents"]>([]);
 
   // The event being edited comes from the ?event= URL param
   const selectedEvent = eventSlug ? findEventBySlug(events, eventSlug) ?? null : null;
@@ -208,6 +211,7 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
   });
 
   const handleCreateEventClick = () => {
+    draftOpponents.current = [];
     setShowCreateForm(true);
     setFormData(getEmptyForm());
   };
@@ -277,6 +281,16 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
           copyFailed = true;
         }
       }
+
+      // Opponents entered in the form
+      const opponentsFailed =
+        draftOpponents.current.length > 0 ? await saveDraftOpponents(newEvent.id!, draftOpponents.current) : 0;
+      if (opponentsFailed > 0) {
+        toast.warning(
+          `Event created, but ${opponentsFailed} opponent${opponentsFailed === 1 ? "" : "s"} couldn't be saved. Add them in the event.`,
+        );
+      }
+      draftOpponents.current = [];
 
       if (createdSeason) setSeasons((prev) => [...prev, createdSeason]);
       setEvents((prev) => [event, ...prev]);
@@ -426,7 +440,7 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
           {showCreateForm ? (
             // Create Event Form
             <div className={styles.formModal}>
-              <div className={styles.formContent}>
+              <div className={`${styles.formContent} ${styles.formContentWide}`}>
                 <h2>Create New Swordland Event</h2>
                 <p>
                   Choose a date and time for this event, in UTC (game time)
@@ -507,6 +521,19 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
                     className={styles.formInput}
                   />
                 </div>
+
+                {alliance && (
+                  <div className={styles.formOpponents}>
+                    <EventOpponents
+                      eventId={null}
+                      eventType="swordland"
+                      ownAllianceId={alliance.id}
+                      onChange={(state) => {
+                        draftOpponents.current = state.opponents;
+                      }}
+                    />
+                  </div>
+                )}
 
                 <div className={styles.formActions}>
                   <button
@@ -618,6 +645,18 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
                     </>
                   )}
                 </div>
+              </div>
+              <div className={styles.newTabBar}>
+                <a
+                  href={`${basePath}/assignments?event=${getEventSlug(selectedEvent.id!)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={styles.backButton}
+                  title="The saved assignments, the opponents and a simulation of their buildings"
+                >
+                  Open assignments in new tab ↗
+                </a>
+                <small className={styles.formHint}>Shows the saved assignments: save first.</small>
               </div>
               {editorData.usesStartPowers && (
                 <p className={styles.powerNote}>
