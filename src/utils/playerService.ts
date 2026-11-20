@@ -1,6 +1,6 @@
 'use client';
 
-import { Player } from '@/types';
+import { Alliance, Player } from '@/types';
 import { supabase } from './supabaseClient';
 
 /**
@@ -320,4 +320,37 @@ export async function getKingdomPlayersOutsideAlliance(
   }
 
   return { players: data ?? [], total: count ?? data?.length ?? 0 };
+}
+
+/**
+ * Leader of each alliance (alliance.id -> player): the leader from the game
+ * (alliance.leaderPlayerId), otherwise the alliance's player with the Leader rank.
+ */
+export async function getAllianceLeaders(alliances: Alliance[]): Promise<Map<number, Player>> {
+  const leaders = new Map<number, Player>();
+  if (alliances.length === 0) return leaders;
+
+  const leaderIds = alliances.map((a) => a.leaderPlayerId).filter((id) => id != null).map(String);
+  const [byGameId, byRank] = await Promise.all([
+    leaderIds.length > 0
+      ? supabase.from('player').select('*').in('playerId', leaderIds)
+      : Promise.resolve({ data: [] as Player[], error: null }),
+    supabase
+      .from('player')
+      .select('*')
+      .eq('allianceRank', 'Leader')
+      .in('allianceId', alliances.map((a) => a.id)),
+  ]);
+  if (byGameId.error) throw new Error(`Failed to fetch leaders: ${byGameId.error.message}`);
+  if (byRank.error) throw new Error(`Failed to fetch leaders: ${byRank.error.message}`);
+
+  const gameLeaders = new Map((byGameId.data as Player[]).map((p) => [String(p.playerId), p]));
+  const rankLeaders = new Map((byRank.data as Player[]).map((p) => [String(p.allianceId), p]));
+  alliances.forEach((a) => {
+    const leader =
+      (a.leaderPlayerId != null ? gameLeaders.get(String(a.leaderPlayerId)) : undefined) ??
+      rankLeaders.get(String(a.id));
+    if (leader) leaders.set(a.id, leader);
+  });
+  return leaders;
 }

@@ -17,6 +17,7 @@ import { getAlliancesByKingdomId } from '@/utils/allianceService';
 import { findAllianceBySlug } from '@/utils/allianceSlug';
 import { formatAllianceLabel } from '@/utils/allianceLabel';
 import { formatNumbers } from '@/utils/formatNumbers';
+import { compareByRankThenPower } from '@/utils/allianceRank';
 import styles from './page.module.css';
 
 interface PlayersPageProps {
@@ -59,8 +60,8 @@ export default function PlayersPage({ params }: PlayersPageProps) {
     try {
       setIsLoading(true);
       const allPlayers = await getPlayers(allianceId, kingdomIdNumber);
-      // Filter to only show active players and sort by power descending
-      const activePlayers = allPlayers.sort((a, b) => b.power - a.power);
+      // Highest in-game rank first (Leader, R4 ... R1), then strongest
+      const activePlayers = allPlayers.sort(compareByRankThenPower);
       setPlayers(activePlayers);
       // Sync with session storage
       setSessionPlayers(activePlayers);
@@ -302,10 +303,12 @@ export default function PlayersPage({ params }: PlayersPageProps) {
               players={players}
               alliances={kingdomAlliances}
               onEdit={handleEditPlayer}
+              // Every player here is in this alliance
+              showAllianceColumn={false}
             />
           ) : (
             // Cards open the player page (edit from there)
-            <PlayersCard players={players} alliances={kingdomAlliances} />
+            <PlayersCard players={players} />
           )}
 
           <button className={styles.exportButton} onClick={() => setIsExportDialogOpen(true)}>

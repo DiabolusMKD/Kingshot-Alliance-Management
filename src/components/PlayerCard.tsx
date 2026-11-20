@@ -49,9 +49,20 @@ export default function PlayerCard({ player, allianceLabel, href }: PlayerCardPr
             <span className={styles.value}>{allianceLabel}</span>
           </div>
         )}
+        {player.allianceRank && (
+          <div className={styles.stat}>
+            <span className={styles.label}>Rank</span>
+            <span className={styles.value}>{player.allianceRank}</span>
+          </div>
+        )}
         <div className={styles.stat}>
           <span className={styles.label}>Power</span>
           <span className={styles.value}>{formatNumbers(player.power)}</span>
+        </div>
+        {/* Always shown: no kill count yet counts as 0 */}
+        <div className={styles.stat}>
+          <span className={styles.label}>Kills</span>
+          <span className={styles.value}>{formatNumbers(player.kills ?? 0)}</span>
         </div>
         {player.levelImage && (
           <div className={styles.stat}>

@@ -286,3 +286,105 @@
     gap: 15px;
   }
 }
+
+/* Game info under the description: power rank, leader, totals, ranks */
+.allianceInfo {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  /* Each box keeps its own height (only Ranks is tall) */
+  align-items: flex-start;
+  gap: 12px;
+  margin: 0;
+  max-width: 900px;
+}
+
+.infoItem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 120px;
+  padding: 10px 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background-color: var(--bg-secondary);
+}
+
+.infoItem dt {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.infoItem dd {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.infoLink {
+  color: var(--accent-color);
+  text-decoration: none;
+}
+
+.infoLink:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 480px) {
+  .infoItem {
+    flex: 1 1 calc(50% - 6px);
+    min-width: 0;
+  }
+}
+
+.infoMuted {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+/* When the alliance was last pulled from the game */
+.syncNote {
+  margin: -16px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+/* Update Alliance + Update Players */
+.headerButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+
+/* Ranks box: one rank per line, count aligned right */
+.rankList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rankList li {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.rankName {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+/* Forces the next info box onto a new row */
+.rowBreak {
+  flex-basis: 100%;
+  height: 0;
+}

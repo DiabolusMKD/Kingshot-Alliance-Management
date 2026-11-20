@@ -1,25 +1,18 @@
 'use client';
 
 import { useState } from 'react';
-import { Alliance, Player } from '@/types';
+import { Player } from '@/types';
 import PlayerCard from './PlayerCard';
 import styles from './PlayersCard.module.css';
-import { formatAllianceLabel } from '@/utils/allianceLabel';
 import { getPlayerHref } from '@/utils/playerLinks';
 
 interface PlayersCardProps {
   players: Player[];
-  alliances: Alliance[];
 }
 
-/** Player cards; clicking one opens the player page */
-export default function PlayersCard({ players, alliances }: PlayersCardProps) {
+/** Player cards of one alliance (so no alliance shown); clicking one opens the player page */
+export default function PlayersCard({ players }: PlayersCardProps) {
   const [searchTerm, setSearchTerm] = useState('');
-
-  const getAllianceLabel = (player: Player) => {
-    const alliance = alliances.find((a) => String(a.id) === String(player.allianceId));
-    return alliance ? formatAllianceLabel(alliance) : undefined;
-  };
 
   const filteredPlayers = players.filter(
     (player) =>
@@ -50,7 +43,6 @@ export default function PlayersCard({ players, alliances }: PlayersCardProps) {
             player={player}
             readOnly
             href={getPlayerHref(player)}
-            allianceLabel={getAllianceLabel(player)}
           />
         ))}
       </div>

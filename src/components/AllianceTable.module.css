@@ -80,3 +80,17 @@
   color: var(--danger-color);
   font-weight: 600;
 }
+
+.leaderLink {
+  color: var(--accent-color);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.leaderLink:hover {
+  text-decoration: underline;
+}
+
+.noLeader {
+  color: var(--text-secondary);
+}

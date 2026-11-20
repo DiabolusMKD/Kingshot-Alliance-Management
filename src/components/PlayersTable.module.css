@@ -222,3 +222,25 @@
   color: var(--accent-color);
   text-decoration: underline;
 }
+
+/* In-game alliance rank */
+.rankBadge {
+  display: inline-block;
+  min-width: 2.5rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* Leader and R4 */
+.rankHigh {
+  border-color: rgba(230, 184, 92, 0.6);
+  background-color: rgba(230, 184, 92, 0.12);
+  color: #e6b85c;
+}

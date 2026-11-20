@@ -7,6 +7,7 @@ import Navigation from '@/components/Navigation';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import Dialog from '@/components/Dialog';
 import AllianceForm from '@/components/AllianceForm';
+import AddAllianceForm from '@/components/AddAllianceForm';
 import PlayerForm, { PlayerFormSubmitMeta } from '@/components/PlayerForm';
 import { describeSavedPlayer } from '@/utils/playerFeedback';
 import { useToast } from '@/components/Toast';
@@ -18,13 +19,17 @@ import { getAlliancesByKingdomId, updateAlliance } from '@/utils/allianceService
 import { createPlayer, getPlayers, updatePlayer } from '@/utils/playerService';
 import { findAllianceBySlug } from '@/utils/allianceSlug';
 import { DEFAULT_ALLIANCE_IMAGE_URL, MAX_ALLIANCE_PLAYERS } from '@/utils/constants';
+import { ALLIANCE_RANKS, compareByRankThenPower } from '@/utils/allianceRank';
+import { formatTimeAgo, formatTimeUntil, getNextGameSync } from '@/utils/gameSync';
+import { formatCompactPower } from '@/utils/formatNumbers';
 import styles from './page.module.css';
 
 // Two full rows at the widest layout (4 columns). Smaller breakpoints show fewer
 // (6 / 4) by hiding the extra cards in CSS, see .playersGrid in page.module.css.
 const PLAYERS_PREVIEW_LIMIT = 8;
 
-const sortByPower = (players: Player[]) => [...players].sort((a, b) => b.power - a.power);
+// Highest in-game rank first (Leader, R4 ... R1), then strongest
+const sortByRankThenPower = (players: Player[]) => [...players].sort(compareByRankThenPower);
 
 interface AlliancePageProps {
   params: Promise<{ kingdomId: string; allianceSlug: string }>;
@@ -42,6 +47,9 @@ export default function AlliancePage({ params }: AlliancePageProps) {
   const [hasLoadedPlayers, setHasLoadedPlayers] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isAddPlayerDialogOpen, setIsAddPlayerDialogOpen] = useState(false);
+  // Update Alliance (MightPulse): dialog + whether it's still running
+  const [isGameSyncOpen, setIsGameSyncOpen] = useState(false);
+  const [isGameSyncing, setIsGameSyncing] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -62,7 +70,7 @@ export default function AlliancePage({ params }: AlliancePageProps) {
     };
   }, [kingdomId, allianceSlug]);
 
-  const loadPlayers = (allianceId: number) => getPlayers(allianceId, kingdomIdNumber).then(sortByPower);
+  const loadPlayers = (allianceId: number) => getPlayers(allianceId, kingdomIdNumber).then(sortByRankThenPower);
 
   useEffect(() => {
     if (!alliance) return;
@@ -71,7 +79,7 @@ export default function AlliancePage({ params }: AlliancePageProps) {
 
     getPlayers(alliance.id, kingdomIdNumber)
       .then((allPlayers) => {
-        if (isMounted) setPlayers(sortByPower(allPlayers));
+        if (isMounted) setPlayers(sortByRankThenPower(allPlayers));
       })
       .catch((error) => {
         console.error('Failed to load players:', error);
@@ -104,6 +112,16 @@ export default function AlliancePage({ params }: AlliancePageProps) {
   });
 
   const closeAddPlayerDialog = () => setIsAddPlayerDialogOpen(false);
+
+  // The alliance (rank, leader, last update) and its players were refreshed from the game
+  const handleGameSynced = async () => {
+    if (!alliance) return;
+    const alliances = await getAlliancesByKingdomId(kingdomIdNumber);
+    setKingdomAlliances(alliances);
+    const refreshed = alliances.find((a) => a.id === alliance.id);
+    if (refreshed) setAlliance(refreshed);
+    setPlayers(await loadPlayers(alliance.id));
+  };
 
   const handleAddPlayer = async (
     formData: Omit<Player, 'id' | 'created_at' | 'updated_at'>,
@@ -162,6 +180,33 @@ export default function AlliancePage({ params }: AlliancePageProps) {
 
   const previewPlayers = players.slice(0, PLAYERS_PREVIEW_LIMIT);
 
+  // Game info (saved by Add / Update Alliance) + totals of the alliance's players
+  const leader =
+    (alliance.leaderPlayerId != null
+      ? players.find((p) => String(p.playerId) === String(alliance.leaderPlayerId))
+      : undefined) ?? players.find((p) => p.allianceRank === 'Leader');
+  // MightPulse usage is limited: one Update Alliance per cooldown
+  const nextGameSync = getNextGameSync(alliance.gameSyncedAt);
+  const gameSyncTitle = nextGameSync
+    ? `Updated from the game ${formatTimeAgo(alliance.gameSyncedAt!)}; available again ${formatTimeUntil(nextGameSync)}`
+    : 'Pull the alliance and all its players from the game (one request)';
+  const updateAllianceButton = (
+    <button
+      type="button"
+      className={styles.updatePlayersButton}
+      onClick={() => setIsGameSyncOpen(true)}
+      disabled={!!nextGameSync || isGameSyncing || isUpdating}
+      title={gameSyncTitle}
+    >
+      {isGameSyncing ? 'Updating...' : 'Update Alliance'}
+    </button>
+  );
+  const totalPower = players.reduce((sum, p) => sum + (Number(p.power) || 0), 0);
+  const rankCounts = ALLIANCE_RANKS.map((rank) => ({
+    rank,
+    count: players.filter((p) => p.allianceRank === rank).length,
+  })).filter((r) => r.count > 0);
+
   return (
     <>
       <Navigation />
@@ -191,6 +236,67 @@ export default function AlliancePage({ params }: AlliancePageProps) {
             {alliance.description && (
               <p className={styles.description}>{alliance.description}</p>
             )}
+            {hasLoadedPlayers && (
+              <dl className={styles.allianceInfo}>
+                {alliance.powerRank != null && (
+                  <div className={styles.infoItem}>
+                    <dt>Power rank</dt>
+                    <dd>
+                      #{alliance.powerRank} in Kingdom {alliance.kingdomId}
+                    </dd>
+                  </div>
+                )}
+                <div className={styles.infoItem}>
+                  <dt>Leader</dt>
+                  <dd>
+                    {leader ? (
+                      <Link href={getPlayerHref(leader)} className={styles.infoLink}>
+                        {leader.name}
+                      </Link>
+                    ) : (
+                      <span className={styles.infoMuted} title="Use Update Alliance to load it from the game">
+                        Unknown
+                      </span>
+                    )}
+                  </dd>
+                </div>
+                <div className={styles.infoItem}>
+                  <dt>Total power</dt>
+                  <dd title={totalPower.toLocaleString('en-US')}>{formatCompactPower(totalPower)}</dd>
+                </div>
+                <div className={styles.infoItem}>
+                  <dt>Members</dt>
+                  <dd>
+                    {players.length}/{MAX_ALLIANCE_PLAYERS}
+                  </dd>
+                </div>
+                {rankCounts.length > 0 && (
+                  <>
+                  {/* Ranks start a row of their own */}
+                  <div className={styles.rowBreak} aria-hidden="true" />
+                  <div className={styles.infoItem}>
+                    <dt>Ranks</dt>
+                    <dd>
+                      <ul className={styles.rankList}>
+                        {rankCounts.map(({ rank, count }) => (
+                          <li key={rank}>
+                            <span className={styles.rankName}>{rank}</span>
+                            <span>{count}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </dd>
+                  </div>
+                  </>
+                )}
+              </dl>
+            )}
+            <p className={styles.syncNote}>
+              {alliance.gameSyncedAt
+                ? `Updated from the game ${formatTimeAgo(alliance.gameSyncedAt)}`
+                : 'Not updated from the game yet'}
+              {nextGameSync && ` · Update Alliance available again ${formatTimeUntil(nextGameSync)}`}
+            </p>
             <div className={styles.ctas}>
               <button className={styles.ctaButton} onClick={openEditDialog}>
                 Edit
@@ -208,9 +314,12 @@ export default function AlliancePage({ params }: AlliancePageProps) {
             <div className={styles.playersSection}>
               <div className={styles.emptyPlayers}>
                 <p className={styles.emptyPlayersText}>No players added to this alliance yet.</p>
-                <button className={styles.ctaButton} onClick={() => setIsAddPlayerDialogOpen(true)}>
-                  + Add Player
-                </button>
+                <div className={styles.headerButtons}>
+                  {updateAllianceButton}
+                  <button className={styles.ctaButton} onClick={() => setIsAddPlayerDialogOpen(true)}>
+                    + Add Player
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -227,15 +336,18 @@ export default function AlliancePage({ params }: AlliancePageProps) {
                     ({players.length}/{MAX_ALLIANCE_PLAYERS})
                   </span>
                 </h2>
-                <button
-                  type="button"
-                  className={styles.updatePlayersButton}
-                  onClick={() => startUpdate(players)}
-                  disabled={isUpdating}
-                  title={`Refresh all ${players.length} player(s) from the game`}
-                >
-                  {isUpdating ? 'Updating...' : 'Update Players'}
-                </button>
+                <div className={styles.headerButtons}>
+                  {updateAllianceButton}
+                  <button
+                    type="button"
+                    className={styles.updatePlayersButton}
+                    onClick={() => startUpdate(players)}
+                    disabled={isUpdating || isGameSyncing}
+                    title={`Refresh all ${players.length} player(s) from the game, one by one`}
+                  >
+                    {isUpdating ? 'Updating...' : 'Update Players'}
+                  </button>
+                </div>
               </div>
               <div className={styles.playersGrid}>
                 {previewPlayers.map((player) => (
@@ -259,6 +371,23 @@ export default function AlliancePage({ params }: AlliancePageProps) {
           )}
         </div>
       </main>
+
+      <Dialog
+        isOpen={isGameSyncOpen}
+        title="Update Alliance"
+        onClose={() => setIsGameSyncOpen(false)}
+        closeDisabled={isGameSyncing}
+      >
+        {isGameSyncOpen && (
+          <AddAllianceForm
+            kingdomId={kingdomIdNumber}
+            updateTag={alliance.nameTag}
+            onBusyChange={setIsGameSyncing}
+            onImported={handleGameSynced}
+            onCancel={() => setIsGameSyncOpen(false)}
+          />
+        )}
+      </Dialog>
 
       <Dialog isOpen={isEditDialogOpen} title="Edit Alliance" onClose={closeEditDialog}>
         <AllianceForm

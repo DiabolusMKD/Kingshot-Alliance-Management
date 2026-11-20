@@ -437,6 +437,7 @@ export default function PlayerPage({ params }: PlayerPageProps) {
                   <StatTile label="Power" value={formatPower(player.power)} />
                   <StatTile label="Swordland power" value={formatPower(player.swordlandPower)} />
                   <StatTile label="Tri Alliance power" value={formatPower(player.trialliancePower)} />
+                  <StatTile label="Kills" value={player.kills != null ? formatPower(player.kills) : "—"} />
                 </div>
               </header>
 

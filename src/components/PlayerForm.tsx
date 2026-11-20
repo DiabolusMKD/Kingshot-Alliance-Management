@@ -6,6 +6,7 @@ import { fetchPlayerFromKingshot, findMatchingAlliance, KingshotPlayerData } fro
 import { getPlayerByPlayerId } from '@/utils/playerService';
 import { createAlliance } from '@/utils/allianceService';
 import { formatAllianceLabel } from '@/utils/allianceLabel';
+import { ALLIANCE_RANKS } from '@/utils/allianceRank';
 import styles from './PlayerForm.module.css';
 
 interface PlayerFormProps {
@@ -38,6 +39,8 @@ const EMPTY_FORM_DATA: FormData = {
   profilePhoto: '',
   levelImage: '',
   allianceId: '',
+  // New players start as R1
+  allianceRank: 'R1',
 };
 
 type FormData = {
@@ -50,6 +53,8 @@ type FormData = {
   profilePhoto: string;
   levelImage: string;
   allianceId: string;
+  /** In-game alliance rank; '' = none */
+  allianceRank: string;
 };
 
 type DataSource = 'database' | 'api' | null;
@@ -83,6 +88,7 @@ export default function PlayerForm({ player, kingdomId, allianceId, alliances, o
         profilePhoto: player.profilePhoto || '',
         levelImage: player.levelImage || '',
         allianceId: player.allianceId ? String(player.allianceId) : allianceId,
+        allianceRank: player.allianceRank ?? '',
       });
       setDataSource(null);
       setDetailsStage(true);
@@ -270,7 +276,11 @@ export default function PlayerForm({ player, kingdomId, allianceId, alliances, o
       setIsSaving(false);
     }
 
-    onSubmit({ ...formData, kingdomId, allianceId: targetAllianceId }, foundPlayerId ?? undefined, { createdAlliance });
+    onSubmit(
+      { ...formData, kingdomId, allianceId: targetAllianceId, allianceRank: formData.allianceRank || null },
+      foundPlayerId ?? undefined,
+      { createdAlliance }
+    );
   };
 
   // Read-only: the alliance comes from the game (Refetch / Update All Players / Add Alliance)
@@ -298,6 +308,31 @@ export default function PlayerForm({ player, kingdomId, allianceId, alliances, o
           ? `The game shows this player in Kingdom ${otherKingdom}; their alliance there isn't applied.`
           : 'Read-only: set from the game'}
       </small>
+    </div>
+  );
+
+  // Rank: R1 for new players; editable (Update Alliance keeps it in sync with the game)
+  const rankField = (
+    <div className={styles.formGroup}>
+      <label htmlFor="allianceRank" className={styles.label}>
+        Rank
+      </label>
+      <select
+        id="allianceRank"
+        name="allianceRank"
+        value={formData.allianceRank}
+        onChange={(e) => setFormData((prev) => ({ ...prev, allianceRank: e.target.value }))}
+        className={styles.input}
+      >
+        {/* Players saved before ranks existed */}
+        {!formData.allianceRank && <option value="">No rank</option>}
+        {ALLIANCE_RANKS.map((rank) => (
+          <option key={rank} value={rank}>
+            {rank}
+          </option>
+        ))}
+      </select>
+      <small className={styles.readOnlyHint}>Rank in the alliance; Update Alliance keeps it in sync with the game</small>
     </div>
   );
 
@@ -385,6 +420,8 @@ export default function PlayerForm({ player, kingdomId, allianceId, alliances, o
         </div>
 
         {allianceField}
+
+        {rankField}
 
         {gameField('power', 'Power')}
 
@@ -517,6 +554,8 @@ export default function PlayerForm({ player, kingdomId, allianceId, alliances, o
           </div>
 
           {allianceField}
+
+          {rankField}
 
           {gameField('power', 'Power')}
 

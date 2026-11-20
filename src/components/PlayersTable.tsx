@@ -10,6 +10,7 @@ import { formatNumbers } from '@/utils/formatNumbers';
 import { isImageUrl, truncateLevelLabel } from '@/utils/isImageUrl';
 import { formatAllianceLabel } from '@/utils/allianceLabel';
 import { MAX_ALLIANCE_PLAYERS } from '@/utils/constants';
+import { getRankOrder } from '@/utils/allianceRank';
 
 interface PlayersTableProps {
   players: Player[];
@@ -18,6 +19,10 @@ interface PlayersTableProps {
   showAllianceColumn?: boolean;
   showAliasColumn?: boolean;
   showPlayerIdColumn?: boolean;
+  /** In-game alliance rank (Leader, R4 ... R1) */
+  showRankColumn?: boolean;
+  /** Alliance column shows only the tag ([fKn]) instead of [fKn]You */
+  allianceTagOnly?: boolean;
   /** The x/100 alliance capacity counter next to the search */
   showPlayerCount?: boolean;
   emptyMessage?: string;
@@ -30,6 +35,8 @@ export default function PlayersTable({
   showAllianceColumn = true,
   showAliasColumn = true,
   showPlayerIdColumn = true,
+  showRankColumn = true,
+  allianceTagOnly = false,
   showPlayerCount = true,
   emptyMessage = 'No players found. Add a new player to get started!',
 }: PlayersTableProps) {
@@ -37,7 +44,8 @@ export default function PlayersTable({
 
   const getAllianceLabel = (player: Player) => {
     const alliance = alliances.find((a) => String(a.id) === String(player.allianceId));
-    return alliance ? formatAllianceLabel(alliance) : undefined;
+    if (!alliance) return undefined;
+    return allianceTagOnly ? `[${alliance.nameTag}]` : formatAllianceLabel(alliance);
   };
 
 
@@ -77,6 +85,7 @@ export default function PlayersTable({
               <th>No.</th>
               <th>Photo</th>
               <th>Name</th>
+              {showRankColumn && <th>Rank</th>}
               {showAliasColumn && <th>Alias</th>}
               {showPlayerIdColumn && <th>Player ID</th>}
               <th>Power</th>
@@ -117,6 +126,19 @@ export default function PlayersTable({
                     {player.name}
                   </Link>
                 </td>
+                {showRankColumn && (
+                  <td>
+                    {player.allianceRank ? (
+                      <span
+                        className={`${styles.rankBadge} ${getRankOrder(player.allianceRank) <= 1 ? styles.rankHigh : ''}`}
+                      >
+                        {player.allianceRank}
+                      </span>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
+                )}
                 {showAliasColumn && <td>{player.aliasName}</td>}
                 {showPlayerIdColumn && <td>{player.playerId}</td>}
                 <td>{formatNumbers(player.power)}</td>

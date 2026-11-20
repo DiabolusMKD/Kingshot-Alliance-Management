@@ -107,10 +107,10 @@
   color: var(--text-secondary);
 }
 
-/* Edit button, then the three power tiles (the button stretches to the tiles' height) */
+/* Edit button, then the power tiles + kills (the button stretches to the tiles' height) */
 .powers {
   display: grid;
-  grid-template-columns: auto repeat(3, minmax(140px, 1fr));
+  grid-template-columns: auto repeat(4, minmax(140px, 1fr));
   gap: 12px;
 }
 
@@ -139,6 +139,18 @@
 .editButton:focus-visible {
   outline: 2px solid var(--accent-color);
   outline-offset: 2px;
+}
+
+/* Tablets: tiles 2 x 2, the Edit button spans both rows */
+@media (min-width: 769px) and (max-width: 1100px) {
+  .powers {
+    grid-template-columns: auto repeat(2, minmax(140px, 1fr));
+    width: 100%;
+  }
+
+  .editButton {
+    grid-row: span 2;
+  }
 }
 
 @media (max-width: 768px) {

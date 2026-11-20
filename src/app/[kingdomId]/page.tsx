@@ -259,6 +259,8 @@ export default function KingdomPage({ params }: KingdomPageProps) {
                 showPlayerCount={false}
                 showAliasColumn={false}
                 showPlayerIdColumn={false}
+                showRankColumn={false}
+                allianceTagOnly
                 emptyMessage="No players in this kingdom yet. Add one to get started!"
               />
               {topPlayers.length < topPlayersTotal && (
