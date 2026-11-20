@@ -8,6 +8,11 @@ const nextConfig: NextConfig = {
   // Proxy Supabase through our own origin so browser requests are same-origin
   // and never hit a CORS preflight (some browsers/extensions block PATCH preflights)
   async rewrites() {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      throw new Error(
+        "NEXT_PUBLIC_SUPABASE_URL is not set. Copy your Supabase credentials into .env.local (see SETUP_GUIDE.md)."
+      );
+    }
     return [
       {
         source: "/supabase/:path*",
