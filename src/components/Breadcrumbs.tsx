@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { getAlliancesByKingdomId } from '@/utils/allianceService';
 import { findAllianceBySlug } from '@/utils/allianceSlug';
 import { formatAllianceLabel } from '@/utils/allianceLabel';
@@ -27,6 +27,11 @@ const SEGMENT_LABELS: Record<string, { label: string; hasPage?: boolean }> = {
 
 const isAllianceSlug = (segment: string) => segment.startsWith('alliance');
 
+// Whether the user has moved between pages inside the app in this tab (module state survives client navigations),
+// so "Back" can use the browser history without leaving the site
+let firstPathname: string | null = null;
+let hasNavigatedInApp = false;
+
 /**
  * Trail derived from the URL: Home / Kingdom 1010 / [TAG]Alliance / Players.
  * Render it as the first child of a page's `.container` so it lines up with the content.
@@ -37,6 +42,11 @@ export default function Breadcrumbs({ items }: {
   items?: Crumb[];
 } = {}) {
   const pathname = usePathname();
+  const router = useRouter();
+  useEffect(() => {
+    if (firstPathname === null) firstPathname = pathname;
+    else if (pathname !== firstPathname) hasNavigatedInApp = true;
+  }, [pathname]);
   const segments = pathname.split('/').filter(Boolean);
   const [kingdomSegment, allianceSegment] = segments;
 
@@ -81,31 +91,43 @@ export default function Breadcrumbs({ items }: {
     crumbs.push({ label, href: isLast || !hasPage ? undefined : href });
   });
 
+  // Without in-app history (e.g. a page opened in a new tab), "Back" goes to the nearest parent crumb
+  const parentHref = [...crumbs].reverse().find((crumb) => crumb.href)?.href ?? '/';
+  const goBack = () => {
+    if (hasNavigatedInApp) router.back();
+    else router.push(parentHref);
+  };
+
   return (
-    <nav aria-label="Breadcrumb" className={styles.breadcrumbs}>
-      <ol className={styles.list}>
-        {crumbs.map((crumb, index) => {
-          const isLast = index === crumbs.length - 1;
-          return (
-            <li key={`${index}-${crumb.label}`} className={styles.item}>
-              {crumb.href ? (
-                <Link href={crumb.href} className={styles.link}>
-                  {crumb.label}
-                </Link>
-              ) : (
-                <span className={isLast ? styles.current : styles.text} aria-current={isLast ? 'page' : undefined}>
-                  {crumb.label}
-                </span>
-              )}
-              {!isLast && (
-                <span className={styles.separator} aria-hidden="true">
-                  /
-                </span>
-              )}
-            </li>
-          );
-        })}
-      </ol>
-    </nav>
+    <div className={styles.wrapper}>
+      <nav aria-label="Breadcrumb" className={styles.breadcrumbs}>
+        <ol className={styles.list}>
+          {crumbs.map((crumb, index) => {
+            const isLast = index === crumbs.length - 1;
+            return (
+              <li key={`${index}-${crumb.label}`} className={styles.item}>
+                {crumb.href ? (
+                  <Link href={crumb.href} className={styles.link}>
+                    {crumb.label}
+                  </Link>
+                ) : (
+                  <span className={isLast ? styles.current : styles.text} aria-current={isLast ? 'page' : undefined}>
+                    {crumb.label}
+                  </span>
+                )}
+                {!isLast && (
+                  <span className={styles.separator} aria-hidden="true">
+                    /
+                  </span>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+      </nav>
+      <button type="button" onClick={goBack} className={styles.backButton}>
+        <span aria-hidden="true">←</span> Back
+      </button>
+    </div>
   );
 }
