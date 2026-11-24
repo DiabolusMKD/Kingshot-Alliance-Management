@@ -1,7 +1,7 @@
 import { AllianceEvent, LegionResultKey } from "@/types";
 
 /** Start times (UTC) a legion can be scheduled at - add more here */
-export const LEGION_START_TIMES = ["12:00", "14:00", "19:00"];
+export const LEGION_START_TIMES = ["02:00", "12:00", "14:00", "19:00", "21:00"];
 
 export interface LegionSchedule {
   /** Day of the event start (UTC), e.g. "Sunday" */
