@@ -63,14 +63,26 @@ export default function SwordlandPowerDialog({ isOpen, players, onClose, onSaved
   const invalidCount = [...parsed.values()].filter((v) => !Number.isFinite(v)).length;
 
   const term = search.trim().toLowerCase();
+  // Highest rank first, then the strongest saved Swordland power (not the typed one, so rows don't jump while typing),
+  // then the strongest power
+  const sortedPlayers = useMemo(
+    () =>
+      [...players].sort(
+        (a, b) =>
+          getRankOrder(a.allianceRank) - getRankOrder(b.allianceRank) ||
+          Number(b.swordlandPower ?? 0) - Number(a.swordlandPower ?? 0) ||
+          Number(b.power ?? 0) - Number(a.power ?? 0)
+      ),
+    [players]
+  );
   const visiblePlayers = term
-    ? players.filter(
+    ? sortedPlayers.filter(
         (p) =>
           p.name.toLowerCase().includes(term) ||
           (p.aliasName ?? '').toLowerCase().includes(term) ||
           String(p.playerId).includes(term)
       )
-    : players;
+    : sortedPlayers;
 
   const handleClose = () => {
     if (isSaving) return;
