@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useRef, useState } from "react";
+import { use, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Alliance, Player, AllianceEvent, EventStatus, EventVariant, SwordlandSeason } from "@/types";
 import Navigation from "@/components/Navigation";
@@ -15,7 +15,7 @@ import SwordlandPowerDialog from "@/components/SwordlandPowerDialog";
 import { useCanEdit } from "@/components/EditMode";
 import { useToast } from "@/components/Toast";
 import { useEventEditorData } from "@/components/useEventEditorData";
-import { getPlayers } from "@/utils/playerService";
+import { getPlayers, getPlayersByIds } from "@/utils/playerService";
 import { getAlliancesByKingdomId } from "@/utils/allianceService";
 import { findAllianceBySlug } from "@/utils/allianceSlug";
 import { findEventBySlug, getEventSlug } from "@/utils/eventSlug";
@@ -32,10 +32,14 @@ import {
   copyAssignmentsFromEvent,
   createSeason,
   deleteSeason,
+  getFirstSeasonEvent,
   getLastSeasonEvent,
   getNextSeasonName,
   getNoShowIds,
+  getSeasonRosters,
   getSeasons,
+  registerFirstEventPlayers,
+  SeasonRoster,
 } from "@/utils/seasonService";
 import styles from "./page.module.css";
 
@@ -138,6 +142,64 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
 
   const noShowIds =
     previousSeasonEvent && noShows && noShows.eventId === previousSeasonEvent.id ? noShows.ids : NO_SHOWS;
+
+  // SSL: who registered for the season (its first event) and in which legion; reloaded after saving
+  const rosterSeasonId = isSummitLeague ? selectedEvent?.seasonId ?? null : null;
+  const [rosterVersion, setRosterVersion] = useState(0);
+  const [seasonRoster, setSeasonRoster] = useState<{
+    key: string;
+    roster: SeasonRoster;
+    /** Season players who aren't in the alliance now (looked up so they can be assigned again) */
+    outsiders: Player[];
+  } | null>(null);
+  const rosterKey = `${rosterSeasonId}:${rosterVersion}`;
+
+  useEffect(() => {
+    if (rosterSeasonId == null) return;
+    let isMounted = true;
+    (async () => {
+      const roster = (await getSeasonRosters([rosterSeasonId], events)).get(rosterSeasonId) ?? new Map();
+      const known = new Set(players.map((p) => String(p.id)));
+      const outsiders = await getPlayersByIds([...roster.keys()].filter((id) => !known.has(id)));
+      if (isMounted) setSeasonRoster({ key: rosterKey, roster, outsiders });
+    })().catch((error) => {
+      console.error("Failed to load the season roster:", error);
+      if (isMounted) setSeasonRoster({ key: rosterKey, roster: new Map(), outsiders: [] });
+    });
+    return () => {
+      isMounted = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rosterKey]);
+
+  const rosterReady = rosterSeasonId == null || seasonRoster?.key === rosterKey;
+  // The roster is locked once the season has more than its first event: only its players play,
+  // nobody is added (no Unassigned, no other-alliance players) or removed
+  const firstSeasonEvent = rosterSeasonId != null ? getFirstSeasonEvent(events, rosterSeasonId) : null;
+  const seasonEventCount = rosterSeasonId != null ? events.filter((e) => e.seasonId === rosterSeasonId).length : 0;
+  const rosterLocked =
+    rosterSeasonId != null &&
+    rosterReady &&
+    (seasonRoster?.roster.size ?? 0) > 0 &&
+    (firstSeasonEvent?.id !== selectedEvent?.id || seasonEventCount > 1);
+  // Locked: the alliance's players of the roster (+ anyone saved in this event before the lock)
+  const editorPlayers = useMemo(() => {
+    if (!rosterLocked || !seasonRoster) return editorData.players;
+    const saved = new Set((editorData.assignments ?? []).map((a) => String(a.playerId)));
+    return editorData.players.filter((p) => seasonRoster.roster.has(String(p.id)) || saved.has(String(p.id)));
+  }, [rosterLocked, seasonRoster, editorData.players, editorData.assignments]);
+  const rosterForEditor = rosterSeasonId != null && rosterReady ? seasonRoster!.roster : undefined;
+  // Players outside the alliance: saved in this event, plus season players who aren't in it
+  const editorExternalPlayers = useMemo(() => {
+    const extra = editorData.extraPlayers ?? [];
+    const ids = new Set([...editorData.players, ...extra].map((p) => String(p.id)));
+    const outsiders = (rosterReady && rosterSeasonId != null ? seasonRoster?.outsiders ?? [] : []).filter(
+      (p) => !ids.has(String(p.id)),
+    );
+    const all = [...extra, ...outsiders];
+    // Only passed when there are any, so the editor isn't re-initialized by a new empty list
+    return all.length > 0 ? all : undefined;
+  }, [editorData.players, editorData.extraPlayers, seasonRoster, rosterReady, rosterSeasonId]);
   const selectedSeason = seasons.find((s) => s.id === selectedEvent?.seasonId);
   // Completed events: event type and season are shown, not changed
   const isEventCompleted = selectedEvent?.status === "completed";
@@ -369,6 +431,18 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
     try {
       // Event columns (status, note, start times, results, power mode) + its event_player rows
       await saveEventData(selectedEvent, input);
+
+      // SSL: the players of the season's first event register for the season (kept from here on)
+      if (isSummitLeague && selectedEvent.seasonId) {
+        const first = getFirstSeasonEvent(events, selectedEvent.seasonId);
+        // Only while the roster isn't locked (the season has no later event yet)
+        if (first?.id === selectedEvent.id && !rosterLocked) {
+          await registerFirstEventPlayers(selectedEvent.seasonId, input.assignments).catch((error) =>
+            console.warn("Season roster not saved:", error),
+          );
+        }
+        setRosterVersion((v) => v + 1);
+      }
 
       toast.success("Event updated successfully");
       handleBackToList();
@@ -671,14 +745,15 @@ export default function SwordlandPage({ params, searchParams }: SwordlandPagePro
                 <p className={styles.loadError}>
                   Couldn&apos;t load this event&apos;s players: {editorData.error}
                 </p>
-              ) : editorData.ready ? (
+              ) : editorData.ready && rosterReady ? (
                 <SwordlandEventLayout
                   key={selectedEvent.id}
-                  players={editorData.players}
-                  // Only passed when there are any, so the editor isn't re-initialized by a new empty list
-                  externalPlayers={editorData.extraPlayers?.length ? editorData.extraPlayers : undefined}
+                  players={editorPlayers}
+                  externalPlayers={editorExternalPlayers}
+                  seasonRoster={rosterForEditor}
+                  rosterLocked={rosterLocked}
                   summitLeague={
-                    isSummitLeague && alliance
+                    isSummitLeague && alliance && !rosterLocked
                       ? { kingdomId: kingdomIdNumber, allianceId: alliance.id }
                       : undefined
                   }

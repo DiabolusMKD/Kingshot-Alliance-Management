@@ -41,6 +41,8 @@ import {
   EventStatus,
   LegionBuildingData,
 } from "@/types";
+import type { SeasonRoster } from "@/utils/seasonService";
+import { RELIABILITY_POINTS } from "@/utils/reliability";
 import styles from "./SwordlandEventLayout.module.css";
 
 type Legion = "legion1" | "legion2";
@@ -59,6 +61,7 @@ const SWORDLAND_RESULTS = [
 // Stable default: a fresh [] per render would re-run the init effect endlessly
 const NO_PLAYERS: Player[] = [];
 const NO_IDS = new Set<string>();
+const NO_ROSTER: SeasonRoster = new Map();
 
 export default function SwordlandEventLayout({
   players,
@@ -70,6 +73,8 @@ export default function SwordlandEventLayout({
   initialLegionSchedules = getLegionSchedules(null),
   initialNotes = "",
   noShowIds = NO_IDS,
+  seasonRoster = NO_ROSTER,
+  rosterLocked = false,
   eventStatus = "not-started",
   onSave,
   isSaving,
@@ -92,6 +97,10 @@ export default function SwordlandEventLayout({
   initialNotes?: string;
   /** SSL season: players assigned to a building in the season's last event who scored 0 (marked red) */
   noShowIds?: Set<string>;
+  /** SSL: players registered for the season (its first event) -> the legion they started in */
+  seasonRoster?: SeasonRoster;
+  /** SSL after the season's first event: only the roster plays, nobody is added or removed */
+  rosterLocked?: boolean;
   eventStatus?: EventStatus;
   onSave: (input: EventSaveInput) => Promise<void>;
   isSaving?: boolean;
@@ -504,7 +513,11 @@ ${buildingText}${substitutesText}`;
 
   // Reset everything
   const reset = () => {
-    if (!confirm("Reset all assignments? Every player goes back to Unassigned. Nothing is saved until you click Save.")) return;
+    const message =
+      seasonRoster.size > 0
+        ? "Reset all assignments? Season players go back to the Season Roster (in the legion they started the season in), the others to Unassigned. Nothing is saved until you click Save."
+        : "Reset all assignments? Every player goes back to Unassigned. Nothing is saved until you click Save.";
+    if (!confirm(message)) return;
     setAssignments({
       legion1: [],
       legion2: [],
@@ -599,6 +612,67 @@ ${buildingText}${substitutesText}`;
   ];
   const showAssignments = !isLocked && (!isCompleted || assignmentsExpanded);
 
+  // SSL: unassigned season players (by the legion they started the season in) vs everyone else
+  const rosterUnassigned = (legion: "legion_1" | "legion_2") =>
+    assignments.unassigned.filter((p) => seasonRoster.get(String(p.id)) === legion);
+  const otherUnassigned = assignments.unassigned.filter((p) => !seasonRoster.has(String(p.id)));
+  const rosterLeftOut = assignments.unassigned.length - otherUnassigned.length;
+
+  const renderPoolTable = (list: Player[], keyPrefix: string) => (
+    <table className={styles.table}>
+      <thead>
+        <tr>
+          <th>Player</th>
+          <th>{getPowerLabel(powerMode)}</th>
+          <th />
+        </tr>
+      </thead>
+      <tbody>
+        {filter(list)
+          .sort((a, b) => powerOf(b) - powerOf(a))
+          .map((p) => (
+            <tr key={`${keyPrefix}-${p.id}`} className={noShowIds.has(String(p.id)) ? noShowRowClass : undefined}>
+              <td>
+                <PlayerIdentity player={p}>
+                  {noShowIds.has(String(p.id)) && <NoShowBadge />}
+                  {externalIds.has(p.id) && (
+                    <span
+                      className={styles.externalBadge}
+                      title="Not in this alliance now (SSL guest or former member)"
+                    >
+                      not in alliance
+                    </span>
+                  )}
+                </PlayerIdentity>
+              </td>
+              <td className={styles.powerCell} title={formatPower(powerOf(p))}>
+                {formatCompactPower(powerOf(p))}
+              </td>
+              <td>
+                <select
+                  className={styles.tableSelect}
+                  disabled={!canEdit}
+                  onChange={(e) =>
+                    e.target.value === "remove"
+                      ? removeExternalPlayer(p.id)
+                      : movePlayer(p.id, "unassigned", e.target.value)
+                  }
+                  value=""
+                >
+                  <option value="">Move</option>
+                  <option value="legion1">Legion 1</option>
+                  <option value="legion2">Legion 2</option>
+                  {externalIds.has(p.id) && !rosterLocked && (
+                    <option value="remove">Remove from event</option>
+                  )}
+                </select>
+              </td>
+            </tr>
+          ))}
+      </tbody>
+    </table>
+  );
+
   return (
     <div className={styles.container}>
       {/* OPPONENTS of each legion */}
@@ -668,69 +742,53 @@ ${buildingText}${substitutesText}`;
             </label>
           </div>
 
-          {/* UNASSIGNED (+ SSL kingdom players side by side) */}
+          {/* SSL: season players not assigned in this event, by the legion they started the season in */}
+          {seasonRoster.size > 0 && (
+            <section className={styles.seasonRoster}>
+              <div className={styles.poolHeader}>
+                <h2 className={styles.playersHeader}>Season Roster ({rosterLeftOut})</h2>
+              </div>
+              <p className={styles.rosterHint}>
+                {rosterLocked
+                  ? "The season's players (everyone on a building or a substitute in its first event), locked for the season: nobody can be added or removed. "
+                  : "Registered for the season (players of its first event). "}
+                Not assigned yet, under the legion they started the season in. Anyone still here when the event is
+                completed gets {RELIABILITY_POINTS.seasonNotAssigned} reliability points: they count in the
+                season&apos;s matchmaking.
+              </p>
+              <div className={styles.rosterGrid}>
+                {(["legion_1", "legion_2"] as const).map((legion, index) => {
+                  const list = rosterUnassigned(legion);
+                  return (
+                    <div key={legion} className={styles.poolColumn}>
+                      <h3 className={styles.rosterTitle}>
+                        Started in Legion {index + 1} ({list.length})
+                      </h3>
+                      {list.length === 0 ? (
+                        <p className={styles.rosterEmpty}>Everyone is assigned.</p>
+                      ) : (
+                        <div className={styles.tableWrapper}>{renderPoolTable(list, `r${index + 1}`)}</div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          {/* UNASSIGNED (+ SSL kingdom players side by side); not with a locked season roster */}
+          {!rosterLocked && (
           <div className={summitLeague && canEdit ? styles.poolGrid : undefined}>
             <div className={styles.poolColumn}>
               <div className={styles.poolHeader}>
                 <h2 className={styles.playersHeader}>
-                  Unassigned ({assignments.unassigned.length})
+                  Unassigned ({otherUnassigned.length})
                 </h2>
               </div>
 
               <div className={styles.poolBody}>
                 <div className={styles.tableWrapper}>
-                  <table className={styles.table}>
-                    <thead>
-                      <tr>
-                        <th>Player</th>
-                        <th>{getPowerLabel(powerMode)}</th>
-                        <th />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filter(assignments.unassigned)
-                        .sort((a, b) => powerOf(b) - powerOf(a))
-                        .map((p) => (
-                          <tr key={`u-${p.id}`} className={noShowIds.has(String(p.id)) ? noShowRowClass : undefined}>
-                            <td>
-                              <PlayerIdentity player={p}>
-                                {noShowIds.has(String(p.id)) && <NoShowBadge />}
-                                {externalIds.has(p.id) && (
-                                  <span
-                                    className={styles.externalBadge}
-                                    title="Not in this alliance now (SSL guest or former member)"
-                                  >
-                                    not in alliance
-                                  </span>
-                                )}
-                              </PlayerIdentity>
-                            </td>
-                            <td className={styles.powerCell} title={formatPower(powerOf(p))}>
-                              {formatCompactPower(powerOf(p))}
-                            </td>
-                            <td>
-                              <select
-                                className={styles.tableSelect}
-                                disabled={!canEdit}
-                                onChange={(e) =>
-                                  e.target.value === "remove"
-                                    ? removeExternalPlayer(p.id)
-                                    : movePlayer(p.id, "unassigned", e.target.value)
-                                }
-                                value=""
-                              >
-                                <option value="">Move</option>
-                                <option value="legion1">Legion 1</option>
-                                <option value="legion2">Legion 2</option>
-                                {externalIds.has(p.id) && (
-                                  <option value="remove">Remove from event</option>
-                                )}
-                              </select>
-                            </td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
+                  {renderPoolTable(otherUnassigned, "u")}
                 </div>
               </div>
             </div>
@@ -749,6 +807,7 @@ ${buildingText}${substitutesText}`;
               </div>
             )}
           </div>
+          )}
 
           {/* The generated string in a modal */}
           <ViewAssignmentsButton text={textOut} />

@@ -6,7 +6,7 @@ import { getEventPlayers, saveEventData, toEditorData } from './eventData';
 import { getLegionSchedules } from './legionSchedule';
 import { getPowerMode } from './powerMode';
 import { isNoShow } from './reliability';
-import { AllianceEvent, EventPlayer, PlayerAssignment, SwordlandSeason } from '@/types';
+import { AllianceEvent, EventPlayer, LegionResultKey, PlayerAssignment, SwordlandSeason } from '@/types';
 
 // ---------------- SEASONS ----------------
 
@@ -89,6 +89,97 @@ export async function copyAssignmentsFromEvent(
     legionSchedules: getLegionSchedules(source),
     notes: target.notes ?? '',
   });
+}
+
+// ---------------- SEASON ROSTER ----------------
+// The players who registered for the season: the ones of its first event, each with the legion
+// they started in (substitutes too). Kept in swordland_season_player so they stay when a later
+// event (or the first one) drops them; derived from the first event when nothing is stored yet.
+
+/** player.id -> the legion they started the season in */
+export type SeasonRoster = Map<string, LegionResultKey>;
+
+/** First event of the season (by start) */
+export function getFirstSeasonEvent(events: AllianceEvent[], seasonId: number): AllianceEvent | null {
+  return (
+    events
+      .filter((e) => e.seasonId === seasonId)
+      .sort((a, b) => startTime(a) - startTime(b) || (a.id ?? 0) - (b.id ?? 0))[0] ?? null
+  );
+}
+
+type RosterRow = { seasonId: number; playerId: string; legion: LegionResultKey };
+
+/** Adds players to the roster; ones already in it keep their starting legion */
+export async function addToSeasonRoster(rows: RosterRow[]): Promise<void> {
+  if (rows.length === 0) return;
+  const { error } = await supabase
+    .from('swordland_season_player')
+    .upsert(rows, { onConflict: 'seasonId,playerId', ignoreDuplicates: true });
+  if (error) throw new Error(`Failed to save the season roster: ${error.message}`);
+}
+
+/** Stored rosters of several seasons (empty when the table doesn't exist yet) */
+async function getStoredRosters(seasonIds: number[]): Promise<Map<number, SeasonRoster>> {
+  const rosters = new Map<number, SeasonRoster>();
+  if (seasonIds.length === 0) return rosters;
+  const { data, error } = await supabase
+    .from('swordland_season_player')
+    .select('seasonId, playerId, legion')
+    .in('seasonId', seasonIds);
+  if (error) {
+    console.warn('Season roster not available:', error.message);
+    return rosters;
+  }
+  ((data ?? []) as RosterRow[]).forEach((row) => {
+    const roster = rosters.get(Number(row.seasonId)) ?? new Map();
+    roster.set(String(row.playerId), row.legion);
+    rosters.set(Number(row.seasonId), roster);
+  });
+  return rosters;
+}
+
+const rosterFromRows = (rows: EventPlayer[]): SeasonRoster =>
+  new Map(rows.filter((r) => r.playerId != null).map((r) => [String(r.playerId), r.legion]));
+
+/**
+ * Rosters of the given seasons: stored ones, or (seasons saved before the roster existed) the
+ * players of the season's first event, stored now so they're kept from here on.
+ */
+export async function getSeasonRosters(
+  seasonIds: number[],
+  events: AllianceEvent[],
+): Promise<Map<number, SeasonRoster>> {
+  const ids = [...new Set(seasonIds)];
+  const rosters = await getStoredRosters(ids);
+  await Promise.all(
+    ids
+      .filter((id) => !rosters.get(id)?.size)
+      .map(async (seasonId) => {
+        const first = getFirstSeasonEvent(events, seasonId);
+        if (!first?.id) return;
+        const roster = rosterFromRows(await getEventPlayers(first.id));
+        if (roster.size === 0) return;
+        rosters.set(seasonId, roster);
+        await addToSeasonRoster(
+          [...roster].map(([playerId, legion]) => ({ seasonId, playerId, legion })),
+        ).catch((error) => console.warn('Season roster not stored:', error));
+      }),
+  );
+  return rosters;
+}
+
+/** After saving the season's first event: its players join the roster (nobody is removed) */
+export async function registerFirstEventPlayers(
+  seasonId: number,
+  assignments: PlayerAssignment[],
+): Promise<void> {
+  const rows = assignments
+    .map((a) => {
+      const legion = String(a.legion).toLowerCase().endsWith('legion1') ? 'legion_1' : 'legion_2';
+      return { seasonId, playerId: String(a.playerId), legion: legion as LegionResultKey };
+    });
+  await addToSeasonRoster(rows);
 }
 
 // ---------------- NO-SHOWS OF THE LAST EVENT ----------------

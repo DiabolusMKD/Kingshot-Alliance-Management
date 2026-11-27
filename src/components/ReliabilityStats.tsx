@@ -5,8 +5,8 @@ import Link from 'next/link';
 import { AllianceEvent, EventPlayer, Player, SwordlandSeason } from '@/types';
 import PlayerIdentity from './PlayerIdentity';
 import { getPlayersByIds } from '@/utils/playerService';
-import { getEventPlayersOfEvents } from '@/utils/seasonService';
-import { RELIABILITY_POINTS, summarizeReliability } from '@/utils/reliability';
+import { getEventPlayersOfEvents, getSeasonRosters, SeasonRoster } from '@/utils/seasonService';
+import { RELIABILITY_POINTS, seasonNotAssignedRows, summarizeReliability } from '@/utils/reliability';
 import { getPlayerHref } from '@/utils/playerLinks';
 import styles from './ReliabilityStats.module.css';
 
@@ -27,6 +27,8 @@ export default function ReliabilityStats({ events, seasons = [] }: ReliabilitySt
   const [search, setSearch] = useState('');
   const [rows, setRows] = useState<EventPlayer[] | null>(null);
   const [players, setPlayers] = useState<Map<string, Player>>(new Map());
+  // SSL: who registered for each season (players missing from a season event lose points)
+  const [rosters, setRosters] = useState<Map<number, SeasonRoster>>(new Map());
   const [error, setError] = useState<string | null>(null);
 
   const completed = useMemo(() => events.filter((e) => e.status === 'completed' && e.id !== undefined), [events]);
@@ -36,11 +38,19 @@ export default function ReliabilityStats({ events, seasons = [] }: ReliabilitySt
     let isMounted = true;
     (async () => {
       try {
-        const loaded = await getEventPlayersOfEvents(completed.map((e) => e.id!));
-        const ids = [...new Set(loaded.filter((r) => r.playerId != null).map((r) => String(r.playerId)))];
+        const seasonIds = completed.map((e) => e.seasonId).filter((id): id is number => id != null);
+        const [loaded, seasonRosters] = await Promise.all([
+          getEventPlayersOfEvents(completed.map((e) => e.id!)),
+          getSeasonRosters(seasonIds, events),
+        ]);
+        const rosterIds = [...seasonRosters.values()].flatMap((roster) => [...roster.keys()]);
+        const ids = [
+          ...new Set([...loaded.filter((r) => r.playerId != null).map((r) => String(r.playerId)), ...rosterIds]),
+        ];
         const found = await getPlayersByIds(ids);
         if (!isMounted) return;
         setRows(loaded);
+        setRosters(seasonRosters);
         setPlayers(new Map(found.map((p) => [String(p.id), p])));
         setError(null);
       } catch (err) {
@@ -65,11 +75,14 @@ export default function ReliabilityStats({ events, seasons = [] }: ReliabilitySt
     const latest = [...shown].sort(
       (a, b) => new Date(b.startsAt ?? 0).getTime() - new Date(a.startsAt ?? 0).getTime(),
     )[0];
+    const shownRows = rows.filter((r) => eventIds.has(r.alliance_event_id));
+    const names = new Map([...players].map(([id, p]) => [id, p.name]));
     return summarizeReliability(
-      rows.filter((r) => eventIds.has(r.alliance_event_id)),
+      [...shownRows, ...seasonNotAssignedRows(shown, shownRows, rosters, names)],
       latest?.id,
     );
-  }, [rows, completed, filter]);
+  }, [rows, completed, filter, rosters, players]);
+  const showNotAssigned = summary.some((entry) => entry.notAssigned > 0);
 
   // Rank stays the overall one while searching (name, current name or alias)
   const ranked = summary.map((entry, index) => ({ entry, rank: index + 1 }));
@@ -95,6 +108,8 @@ export default function ReliabilityStats({ events, seasons = [] }: ReliabilitySt
             {formatPoints(RELIABILITY_POINTS.showedUp)}, no-show {formatPoints(RELIABILITY_POINTS.noShow)}, substitute
             showed up {formatPoints(RELIABILITY_POINTS.substituteShowedUp)}, substitute missed{' '}
             {RELIABILITY_POINTS.substituteNoShow}
+            {seasons.length > 0 &&
+              `, SSL season player not assigned ${formatPoints(RELIABILITY_POINTS.seasonNotAssigned)}`}
           </p>
         </div>
         {seasonOptions.length > 0 && (
@@ -152,6 +167,9 @@ export default function ReliabilityStats({ events, seasons = [] }: ReliabilitySt
                 <th title="Assigned to a building / team and showed up">Showed up</th>
                 <th title="Assigned to a building / team but scored 0">No-shows</th>
                 <th title="Substitute: showed up / times substitute">Substitute</th>
+                {showNotAssigned && (
+                  <th title="SSL: registered for the season but not assigned at all in an event">Not assigned</th>
+                )}
                 <th title="Total points + points of the latest event">Points</th>
               </tr>
             </thead>
@@ -174,6 +192,9 @@ export default function ReliabilityStats({ events, seasons = [] }: ReliabilitySt
                     <td>{entry.assigned > 0 ? `${entry.showedUp} / ${entry.assigned}` : '–'}</td>
                     <td className={entry.noShows > 0 ? styles.noShows : undefined}>{entry.noShows}</td>
                     <td>{entry.substitutes > 0 ? `${entry.substitutesShowedUp} / ${entry.substitutes}` : '–'}</td>
+                    {showNotAssigned && (
+                      <td className={entry.notAssigned > 0 ? styles.noShows : undefined}>{entry.notAssigned}</td>
+                    )}
                     <td className={styles.points}>
                       <span className={entry.points > 0 ? styles.positive : entry.points < 0 ? styles.negative : undefined}>
                         {entry.points}
