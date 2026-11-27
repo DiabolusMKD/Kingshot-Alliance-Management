@@ -23,19 +23,19 @@ interface Props {
 
 const EMPTY_BUILDING: BuildingAssignment = { leader: null, support: [], manual: false };
 
-interface RoleGroup {
+export interface RoleGroup {
   /** Omitted for lists without roles (Undercellars, Substitutes) */
   role?: string;
   players: Player[];
 }
 
-function PlayerRow({ player, powerMode, noShow }: { player: Player; powerMode: PowerMode; noShow?: boolean }) {
+function PlayerRow({ player, power, noShow }: { player: Player; power: number; noShow?: boolean }) {
   return (
     <div className={`${styles.playerRow} ${noShow ? noShowRowClass : ""}`}>
       <PlayerIdentity player={player} size={40}>
         {noShow && <NoShowBadge />}
       </PlayerIdentity>
-      <span className={styles.power}>{formatPower(getPlayerPower(player, powerMode))}</span>
+      <span className={styles.power}>{formatPower(power)}</span>
     </div>
   );
 }
@@ -43,17 +43,6 @@ function PlayerRow({ player, powerMode, noShow }: { player: Player; powerMode: P
 /** One card per building, stacked in a single column (styled like the player cards) */
 export default function BuildingPreview({ title, legion, legionData, BUILDINGS, powerMode, noShowIds }: Props) {
   const safe = legionData ?? { buildings: {}, substitutes: [] };
-  // Cards start collapsed; only the expanded ones are tracked
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-
-  const toggle = (name: string) =>
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(name)) next.delete(name);
-      else next.add(name);
-      return next;
-    });
-
   const getTotal = (b: BuildingAssignment) => (b?.leader ? 1 : 0) + (b?.support?.length ?? 0);
 
   const cards: { name: string; count: number; groups: RoleGroup[] }[] = [
@@ -78,6 +67,50 @@ export default function BuildingPreview({ title, legion, legionData, BUILDINGS, 
   ];
 
   return (
+    <AssignmentCards
+      title={title}
+      idPrefix={legion}
+      cards={cards}
+      powerOf={(player) => getPlayerPower(player, powerMode)}
+      noShowIds={noShowIds}
+    />
+  );
+}
+
+export interface AssignmentCard {
+  name: string;
+  count: number;
+  groups: RoleGroup[];
+}
+
+/** Collapsible cards of assigned players (Swordland buildings, Tri-Alliance teams) */
+export function AssignmentCards({
+  title,
+  idPrefix,
+  cards,
+  powerOf,
+  noShowIds,
+}: {
+  title: string;
+  /** Keeps ids unique when several card lists are on the page (e.g. the legion) */
+  idPrefix: string;
+  cards: AssignmentCard[];
+  /** Power shown next to each player */
+  powerOf: (player: Player) => number;
+  noShowIds?: Set<string>;
+}) {
+  // Cards start collapsed; only the expanded ones are tracked
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const toggle = (name: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+
+  return (
     <div className={styles.previewSection}>
       <div className={styles.sectionHeader}>
         <h4 className={styles.sectionTitle}>{title}</h4>
@@ -97,10 +130,10 @@ export default function BuildingPreview({ title, legion, legionData, BUILDINGS, 
       <div className={styles.cardsColumn}>
         {cards.map((card) => {
           const isOpen = expanded.has(card.name);
-          const bodyId = `${legion}-${card.name}-body`.replace(/\s+/g, "-");
+          const bodyId = `${idPrefix}-${card.name}-body`.replace(/\s+/g, "-");
 
           return (
-            <div key={`${legion}-${card.name}`} className={styles.card}>
+            <div key={`${idPrefix}-${card.name}`} className={styles.card}>
               <button
                 type="button"
                 className={`${styles.cardHeader} ${isOpen ? styles.cardHeaderOpen : ""}`}
@@ -126,9 +159,9 @@ export default function BuildingPreview({ title, legion, legionData, BUILDINGS, 
                       {group.players.length ? (
                         group.players.map((player) => (
                           <PlayerRow
-                            key={`${legion}-${card.name}-${player.id}`}
+                            key={`${idPrefix}-${card.name}-${player.id}`}
                             player={player}
-                            powerMode={powerMode}
+                            power={powerOf(player)}
                             noShow={noShowIds?.has(String(player.id))}
                           />
                         ))

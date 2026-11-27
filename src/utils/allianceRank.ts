@@ -12,3 +12,9 @@ export const getRankOrder = (rank?: string | null): number => {
 /** Highest rank first, then strongest */
 export const compareByRankThenPower = (a: Player, b: Player) =>
   getRankOrder(a.allianceRank) - getRankOrder(b.allianceRank) || (b.power ?? 0) - (a.power ?? 0);
+
+/** Highest rank first, then by the given power (e.g. tri-alliance power), strongest first */
+export const compareByRankThen =
+  (powerOf: (player: Player) => number) =>
+  (a: Player, b: Player) =>
+    getRankOrder(a.allianceRank) - getRankOrder(b.allianceRank) || powerOf(b) - powerOf(a);

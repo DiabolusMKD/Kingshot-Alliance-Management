@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useState, useEffect } from "react";
+import { ReactNode, useMemo, useState } from "react";
 import { EventResults, EventStatus, Player, PlayerAssignment } from "@/types";
 import { useToast } from "./Toast";
 import EventPoints, { PointsLegion, useEventPoints } from "./EventPoints";
@@ -10,9 +10,11 @@ import PlayerIdentity from "./PlayerIdentity";
 import LegionTimeSelect from "./LegionTimeSelect";
 import ViewAssignmentsButton from "./ViewAssignmentsButton";
 import GeneratedOutput from "./GeneratedOutput";
+import { AssignmentCard, AssignmentCards } from "./BuildingPreview";
 import { LegionSchedules, formatLegionTitle, getLegionSchedules } from "@/utils/legionSchedule";
 import { EventSaveInput } from "@/utils/eventData";
 import { formatCompactPower, formatPower } from "@/utils/formatNumbers";
+import { compareByRankThen, getRankOrder } from "@/utils/allianceRank";
 // 30 players across the areas and 20 substitutes per legion
 import { MAX_LEGION_PLAYERS, MAX_LEGION_SUBSTITUTES } from "@/utils/constants";
 import styles from "./TriAllianceEventLayout.module.css";
@@ -50,11 +52,40 @@ const TEAM_LABELS = [
 // Distribution order by power rank: outer teams first, right before left
 const DISTRIBUTION_ORDER = [0, 2, 1, 3];
 
+// Most offense players a team can have (teams of 6+ get 3 when generated, smaller teams 2)
+const MAX_OFFENSE = 3;
+
+type LegionKey = "legion1" | "legion2";
+type TeamRole = "offense" | "support";
+interface Team {
+  offense: Player[];
+  support: Player[];
+}
+/** The teams of a legion; manual = moved by hand (kept when players join or leave) */
+interface LegionTeams {
+  teams: Team[];
+  manual: boolean;
+}
+type Placements = Map<string, Pick<PlayerAssignment, "position" | "positionRole">>;
+
+const SUBSTITUTES_OF = { legion1: "substituteLegion1", legion2: "substituteLegion2" } as const;
+
+const triPower = (player: Player) => Number(player.trialliancePower) || 0;
+const byTriPower = (a: Player, b: Player) => triPower(b) - triPower(a);
+// Lists: highest alliance rank first, then strongest by tri-alliance power
+const byRankThenTriPower = compareByRankThen(triPower);
+
+const emptyTeams = (): Team[] => TEAM_LABELS.map(() => ({ offense: [], support: [] }));
+const teamSize = (team: Team) => team.offense.length + team.support.length;
+const withoutPlayer = (teams: Team[], playerId: string): Team[] =>
+  teams.map((team) => ({
+    offense: team.offense.filter((p) => p.id !== playerId),
+    support: team.support.filter((p) => p.id !== playerId),
+  }));
+
 /** Splits a legion into the 4 teams (offense + support), strongest by tri-alliance power first */
-function splitLegion(players: Player[]) {
-  const sortedPlayers = [...players].sort(
-    (a, b) => Number(b.trialliancePower) - Number(a.trialliancePower),
-  );
+function splitLegion(players: Player[]): Team[] {
+  const sortedPlayers = [...players].sort(byTriPower);
 
   const teams: Player[][] = [[], [], [], []];
   sortedPlayers.forEach((player, index) => {
@@ -71,6 +102,49 @@ function splitLegion(players: Player[]) {
   });
 }
 
+/** Teams from saved positions ("Team 1".."Team 4" + offense/support), or null when any player has none */
+function teamsFromPlacements(players: Player[], placements: Placements): Team[] | null {
+  const teams = emptyTeams();
+  for (const player of players) {
+    const placement = placements.get(String(player.id));
+    const match = /^Team ([1-4])$/.exec(placement?.position ?? "");
+    const role = placement?.positionRole;
+    if (!match || (role !== "offense" && role !== "support")) return null;
+    teams[Number(match[1]) - 1][role].push(player);
+  }
+  return teams;
+}
+
+const teamsKey = (teams: Team[]) =>
+  JSON.stringify(teams.map((t) => [t.offense.map((p) => p.id).sort(), t.support.map((p) => p.id).sort()]));
+
+/** Saved/uploaded teams when every player has a position, otherwise generated ones */
+function buildTeams(players: Player[], placements?: Placements): LegionTeams {
+  const generated = splitLegion(players);
+  const placed = placements && players.length > 0 ? teamsFromPlacements(players, placements) : null;
+  if (!placed) return { teams: generated, manual: false };
+  return { teams: placed, manual: teamsKey(placed) !== teamsKey(generated) };
+}
+
+/** After players joined or left a legion: generated teams are generated again, hand-made ones keep their moves */
+function syncTeams(current: LegionTeams, members: Player[]): LegionTeams {
+  if (!current.manual) return { teams: splitLegion(members), manual: false };
+  const memberIds = new Set(members.map((p) => p.id));
+  const teams = current.teams.map((team) => ({
+    offense: team.offense.filter((p) => memberIds.has(p.id)),
+    support: team.support.filter((p) => memberIds.has(p.id)),
+  }));
+  const placedIds = new Set(teams.flatMap((t) => [...t.offense, ...t.support]).map((p) => p.id));
+  // Newcomers go to the smallest team as support
+  members
+    .filter((p) => !placedIds.has(p.id))
+    .forEach((player) => {
+      const smallest = DISTRIBUTION_ORDER.reduce((best, i) => (teamSize(teams[i]) < teamSize(teams[best]) ? i : best));
+      teams[smallest].support.push(player);
+    });
+  return { teams, manual: true };
+}
+
 interface LegionAssignments {
   legion1: Player[];
   legion2: Player[];
@@ -79,49 +153,161 @@ interface LegionAssignments {
   unassigned: Player[];
 }
 
+function RankBadge({ rank }: { rank?: string | null }) {
+  if (!rank) return <span className={styles.noRank}>-</span>;
+  return (
+    <span className={`${styles.rankBadge} ${getRankOrder(rank) <= 1 ? styles.rankHigh : ""}`}>{rank}</span>
+  );
+}
+
+const positionValue = (index: number, role: TeamRole) => `${index}-${role}`;
+
 // Defined outside the main component so it isn't remounted (losing scroll position) on every render
-function PlayerSelectBox({
+function LegionPlayersTable({
   title,
   players,
   category,
   onMove,
+  teams,
+  onPlace,
 }: {
   title: string;
   players: Player[];
   category: string;
   onMove: (playerId: string, fromCategory: string, toCategory: string) => void;
+  /** Legion players: their team, changed by hand with onPlace (substitutes have none) */
+  teams?: Team[];
+  onPlace?: (player: Player, value: string) => void;
 }) {
   const canEdit = useCanEdit();
+  const positionOf = (player: Player) => {
+    const index = teams?.findIndex((t) => t.offense.some((p) => p.id === player.id) || t.support.some((p) => p.id === player.id)) ?? -1;
+    if (index === -1 || !teams) return "";
+    return positionValue(index, teams[index].offense.some((p) => p.id === player.id) ? "offense" : "support");
+  };
+
   return (
     <div className={styles.column}>
       <h3 className={styles.columnTitle}>{title}</h3>
-      <div className={styles.playerList}>
-        {players.map((player) => (
-          <div key={player.id} className={styles.playerItem}>
-            <span className={styles.playerName}>
-              <PlayerIdentity player={player}>
-                <span className={styles.power}>({formatPower(player.power)})</span>
-              </PlayerIdentity>
-            </span>
-            <select
-              value={category}
-              onChange={(e) => onMove(player.id, category, e.target.value)}
-              className={styles.select}
-              disabled={!canEdit}
-            >
-              <option value="unassigned">Unassigned</option>
-              <option value="legion1">Legion 1</option>
-              <option value="legion2">Legion 2</option>
-              <option value="substituteLegion1">Substitute Legion 1</option>
-              <option value="substituteLegion2">Substitute Legion 2</option>
-            </select>
-          </div>
-        ))}
-        {players.length === 0 && <p className={styles.empty}>No players</p>}
-      </div>
+      {players.length === 0 ? (
+        <p className={styles.empty}>No players</p>
+      ) : (
+        <div className={styles.legionTableWrapper}>
+          <table className={`${styles.table} ${styles.compactTable}`}>
+            <thead>
+              <tr>
+                <th>Player</th>
+                <th>Rank</th>
+                <th>TA Power</th>
+                {teams && <th>Team</th>}
+                <th>Move</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...players].sort(byRankThenTriPower).map((player) => (
+                <tr key={player.id}>
+                  <td>
+                    <PlayerIdentity player={player} />
+                  </td>
+                  <td>
+                    <RankBadge rank={player.allianceRank} />
+                  </td>
+                  <td className={styles.powerCell} title={formatPower(player.trialliancePower)}>
+                    {formatCompactPower(player.trialliancePower)}
+                  </td>
+                  {teams && (
+                    <td>
+                      <select
+                        value={positionOf(player)}
+                        onChange={(e) => onPlace?.(player, e.target.value)}
+                        className={styles.select}
+                        disabled={!canEdit}
+                        aria-label={`Team of ${player.name}`}
+                      >
+                        <option value="" disabled>
+                          Select
+                        </option>
+                        {TEAM_LABELS.map((label, index) => (
+                          <optgroup key={label} label={label}>
+                            <option value={positionValue(index, "offense")}>Team {index + 1} · Offense</option>
+                            <option value={positionValue(index, "support")}>Team {index + 1} · Support</option>
+                          </optgroup>
+                        ))}
+                        <option value="substitute">📌 Substitute</option>
+                      </select>
+                    </td>
+                  )}
+                  <td>
+                    <select
+                      value={category}
+                      onChange={(e) => onMove(player.id, category, e.target.value)}
+                      className={styles.select}
+                      disabled={!canEdit}
+                      aria-label={`Move ${player.name}`}
+                    >
+                      <option value="unassigned">Unassigned</option>
+                      <option value="legion1">Legion 1</option>
+                      <option value="legion2">Legion 2</option>
+                      <option value="substituteLegion1">Substitute Legion 1</option>
+                      <option value="substituteLegion2">Substitute Legion 2</option>
+                    </select>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
+
+/** The event's players by their saved legion, plus the saved team positions */
+function assignmentsFrom(players: Player[], saved: PlayerAssignment[]) {
+  const next: LegionAssignments = {
+    legion1: [],
+    legion2: [],
+    substituteLegion1: [],
+    substituteLegion2: [],
+    unassigned: [],
+  };
+  players.forEach((player) => {
+    // Saved ids are strings, player ids arrive as numbers (bigint)
+    const legion = saved.find((a) => String(a.playerId) === String(player.id))?.legion;
+    if (
+      legion === "legion1" ||
+      legion === "legion2" ||
+      legion === "substituteLegion1" ||
+      legion === "substituteLegion2"
+    ) {
+      next[legion].push(player);
+    } else {
+      next.unassigned.push(player);
+    }
+  });
+  const placements: Placements = new Map(
+    saved.map((a) => [String(a.playerId), { position: a.position, positionRole: a.positionRole }]),
+  );
+  return { assignments: next, placements };
+}
+
+const teamsOf = (assignments: LegionAssignments, placements?: Placements): Record<LegionKey, LegionTeams> => ({
+  legion1: buildTeams(assignments.legion1, placements),
+  legion2: buildTeams(assignments.legion2, placements),
+});
+
+/** One card per team (offense + support) and one for the substitutes */
+const teamCards = (teams: Team[], substitutes: Player[]): AssignmentCard[] => [
+  ...teams.map((team, index) => ({
+    name: TEAM_LABELS[index],
+    count: teamSize(team),
+    groups: [
+      { role: "Offense", players: [...team.offense].sort(byTriPower) },
+      { role: "Support", players: [...team.support].sort(byTriPower) },
+    ],
+  })),
+  { name: "Substitutes", count: substitutes.length, groups: [{ players: [...substitutes].sort(byTriPower) }] },
+];
 
 export default function TriAllianceEventLayout({
   players,
@@ -164,64 +350,34 @@ export default function TriAllianceEventLayout({
   };
   const [notes, setNotes] = useState(initialNotes);
   const [legionSchedules, setLegionSchedules] = useState<LegionSchedules>(initialLegionSchedules);
-  const [assignments, setAssignments] = useState<LegionAssignments>({
-    legion1: [],
-    legion2: [],
-    substituteLegion1: [],
-    substituteLegion2: [],
-    unassigned: [],
-  });
+  // Players by legion + the teams of each legion, from the saved assignments (and positions)
+  const [initial] = useState(() => assignmentsFrom(players, initialAssignments));
+  const [assignments, setAssignments] = useState<LegionAssignments>(initial.assignments);
+  const [legionTeams, setLegionTeams] = useState<Record<LegionKey, LegionTeams>>(() =>
+    teamsOf(initial.assignments, initial.placements),
+  );
+  // Rebuilt from the saved assignments when the players or the saved assignments change
+  const [source, setSource] = useState({ players, initialAssignments });
+  if (source.players !== players || source.initialAssignments !== initialAssignments) {
+    const next = assignmentsFrom(players, initialAssignments);
+    setSource({ players, initialAssignments });
+    setAssignments(next.assignments);
+    setLegionTeams(teamsOf(next.assignments, next.placements));
+  }
 
-  const [generatedString, setGeneratedString] = useState("");
-  const [generatedJson, setGeneratedJson] = useState("");
   const [jsonInput, setJsonInput] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [showJsonModal, setShowJsonModal] = useState(false);
   const [jsonModalError, setJsonModalError] = useState("");
 
-  useEffect(() => {
-
-    // Load initial assignments or default to unassigned
-    if (initialAssignments.length > 0) {
-      const newAssignments: LegionAssignments = {
-        legion1: [],
-        legion2: [],
-        substituteLegion1: [],
-        substituteLegion2: [],
-        unassigned: [],
-      };
-
-      players.forEach((player) => {
-        const assignment = initialAssignments.find(
-          // Saved ids are strings, player ids arrive as numbers (bigint)
-          (a) => String(a.playerId) === String(player.id),
-        );
-        if (!assignment) {
-          newAssignments.unassigned.push(player);
-        } else if (assignment.legion === "legion1") {
-          newAssignments.legion1.push(player);
-        } else if (assignment.legion === "legion2") {
-          newAssignments.legion2.push(player);
-        } else if (assignment.legion === "substituteLegion1") {
-          newAssignments.substituteLegion1.push(player);
-        } else if (assignment.legion === "substituteLegion2") {
-          newAssignments.substituteLegion2.push(player);
-        }
-      });
-      setAssignments(newAssignments);
-    } else {
-      setAssignments((prev) => ({
-        ...prev,
-        unassigned: players,
-      }));
-    }
-  }, [players, initialAssignments]);
-
-  // Auto-generate on any assignment or start time change
-  useEffect(() => {
-    handleGenerateString();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assignments, legionSchedules]);
+  /** New legions; the teams follow (generated again, or hand-made ones keep their moves) */
+  const changeAssignments = (next: LegionAssignments) => {
+    setAssignments(next);
+    setLegionTeams((prev) => ({
+      legion1: syncTeams(prev.legion1, next.legion1),
+      legion2: syncTeams(prev.legion2, next.legion2),
+    }));
+  };
 
   const movePlayer = (
     playerId: string,
@@ -247,27 +403,48 @@ export default function TriAllianceEventLayout({
       return;
     }
 
-    setAssignments((prev) => {
-      const newAssignments = { ...prev };
+    const newAssignments = { ...assignments };
 
-      // Remove from source
-      Object.keys(newAssignments).forEach((key) => {
-        newAssignments[key as keyof LegionAssignments] = newAssignments[
-          key as keyof LegionAssignments
-        ].filter((p) => p.id !== playerId);
-      });
-
-      // Add to destination (validate that toCategory is a valid key)
-      const validKeys = Object.keys(newAssignments) as (keyof LegionAssignments)[];
-      if (validKeys.includes(toCategory as keyof LegionAssignments)) {
-        newAssignments[toCategory as keyof LegionAssignments].push(player);
-      } else {
-        newAssignments.unassigned.push(player);
-      }
-
-      return newAssignments;
+    // Remove from source
+    Object.keys(newAssignments).forEach((key) => {
+      newAssignments[key as keyof LegionAssignments] = newAssignments[
+        key as keyof LegionAssignments
+      ].filter((p) => p.id !== playerId);
     });
+
+    // Add to destination (validate that toCategory is a valid key)
+    const validKeys = Object.keys(newAssignments) as (keyof LegionAssignments)[];
+    if (validKeys.includes(toCategory as keyof LegionAssignments)) {
+      newAssignments[toCategory as keyof LegionAssignments].push(player);
+    } else {
+      newAssignments.unassigned.push(player);
+    }
+
+    changeAssignments(newAssignments);
   };
+
+  /** Manual team change of a legion player: "<team index>-offense|support" or "substitute" */
+  const placePlayer = (legion: LegionKey, player: Player, value: string) => {
+    if (value === "substitute") {
+      movePlayer(player.id, legion, SUBSTITUTES_OF[legion]);
+      return;
+    }
+    const match = /^([0-3])-(offense|support)$/.exec(value);
+    if (!match) return;
+    const index = Number(match[1]);
+    const role = match[2] as TeamRole;
+    const teams = withoutPlayer(legionTeams[legion].teams, player.id);
+    if (role === "offense" && teams[index].offense.length >= MAX_OFFENSE) {
+      toast.warning(`A team can't have more than ${MAX_OFFENSE} offense players. Move one to support first.`);
+      return;
+    }
+    teams[index] = { ...teams[index], [role]: [...teams[index][role], player] };
+    setLegionTeams((prev) => ({ ...prev, [legion]: { teams, manual: true } }));
+  };
+
+  // Drops the hand-made moves of a legion
+  const regenerateTeams = (legion: LegionKey) =>
+    setLegionTeams((prev) => ({ ...prev, [legion]: { teams: splitLegion(assignments[legion]), manual: false } }));
 
   const filterPlayers = (playerList: Player[]) => {
     return playerList.filter(
@@ -277,13 +454,14 @@ export default function TriAllianceEventLayout({
     );
   };
 
-  const handleGenerateString = () => {
+  // Generated string + JSON, from the teams (manual moves included) and the legion start times
+  const [generatedString, generatedJson] = useMemo(() => {
     const formatPlayers = (players: Player[]) =>
-      players.map((p) => p.name).join(", ") || "None";
+      [...players].sort(byTriPower).map((p) => p.name).join(", ") || "None";
 
-    const formatLegion = (title: string, legion: Player[], substitutes: Player[]) =>
+    const formatLegion = (title: string, teams: Team[], substitutes: Player[]) =>
       `${title}:
-${splitLegion(legion)
+${teams
   .map(
     (team, index) => `${TEAM_LABELS[index]}:
 - Offense: ${formatPlayers(team.offense)}
@@ -292,40 +470,38 @@ ${splitLegion(legion)
   .join("\n")}
 Substitutions: ${formatPlayers(substitutes)}`;
 
-    const fullString = `${formatLegion(formatLegionTitle("Legion 1", legionSchedules.legion_1), assignments.legion1, assignments.substituteLegion1)}
+    const fullString = `${formatLegion(formatLegionTitle("Legion 1", legionSchedules.legion_1), legionTeams.legion1.teams, assignments.substituteLegion1)}
 
-${formatLegion(formatLegionTitle("Legion 2", legionSchedules.legion_2), assignments.legion2, assignments.substituteLegion2)}`;
-
-    setGeneratedString(fullString);
+${formatLegion(formatLegionTitle("Legion 2", legionSchedules.legion_2), legionTeams.legion2.teams, assignments.substituteLegion2)}`;
 
     // JSON with player ids only (the players are looked up again on upload)
-    const toJson = (legion: Player[], substitutes: Player[]) => ({
-      teams: splitLegion(legion).map((team) => ({
+    const toJson = (teams: Team[], substitutes: Player[]) => ({
+      teams: teams.map((team) => ({
         offense: team.offense.map((p) => p.id),
         support: team.support.map((p) => p.id),
       })),
       substitutes: substitutes.map((p) => p.id),
     });
     const jsonData = {
-      legion1: toJson(assignments.legion1, assignments.substituteLegion1),
-      legion2: toJson(assignments.legion2, assignments.substituteLegion2),
+      legion1: toJson(legionTeams.legion1.teams, assignments.substituteLegion1),
+      legion2: toJson(legionTeams.legion2.teams, assignments.substituteLegion2),
     };
 
-    setGeneratedJson(JSON.stringify(jsonData, null, 2));
-  };
+    return [fullString, JSON.stringify(jsonData, null, 2)];
+  }, [assignments, legionTeams, legionSchedules]);
 
   const handleReset = () => {
     if (!confirm("Reset all assignments? Every player goes back to Unassigned. Nothing is saved until you click Save.")) return;
-    setAssignments({
+    const cleared: LegionAssignments = {
       legion1: [],
       legion2: [],
       substituteLegion1: [],
       substituteLegion2: [],
       unassigned: players,
-    });
+    };
+    setAssignments(cleared);
+    setLegionTeams(teamsOf(cleared));
 
-    setGeneratedString("");
-    setGeneratedJson("");
     setJsonInput("");
     setSearchTerm("");
     setJsonModalError("");
@@ -441,7 +617,18 @@ ${formatLegion(formatLegionTitle("Legion 2", legionSchedules.legion_2), assignme
         );
       }
 
+      // Team positions from the JSON (new format); older JSON gets generated teams
+      const placements: Placements = new Map();
+      [parsed.legion1, parsed.legion2].forEach((legionData: LegionJson) =>
+        (legionData.teams ?? []).forEach((team, index) => {
+          const position = `Team ${index + 1}`;
+          toIds(team?.offense).forEach((id) => placements.set(id, { position, positionRole: "offense" }));
+          toIds(team?.support).forEach((id) => placements.set(id, { position, positionRole: "support" }));
+        }),
+      );
+
       setAssignments(newAssignments);
+      setLegionTeams(teamsOf(newAssignments, placements));
       setJsonInput("");
       setShowJsonModal(false);
     } catch {
@@ -458,10 +645,10 @@ ${formatLegion(formatLegionTitle("Legion 2", legionSchedules.legion_2), assignme
       "substituteLegion2",
     ] as const;
 
-    // Team + role of each legion player (same split as the generated string)
+    // Team + role of each legion player (manual moves included, as in the generated string)
     const positions = new Map<string, Pick<PlayerAssignment, "position" | "positionRole">>();
-    [assignments.legion1, assignments.legion2].forEach((legionPlayers) =>
-      splitLegion(legionPlayers).forEach((team, index) => {
+    [legionTeams.legion1.teams, legionTeams.legion2.teams].forEach((teams) =>
+      teams.forEach((team, index) => {
         const position = `Team ${index + 1}`;
         team.offense.forEach((p) => positions.set(p.id, { position, positionRole: "offense" }));
         team.support.forEach((p) => positions.set(p.id, { position, positionRole: "support" }));
@@ -579,16 +766,20 @@ ${formatLegion(formatLegionTitle("Legion 2", legionSchedules.legion_2), assignme
               <thead>
                 <tr>
                   <th>Name</th>
+                  <th>Rank</th>
                   <th>Tri Alliance Power</th>
                   <th>Power</th>
                   <th>Assign</th>
                 </tr>
               </thead>
               <tbody>
-                {filterPlayers(assignments.unassigned).map((player) => (
+                {filterPlayers(assignments.unassigned).sort(byRankThenTriPower).map((player) => (
                   <tr key={player.id}>
                     <td>
                       <PlayerIdentity player={player} />
+                    </td>
+                    <td>
+                      <RankBadge rank={player.allianceRank} />
                     </td>
                     <td className={styles.powerCell} title={formatPower(player.trialliancePower)}>
                       {formatCompactPower(player.trialliancePower)}
@@ -640,17 +831,35 @@ ${formatLegion(formatLegionTitle("Legion 2", legionSchedules.legion_2), assignme
                     }
                   />
                 </h3>
-                <PlayerSelectBox
+                <LegionPlayersTable
                   title={`Players (${assignments[column.legion].length}/${MAX_LEGION_PLAYERS})`}
                   players={filterPlayers(assignments[column.legion])}
                   category={column.legion}
                   onMove={movePlayer}
+                  teams={legionTeams[column.legion].teams}
+                  onPlace={(player, value) => placePlayer(column.legion, player, value)}
                 />
-                <PlayerSelectBox
+                <LegionPlayersTable
                   title={`Substitutes (${assignments[column.substitutes].length}/${MAX_LEGION_SUBSTITUTES})`}
                   players={filterPlayers(assignments[column.substitutes])}
                   category={column.substitutes}
                   onMove={movePlayer}
+                />
+                {legionTeams[column.legion].manual && (
+                  <div className={styles.manualBar}>
+                    <span>Teams changed by hand.</span>
+                    {canEdit && (
+                      <button type="button" className={styles.regenerateButton} onClick={() => regenerateTeams(column.legion)}>
+                        Generate again
+                      </button>
+                    )}
+                  </div>
+                )}
+                <AssignmentCards
+                  title="Teams"
+                  idPrefix={column.legion}
+                  cards={teamCards(legionTeams[column.legion].teams, assignments[column.substitutes])}
+                  powerOf={triPower}
                 />
               </div>
             ))}
