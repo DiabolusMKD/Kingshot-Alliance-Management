@@ -302,3 +302,66 @@
   overflow-y: auto;
   padding-right: 4px;
 }
+
+/* Tri-Alliance: offense / support inside a team card */
+.roleLabel {
+  margin: 0.25rem 0 0;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.roleLabel:first-of-type {
+  margin-top: 0;
+}
+
+/* The opponent each simulation block is compared with */
+.opponentBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.opponentTitle {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--text-primary);
+}
+
+/* Tri-Alliance colors */
+.colorName {
+  font-weight: 700;
+  color: var(--swatch);
+}
+
+.colorName::before {
+  content: "";
+  display: inline-block;
+  width: 0.6rem;
+  height: 0.6rem;
+  margin-right: 0.3rem;
+  border-radius: 50%;
+  background-color: var(--swatch);
+}
+
+.facingLine {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.opponentTitle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.75rem;
+}
+
+.sideHint {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}

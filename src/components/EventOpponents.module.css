@@ -548,3 +548,79 @@
   font-size: 0.8em;
   font-weight: 600;
 }
+
+/* ---------- Tri Alliance colors ---------- */
+
+.colorRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+}
+
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.swatch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.65rem;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.swatch:hover:not(:disabled) {
+  border-color: var(--swatch);
+}
+
+.swatch:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.swatchSelected,
+.swatchSelected:disabled {
+  opacity: 1;
+  border-color: var(--swatch);
+  background-color: color-mix(in srgb, var(--swatch) 18%, transparent);
+}
+
+/* The only color left: dashed, not saved */
+.swatchImplied,
+.swatchImplied:disabled {
+  opacity: 1;
+  border-style: dashed;
+  border-color: var(--swatch);
+}
+
+.swatchDot {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  background-color: var(--swatch);
+}
+
+.facing {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border-left: 3px solid var(--accent-color);
+  border-radius: 4px;
+  background-color: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.colorName {
+  font-weight: 700;
+  color: var(--swatch);
+}

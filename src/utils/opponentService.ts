@@ -6,6 +6,7 @@ import { AllianceCooldownError, fetchGameAlliance, importGameAlliance } from './
 import { getNextGameSync } from './gameSync';
 import { DEFAULT_REGISTERED_COMBATANTS, DEFAULT_REGISTERED_SUBSTITUTES } from './constants';
 import { Alliance, EventOpponent, LegionResultKey, Player } from '@/types';
+import { TriColor, isTriColor } from './triAllianceColors';
 
 /** The event_opponent table doesn't exist yet (the migration wasn't run) */
 export const isMissingOpponentTable = (error: unknown) =>
@@ -38,6 +39,41 @@ export async function updateOpponentRegistration(
     .update({ ...changes, updatedAt: new Date().toISOString() })
     .eq('id', id);
   if (error) throw new Error(`Failed to update the opponent: ${error.message}`);
+}
+
+const MISSING_COLOR_MESSAGE =
+  'Colors need the color columns. Run the Tri-Alliance colors migration in Supabase first.';
+const colorError = (error: { message: string }) =>
+  new Error(/color/i.test(error.message) ? MISSING_COLOR_MESSAGE : `Failed to save the color: ${error.message}`);
+
+/** Tri Alliance: the opponent's color (null clears it) */
+export async function updateOpponentColor(id: number, color: TriColor | null): Promise<void> {
+  const { error } = await supabase
+    .from('event_opponent')
+    .update({ color, updatedAt: new Date().toISOString() })
+    .eq('id', id);
+  if (error) throw colorError(error);
+}
+
+/** Tri Alliance: our color in each legion; null each when unknown or the columns don't exist yet */
+export async function getOwnColors(eventId: number): Promise<Record<LegionResultKey, TriColor | null>> {
+  const { data, error } = await supabase
+    .from('alliance_event')
+    .select('"legion1Color", "legion2Color"')
+    .eq('id', eventId)
+    .maybeSingle();
+  if (error) console.warn('Event colors not available:', error.message);
+  const row = (data ?? {}) as { legion1Color?: unknown; legion2Color?: unknown };
+  return {
+    legion_1: isTriColor(row.legion1Color) ? row.legion1Color : null,
+    legion_2: isTriColor(row.legion2Color) ? row.legion2Color : null,
+  };
+}
+
+export async function setOwnColor(eventId: number, legion: LegionResultKey, color: TriColor | null): Promise<void> {
+  const column = legion === 'legion_1' ? 'legion1Color' : 'legion2Color';
+  const { error } = await supabase.from('alliance_event').update({ [column]: color }).eq('id', eventId);
+  if (error) throw colorError(error);
 }
 
 export async function removeEventOpponent(id: number): Promise<void> {
@@ -114,6 +150,7 @@ export async function saveDraftOpponents(eventId: number, drafts: EventOpponent[
         allianceId: draft.allianceId,
         registeredCombatants: draft.registeredCombatants,
         registeredSubstitutes: draft.registeredSubstitutes,
+        ...(draft.color ? { color: draft.color } : {}),
       }),
     ),
   );

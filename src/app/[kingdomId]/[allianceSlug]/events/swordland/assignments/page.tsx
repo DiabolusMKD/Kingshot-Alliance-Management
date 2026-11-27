@@ -25,7 +25,7 @@ import { formatAllianceLabel } from "@/utils/allianceLabel";
 import { formatCompactPower, formatNumbers } from "@/utils/formatNumbers";
 import { MAX_LEGION_PLAYERS, MAX_LEGION_SUBSTITUTES } from "@/utils/constants";
 import { useCanEdit } from "@/components/EditMode";
-import styles from "./page.module.css";
+import styles from "@/components/EventAssignments.module.css";
 
 const EVENT_ID = 1; // Swordland
 

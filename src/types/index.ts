@@ -1,4 +1,5 @@
 import type { JailTrial } from "@/utils/jailTrials";
+import type { TriColor } from "@/utils/triAllianceColors";
 
 export interface Kingdom {
   id: number;
@@ -102,6 +103,9 @@ export interface AllianceEvent {
   /** "win" | "lose" (Swordland) or "1st" | "2nd" | "3rd" (Tri Alliance) */
   legion1Result?: string | null;
   legion2Result?: string | null;
+  /** Tri Alliance: our color in each legion's battle */
+  legion1Color?: TriColor | null;
+  legion2Color?: TriColor | null;
   /** player.id of each legion's MVP */
   legion1Mvp?: string | null;
   legion2Mvp?: string | null;
@@ -165,6 +169,8 @@ export interface EventOpponent {
   registeredCombatants: number;
   /** 0 - 20 */
   registeredSubstitutes: number;
+  /** Tri Alliance: the opponent's color in the battle (decides which side fights whom) */
+  color?: TriColor | null;
   createdAt?: string;
   updatedAt?: string;
 }

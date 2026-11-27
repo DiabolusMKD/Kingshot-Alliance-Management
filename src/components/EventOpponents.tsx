@@ -11,12 +11,24 @@ import {
   getAlliancePlayers,
   getAlliancesByIds,
   getEventOpponents,
+  getOwnColors,
   isMissingOpponentTable,
   lookupOpponentAlliance,
   newOpponent,
   removeEventOpponent,
+  setOwnColor,
+  updateOpponentColor,
   updateOpponentRegistration,
 } from "@/utils/opponentService";
+import {
+  TRI_COLORS,
+  TRI_COLOR_HEX,
+  TRI_COLOR_LABELS,
+  TriColor,
+  leftOpponentColor,
+  resolveColors,
+  rightOpponentColor,
+} from "@/utils/triAllianceColors";
 import {
   DEFAULT_REGISTERED_COMBATANTS,
   DEFAULT_REGISTERED_SUBSTITUTES,
@@ -55,7 +67,12 @@ export interface OpponentsState {
   opponents: EventOpponent[];
   alliances: Map<number, Alliance>;
   players: Map<number, Player[]>;
+  /** Tri Alliance: our color in each legion (null when not set) */
+  ownColors: OwnColors;
 }
+
+type OwnColors = Record<LegionResultKey, TriColor | null>;
+const NO_COLORS: OwnColors = { legion_1: null, legion_2: null };
 
 /** Draft opponents (no event yet) get temporary negative ids */
 let nextDraftId = -1;
@@ -93,20 +110,26 @@ export default function EventOpponents({
   const [opponents, setOpponents] = useState<EventOpponent[]>([]);
   const [alliances, setAlliances] = useState<Map<number, Alliance>>(new Map());
   const [players, setPlayers] = useState<Map<number, Player[]>>(new Map());
+  // Tri Alliance: the 3 alliances of a battle are told apart by color
+  const usesColors = eventType === "tri-alliance";
+  const [ownColors, setOwnColors] = useState<OwnColors>(NO_COLORS);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(!isDraft);
 
   useEffect(() => {
-    onChange?.({ opponents, alliances, players });
+    onChange?.({ opponents, alliances, players, ownColors });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [opponents, alliances, players]);
+  }, [opponents, alliances, players, ownColors]);
 
   useEffect(() => {
     if (eventId === null) return;
     let isMounted = true;
     (async () => {
       try {
-        const saved = await getEventOpponents(eventId);
+        const [saved, colors] = await Promise.all([
+          getEventOpponents(eventId),
+          usesColors ? getOwnColors(eventId) : Promise.resolve(NO_COLORS),
+        ]);
         const ids = [...new Set(saved.map((o) => o.allianceId).filter((id): id is number => id != null))];
         const [allianceRows, playerLists] = await Promise.all([
           getAlliancesByIds(ids),
@@ -114,6 +137,7 @@ export default function EventOpponents({
         ]);
         if (!isMounted) return;
         setOpponents(saved);
+        setOwnColors(colors);
         setAlliances(new Map(allianceRows.map((a) => [Number(a.id), a])));
         setPlayers(new Map(ids.map((id, i) => [id, playerLists[i]])));
         setLoadError(null);
@@ -129,7 +153,7 @@ export default function EventOpponents({
     return () => {
       isMounted = false;
     };
-  }, [eventId]);
+  }, [eventId, usesColors]);
 
   const handleAdded = (opponent: EventOpponent, alliance: Alliance, alliancePlayers: Player[]) => {
     setOpponents((prev) => [...prev, opponent]);
@@ -161,6 +185,27 @@ export default function EventOpponents({
     }
   };
 
+  const handleOpponentColor = async (opponent: EventOpponent, color: TriColor | null) => {
+    try {
+      if (!isDraft) await updateOpponentColor(opponent.id, color);
+      setOpponents((prev) => prev.map((o) => (o.id === opponent.id ? { ...o, color } : o)));
+    } catch (error) {
+      console.error(error);
+      toast.error(error instanceof Error ? error.message : "Failed to save the color");
+    }
+  };
+
+  const handleOwnColor = async (legion: LegionResultKey, color: TriColor | null) => {
+    if (eventId === null) return;
+    try {
+      await setOwnColor(eventId, legion, color);
+      setOwnColors((prev) => ({ ...prev, [legion]: color }));
+    } catch (error) {
+      console.error(error);
+      toast.error(error instanceof Error ? error.message : "Failed to save the color");
+    }
+  };
+
   return (
     <section className={styles.section} aria-labelledby="opponentsTitle">
       {!hideHeader && (
@@ -186,6 +231,15 @@ export default function EventOpponents({
           {LEGIONS.map((legion) => {
             const legionOpponents = opponents.filter((o) => o.legion === legion.key);
             const canAdd = !readOnly && legionOpponents.length < maxPerLegion;
+            // Colors as set, plus the only missing one when the other two are known
+            const colors = resolveColors(
+              ownColors[legion.key],
+              legionOpponents.map((o) => o.color ?? null),
+            );
+            const takenBy = (except: TriColor | null | undefined) =>
+              new Set([ownColors[legion.key], ...legionOpponents.map((o) => o.color)].filter(
+                (c): c is TriColor => !!c && c !== except,
+              ));
             return (
               <div key={legion.key} className={styles.legion}>
                 <h3 className={styles.legionTitle}>
@@ -195,7 +249,24 @@ export default function EventOpponents({
                   </span>
                 </h3>
 
-                {legionOpponents.map((opponent) => (
+                {usesColors && (
+                  <ColorRow
+                    label="Our color"
+                    value={ownColors[legion.key]}
+                    implied={!ownColors[legion.key] ? colors.own : null}
+                    taken={takenBy(ownColors[legion.key])}
+                    readOnly={readOnly || isDraft}
+                    onChange={(color) => handleOwnColor(legion.key, color)}
+                  />
+                )}
+                {usesColors && colors.own && (
+                  <Facing
+                    own={colors.own}
+                    opponents={legionOpponents.map((o, i) => ({ opponent: o, color: colors.opponents[i] }))}
+                  />
+                )}
+
+                {legionOpponents.map((opponent, index) => (
                   <OpponentCard
                     key={opponent.id}
                     opponent={opponent}
@@ -204,6 +275,18 @@ export default function EventOpponents({
                     readOnly={readOnly}
                     onRemove={() => handleRemove(opponent)}
                     onRegistrationChange={(changes) => handleRegistrationChange(opponent, changes)}
+                    colorPicker={
+                      usesColors && (
+                        <ColorRow
+                          label="Color"
+                          value={opponent.color ?? null}
+                          implied={!opponent.color ? colors.opponents[index] : null}
+                          taken={takenBy(opponent.color)}
+                          readOnly={readOnly}
+                          onChange={(color) => handleOpponentColor(opponent, color)}
+                        />
+                      )
+                    }
                   />
                 ))}
 
@@ -419,7 +502,9 @@ function OpponentCard({
   readOnly,
   onRemove,
   onRegistrationChange,
+  colorPicker,
 }: {
+  colorPicker?: React.ReactNode;
   opponent: EventOpponent;
   alliance?: Alliance;
   players: Player[];
@@ -467,6 +552,8 @@ function OpponentCard({
           </button>
         )}
       </header>
+
+      {colorPicker}
 
       {/* Game data + the registration (editable), all as tiles in one row */}
       <dl className={styles.meta}>
@@ -584,6 +671,89 @@ function OpponentCard({
         <p className={styles.muted}>This alliance isn&apos;t in the app any more.</p>
       )}
     </article>
+  );
+}
+
+// ---------------- TRI ALLIANCE COLORS ----------------
+
+/** Yellow / Purple / Red swatches; the chosen one again clears it. Colors taken in the legion are disabled. */
+function ColorRow({
+  label,
+  value,
+  implied,
+  taken,
+  readOnly,
+  onChange,
+}: {
+  label: string;
+  value: TriColor | null;
+  /** Not set, but the only color left */
+  implied?: TriColor | null;
+  taken: Set<TriColor>;
+  readOnly: boolean;
+  onChange: (color: TriColor | null) => void;
+}) {
+  return (
+    <div className={styles.colorRow}>
+      <span className={styles.fieldLabel}>{label}</span>
+      <div className={styles.swatches} role="group" aria-label={label}>
+        {TRI_COLORS.map((color) => {
+          const isSelected = value === color;
+          const isImplied = !value && implied === color;
+          if (readOnly && !isSelected && !isImplied) return null;
+          return (
+            <button
+              key={color}
+              type="button"
+              className={`${styles.swatch} ${isSelected ? styles.swatchSelected : ""} ${isImplied ? styles.swatchImplied : ""}`}
+              style={{ "--swatch": TRI_COLOR_HEX[color] } as React.CSSProperties}
+              onClick={() => onChange(isSelected ? null : color)}
+              disabled={readOnly || (!isSelected && taken.has(color))}
+              aria-pressed={isSelected}
+              title={
+                isImplied
+                  ? `${TRI_COLOR_LABELS[color]} (the only color left)`
+                  : taken.has(color) && !isSelected
+                    ? `${TRI_COLOR_LABELS[color]} is taken in this legion`
+                    : TRI_COLOR_LABELS[color]
+              }
+            >
+              <span className={styles.swatchDot} aria-hidden="true" />
+              {TRI_COLOR_LABELS[color]}
+              {isImplied && " (left)"}
+            </button>
+          );
+        })}
+        {readOnly && !value && !implied && <span className={styles.muted}>Not set</span>}
+      </div>
+    </div>
+  );
+}
+
+/** Who our sides fight: right side (Team 1 + 2) and left side (Team 3 + 4) */
+function Facing({
+  own,
+  opponents,
+}: {
+  own: TriColor;
+  opponents: { opponent: EventOpponent; color: TriColor | null }[];
+}) {
+  const sideLabel = (target: TriColor) => {
+    const match = opponents.find((o) => o.color === target);
+    return (
+      <>
+        <span className={styles.colorName} style={{ "--swatch": TRI_COLOR_HEX[target] } as React.CSSProperties}>
+          {TRI_COLOR_LABELS[target]}
+        </span>
+        {match && ` [${match.opponent.allianceTag}]`}
+      </>
+    );
+  };
+  return (
+    <p className={styles.facing}>
+      Our right side (Team 1 + 2) fights {sideLabel(rightOpponentColor(own))}&apos;s left · our left side (Team 3 + 4)
+      fights {sideLabel(leftOpponentColor(own))}&apos;s right.
+    </p>
   );
 }
 

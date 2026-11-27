@@ -262,6 +262,18 @@ export default function TriAlliancePage({ params, searchParams }: TriAlliancePag
             // Event Editor View
             <>
               <EventHero eventType="tri-alliance" />
+              <div className={styles.newTabBar}>
+                <a
+                  href={`${basePath}/assignments?event=${getEventSlug(selectedEvent.id!)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={styles.backButton}
+                  title="The saved teams, the opponents and a simulation of their teams"
+                >
+                  Open assignments in new tab ↗
+                </a>
+                {canEdit && <small className={styles.formHint}>Shows the saved assignments: save first.</small>}
+              </div>
               {editorData.usesStartPowers && (
                 <p className={styles.powerNote}>
                   This event has started: powers are each player&apos;s latest recorded power before the start.
