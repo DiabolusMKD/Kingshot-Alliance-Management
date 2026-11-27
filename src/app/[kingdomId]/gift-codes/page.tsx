@@ -73,6 +73,26 @@ export default function KingdomGiftCodesPage({ params }: KingdomGiftCodesPagePro
             !(excludePlayers && excludedIds.has(String(p.id)))
         ),
 
+      // Shareable message: who gets the codes, and who in that group was left out
+      describe: (all: Player[]) => {
+        const labels = [
+          ...alliances.filter((a) => selectedAlliances.has(String(a.id))).map(formatAllianceLabel),
+          ...(selectedAlliances.has(NO_ALLIANCE) ? ['players without an alliance'] : []),
+        ];
+        const listed = labels.length <= 1 ? labels.join('') : `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`;
+        const target =
+          scope === 'kingdom' ? `every player in Kingdom ${kingdomId}` : `the members of ${listed} in Kingdom ${kingdomId}`;
+
+        const excluded = all
+          .filter(inScope)
+          .filter(
+            (p) =>
+              (excludeOffenders && jailedIds.has(String(p.id))) || (excludePlayers && excludedIds.has(String(p.id)))
+          )
+          .map((p) => ({ name: p.aliasName || p.name, jailed: jailedIds.has(String(p.id)) }));
+        return { target, excluded };
+      },
+
       render: (all: Player[], disabled: boolean) => {
         if (!canRule) return null;
         const counts = new Map<string, number>();
@@ -162,7 +182,7 @@ export default function KingdomGiftCodesPage({ params }: KingdomGiftCodesPagePro
         );
       },
     };
-  }, [canRule, scope, selectedAlliances, excludeOffenders, excludePlayers, excludedIds, search, jailedIds, alliances]);
+  }, [canRule, scope, selectedAlliances, excludeOffenders, excludePlayers, excludedIds, search, jailedIds, alliances, kingdomId]);
 
   return (
     <GiftCodesManager
@@ -175,6 +195,7 @@ export default function KingdomGiftCodesPage({ params }: KingdomGiftCodesPagePro
           : 'No players to redeem for.'
       }
       canRedeem={canRule}
+      discordTarget={{ kingdomId: kingdomIdNumber }}
       playerFilter={playerFilter}
     />
   );

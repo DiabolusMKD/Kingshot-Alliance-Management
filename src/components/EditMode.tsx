@@ -5,7 +5,8 @@ import { usePathname } from 'next/navigation';
 
 /**
  * View-only by default; `?mode=<edit key>` in the URL turns editing on in this browser.
- * `?mode=<King key>` (generated on the Kingdom page) turns on that kingdom's King features.
+ * `?mode=<King key>` (generated on the Kingdom page) turns on that kingdom's King features;
+ * `?mode=<Leader key>` (alliance page) lets an alliance's Leader set its Discord channel.
  *
  * The key is checked by /api/edit-mode (EDIT_MODE_KEY stays on the server), which remembers it
  * in an httpOnly cookie; changing the key in the env turns editing off everywhere.
@@ -18,15 +19,18 @@ import { usePathname } from 'next/navigation';
 const ENDPOINT = '/api/edit-mode';
 
 // One shared state for every component (asked from the server once per page load).
-// `enabled` = god (EDIT_MODE_KEY); `kingOf` = kingdom whose King key this browser holds.
+// `enabled` = god (EDIT_MODE_KEY); `kingOf` = kingdom whose King key this browser holds;
+// `leaderOf` = alliance whose Leader key it holds.
 let enabled = false;
 let kingOf: number | null = null;
+let leaderOf: number | null = null;
 let checked = false;
 const listeners = new Set<() => void>();
 
-const setAccess = (god: boolean, king: number | null) => {
+const setAccess = (god: boolean, king: number | null, leader: number | null) => {
   enabled = god;
   kingOf = king;
+  leaderOf = leader;
   listeners.forEach((listener) => listener());
 };
 
@@ -38,10 +42,14 @@ const subscribe = (onChange: () => void) => {
 const request = async (init?: RequestInit) => {
   try {
     const response = await fetch(ENDPOINT, { cache: 'no-store', ...init });
-    const data = (await response.json()) as { enabled?: boolean; kingOf?: number | null };
-    setAccess(!!data.enabled, typeof data.kingOf === 'number' ? data.kingOf : null);
+    const data = (await response.json()) as { enabled?: boolean; kingOf?: number | null; leaderOf?: number | null };
+    setAccess(
+      !!data.enabled,
+      typeof data.kingOf === 'number' ? data.kingOf : null,
+      typeof data.leaderOf === 'number' ? data.leaderOf : null
+    );
   } catch {
-    setAccess(false, null);
+    setAccess(false, null, null);
   }
 };
 
@@ -59,13 +67,25 @@ export function useKingOf(): number | null {
 }
 
 /**
- * King features of a kingdom (kingdom-wide gift codes, update every player, Jail):
+ * King features of a kingdom (kingdom-wide gift codes, update every player, Jail, Discord):
  * that kingdom's King, or god. A High King has none.
  */
 export function useCanRule(kingdomId: number): boolean {
   const god = useCanEdit();
   const king = useKingOf();
   return god || king === kingdomId;
+}
+
+/** Alliance id this browser is the Leader of (Leader key), or null */
+export function useLeaderOf(): number | null {
+  return useSyncExternalStore(subscribe, () => leaderOf, () => null);
+}
+
+/** The alliance's Leader, or god: may set the alliance's Discord channel. */
+export function useCanLead(allianceId: number | null | undefined): boolean {
+  const god = useCanEdit();
+  const leader = useLeaderOf();
+  return god || (allianceId != null && leader === Number(allianceId));
 }
 
 /**

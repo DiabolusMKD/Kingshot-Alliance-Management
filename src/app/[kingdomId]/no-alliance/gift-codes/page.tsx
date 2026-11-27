@@ -18,6 +18,8 @@ export default function NoAllianceGiftCodesPage({ params }: NoAllianceGiftCodesP
       loadPlayers={() => getUnassignedPlayers(kingdomIdNumber)}
       loadKey={`no-alliance:${kingdomIdNumber}`}
       groupLabel={`Kingdom ${kingdomId} players without an alliance`}
+      discordTarget={{ kingdomId: kingdomIdNumber }}
+      announcementTarget={`every player in Kingdom ${kingdomId} without an alliance`}
       emptyPlayersText="Every registered player in this kingdom is in an alliance."
     />
   );

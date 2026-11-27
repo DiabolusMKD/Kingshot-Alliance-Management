@@ -53,8 +53,22 @@ export function itemLabel(slug: string): string {
 const compact = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 });
 const grouped = new Intl.NumberFormat('en');
 
-/** "1K ×100" for 100 × 1000 wood, "×2,027" for 2027 gems, "1K" for a single 1000-gem pack. */
-export function formatItemQuantity({ amount, count }: ItemQuantity): string {
-  if (!amount || amount === 1) return `×${grouped.format(count)}`;
-  return count === 1 ? compact.format(amount) : `${compact.format(amount)} ×${grouped.format(count)}`;
+/** Speedups come in minutes: 5 -> "5m", 60 -> "1h", 90 -> "1h 30m", 1440 -> "1d". */
+function formatDuration(minutes: number): string {
+  const days = Math.floor(minutes / 1440);
+  const hours = Math.floor((minutes % 1440) / 60);
+  const mins = Math.round(minutes % 60);
+  return [days && `${days}d`, hours && `${hours}h`, mins && `${mins}m`].filter(Boolean).join(' ') || '0m';
+}
+
+const isSpeedup = (slug: string) => slug.endsWith('-speedup');
+
+/**
+ * "1K ×100" for 100 × 1000 wood, "×2,027" for 2027 gems, "1K" for a single 1000-gem pack,
+ * "5m ×20" for twenty 5-minute speedups.
+ */
+export function formatItemQuantity({ item, amount, count }: ItemQuantity): string {
+  if (!amount || (amount === 1 && !isSpeedup(item))) return `×${grouped.format(count)}`;
+  const size = isSpeedup(item) ? formatDuration(amount) : compact.format(amount);
+  return count === 1 ? size : `${size} ×${grouped.format(count)}`;
 }

@@ -23,7 +23,9 @@ import { ALLIANCE_RANKS, compareByRankThenPower } from '@/utils/allianceRank';
 import { formatTimeAgo, formatTimeUntil, getNextGameSync } from '@/utils/gameSync';
 import { formatCompactPower } from '@/utils/formatNumbers';
 import styles from './page.module.css';
-import { useCanEdit } from '@/components/EditMode';
+import { useCanEdit, useCanLead } from '@/components/EditMode';
+import DiscordSettingsButton from '@/components/DiscordSettingsButton';
+import LeaderLinkButton from '@/components/LeaderLinkButton';
 
 // Two full rows at the widest layout (4 columns). Smaller breakpoints show fewer
 // (6 / 4) by hiding the extra cards in CSS, see .playersGrid in page.module.css.
@@ -43,6 +45,8 @@ export default function AlliancePage({ params }: AlliancePageProps) {
   const toast = useToast();
   const canEdit = useCanEdit();
   const [alliance, setAlliance] = useState<Alliance | null | undefined>(undefined);
+  // The alliance's Leader (Leader link) or god: sets the alliance's Discord channel
+  const canLead = useCanLead(alliance?.id);
   const [kingdomAlliances, setKingdomAlliances] = useState<Alliance[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
   // Avoids flashing the "no players" message before the first load finishes
@@ -311,6 +315,21 @@ export default function AlliancePage({ params }: AlliancePageProps) {
               <Link href={`/${kingdomId}/${allianceSlug}/gift-codes`} className={styles.ctaButton}>
                 Redeem Gift Codes
               </Link>
+              {canLead && (
+                <DiscordSettingsButton
+                  target={{ allianceId: alliance.id }}
+                  label={`[${alliance.nameTag}]${alliance.name}`}
+                  className={styles.ctaButton}
+                />
+              )}
+              {canEdit && (
+                <LeaderLinkButton
+                  allianceId={alliance.id}
+                  path={`/${kingdomId}/${allianceSlug}`}
+                  label={`[${alliance.nameTag}]${alliance.name}`}
+                  className={styles.ctaButton}
+                />
+              )}
             </div>
           </div>
 

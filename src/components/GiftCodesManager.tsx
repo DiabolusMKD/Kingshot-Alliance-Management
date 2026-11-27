@@ -16,6 +16,8 @@ import {
 import styles from './GiftCodesManager.module.css';
 import { useCanEdit } from './EditMode';
 import ItemList from './ItemList';
+import { AnnouncementPlayer, buildGiftCodeAnnouncement } from '@/utils/giftCodeAnnouncement';
+import { DiscordTarget, isDiscordConfigured, postToDiscordChannel } from '@/utils/discordService';
 
 interface GiftCodesManagerProps {
   /** Loads the players codes are redeemed for (an alliance, or players without one) */
@@ -34,7 +36,13 @@ interface GiftCodesManagerProps {
   playerFilter?: {
     apply: (allPlayers: Player[]) => Player[];
     render: (allPlayers: Player[], disabled: boolean) => ReactNode;
+    /** Recipients + who was left out, for the shareable message (overrides `announcementTarget`) */
+    describe?: (allPlayers: Player[]) => { target: string; excluded: AnnouncementPlayer[] };
   };
+  /** Recipients in the shareable message, e.g. "every member of [ABC]Alliance" */
+  announcementTarget?: string;
+  /** Discord channel the message is posted to when a run starts (if one is set) */
+  discordTarget?: DiscordTarget;
 }
 
 type CellState = 'none' | 'queued' | 'running' | 'redeemed' | 'failed';
@@ -79,6 +87,8 @@ export default function GiftCodesManager({
   emptyPlayersText,
   canRedeem,
   playerFilter,
+  announcementTarget,
+  discordTarget,
 }: GiftCodesManagerProps) {
   const toast = useToast();
 
@@ -96,6 +106,30 @@ export default function GiftCodesManager({
   const [force, setForce] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [summary, setSummary] = useState<RunSummary | null>(null);
+  // Message to share in game / on Discord, shown when a run starts
+  const [announcement, setAnnouncement] = useState<string | null>(null);
+  const [discordConfigured, setDiscordConfigured] = useState(false);
+  const [postToDiscord, setPostToDiscord] = useState(true);
+  const discordKey = discordTarget ? JSON.stringify(discordTarget) : null;
+
+  useEffect(() => {
+    if (!discordKey) return;
+    let isMounted = true;
+    isDiscordConfigured(JSON.parse(discordKey) as DiscordTarget)
+      .then((value) => isMounted && setDiscordConfigured(value))
+      .catch(() => isMounted && setDiscordConfigured(false));
+    return () => {
+      isMounted = false;
+    };
+  }, [discordKey]);
+
+  const willPostToDiscord = !!discordTarget && discordConfigured && postToDiscord;
+  const postDiscord = (content: string) => {
+    if (!discordTarget) return;
+    postToDiscordChannel(discordTarget, content).catch((error) =>
+      toast.error(`Not posted to Discord: ${error instanceof Error ? error.message : 'request failed'}`)
+    );
+  };
   const [progress, setProgress] = useState<{ current: number; total: number; waitingUntil?: number } | null>(null);
   const activeRowRef = useRef<HTMLTableRowElement>(null);
   const activePlayerIndex = progress ? progress.current - 1 : null;
@@ -252,6 +286,21 @@ export default function GiftCodesManager({
     setIsRedeeming(true);
     setSummary(null);
     setLive(new Map());
+
+    // Announce the codes someone still gets in this run (all of them when forcing)
+    const announcedCodes = codes.filter(
+      (c) => force || players.some((p) => redemptions.get(cellKey(c.id, p.id))?.status !== 'redeemed')
+    );
+    const described = playerFilter?.describe?.(allPlayers);
+    const message = buildGiftCodeAnnouncement({
+      codes: announcedCodes.length > 0 ? announcedCodes : codes,
+      target: described?.target ?? announcementTarget ?? `every member of ${groupLabel}`,
+      excluded: described?.excluded,
+    });
+    setAnnouncement(message);
+    const postsToDiscord = willPostToDiscord; // fixed for the whole run
+    if (postsToDiscord) postDiscord(message);
+
     const tally: RunSummary = { redeemed: 0, failed: 0, skipped: 0 };
     // Codes that turned out expired/unknown/used up: don't send them to anyone else this run
     const deadCodes = new Map<number, string>();
@@ -288,6 +337,9 @@ export default function GiftCodesManager({
       setSummary(tally);
       setProgress(null);
       setIsRedeeming(false);
+      if (postsToDiscord) {
+        postDiscord('✅ Gift code delivery finished! Check your in-game mail! 📬');
+      }
     }
   };
 
@@ -397,6 +449,18 @@ export default function GiftCodesManager({
           </label>
           )}
 
+          {canEdit && discordConfigured && (
+            <label className={`${styles.forceOption} ${isBusy ? styles.disabled : ''}`}>
+              <input
+                type="checkbox"
+                checked={postToDiscord}
+                onChange={(e) => setPostToDiscord(e.target.checked)}
+                disabled={isBusy}
+              />
+              Post the delivery message to Discord (when the run starts and when it finishes)
+            </label>
+          )}
+
           {playerFilter?.render(allPlayers, isBusy)}
 
           {/* Sticky right below the header, so the progress stays visible while the table scrolls */}
@@ -427,6 +491,10 @@ export default function GiftCodesManager({
               </div>
             )}
             </div>
+          )}
+
+          {announcement && (
+            <AnnouncementPanel message={announcement} onClose={() => setAnnouncement(null)} />
           )}
 
           {codes.length === 0 ? (
@@ -502,4 +570,40 @@ function RewardList({ reward }: { reward: GiftCodeReward | null | undefined }) {
   // kingshot.net's 'text' rewards are just the code name again: nothing to show
   if (reward?.kind !== 'items') return null;
   return <ItemList items={reward.items} label="Rewards" className={styles.rewardList} />;
+}
+
+/** The delivery message, ready to copy into the game chat or Discord. */
+function AnnouncementPanel({ message, onClose }: { message: string; onClose: () => void }) {
+  const toast = useToast();
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(message);
+      toast.success('Message copied');
+    } catch {
+      toast.error('Copy failed: select the text and copy it by hand');
+    }
+  };
+
+  return (
+    <section className={styles.announcement} aria-label="Message to share">
+      <div className={styles.announcementHeader}>
+        <h2 className={styles.announcementTitle}>Share in game / on Discord</h2>
+        <div className={styles.announcementActions}>
+          <button type="button" className={styles.primaryButton} onClick={copy}>
+            Copy message
+          </button>
+          <button type="button" className={styles.secondaryButton} onClick={onClose} aria-label="Close message">
+            Close
+          </button>
+        </div>
+      </div>
+      <textarea
+        className={styles.announcementText}
+        value={message}
+        readOnly
+        rows={Math.min(24, message.split('\n').length + 1)}
+        onFocus={(e) => e.target.select()}
+      />
+    </section>
+  );
 }

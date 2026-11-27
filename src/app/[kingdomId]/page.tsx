@@ -26,6 +26,7 @@ import {
 import { describeSavedPlayer } from '@/utils/playerFeedback';
 import { useCanEdit, useCanRule } from '@/components/EditMode';
 import KingdomRulers from '@/components/KingdomRulers';
+import DiscordSettingsButton from '@/components/DiscordSettingsButton';
 import styles from './page.module.css';
 
 interface KingdomPageProps {
@@ -231,6 +232,11 @@ export default function KingdomPage({ params }: KingdomPageProps) {
                 <Link href={`/${kingdomId}/jail`} className={styles.sectionButton}>
                   Jail
                 </Link>
+                <DiscordSettingsButton
+                  target={{ kingdomId: kingdomIdNumber }}
+                  label={`Kingdom ${kingdomId}`}
+                  className={styles.sectionButton}
+                />
               </div>
             )}
           </div>

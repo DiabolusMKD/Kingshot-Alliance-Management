@@ -55,6 +55,7 @@ export default function AllianceGiftCodesPage({ params }: GiftCodesPageProps) {
       loadPlayers={() => getPlayers(alliance.id, kingdomIdNumber)}
       loadKey={`alliance:${alliance.id}`}
       groupLabel={label}
+      discordTarget={{ allianceId: alliance.id }}
       emptyPlayersText="This alliance has no players yet."
     />
   );
