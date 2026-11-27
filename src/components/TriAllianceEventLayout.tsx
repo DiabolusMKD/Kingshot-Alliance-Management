@@ -204,7 +204,7 @@ function LegionPlayersTable({
               </tr>
             </thead>
             <tbody>
-              {[...players].sort(byRankThenTriPower).map((player) => (
+              {players.map((player) => (
                 <tr key={player.id}>
                   <td>
                     <PlayerIdentity player={player} />
