@@ -1,58 +1,61 @@
-import { createHash, timingSafeEqual } from 'crypto';
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
+import {
+  cookieOptions,
+  findKingdomForKingKey,
+  getAccess,
+  GOD_COOKIE,
+  hashGodKey,
+  hashKingKey,
+  isGodKey,
+  KING_COOKIE,
+} from '@/utils/accessServer';
 
 /**
- * Edit mode (see components/EditMode): the key stays on the server (EDIT_MODE_KEY, never sent
- * to the browser). A correct key sets an httpOnly cookie holding a hash of it, so changing the
- * key in the env turns editing off everywhere.
+ * Edit mode (see components/EditMode and utils/accessServer): keys stay on the server.
+ * `?mode=<key>` is either the global EDIT_MODE_KEY (god) or a kingdom's King key.
  *
- * Not security: it only decides whether the editing UI is shown.
+ * Not security for regular editing: it only decides whether the editing UI is shown.
  */
 
-const COOKIE = 'kam-edit-mode';
-const MAX_AGE = 60 * 60 * 24 * 365; // a year
+const noStore = { headers: { 'Cache-Control': 'no-store' } };
 
-const editKey = () => process.env.EDIT_MODE_KEY ?? '';
-const hash = (value: string) => createHash('sha256').update(`kam-edit-mode:${value}`).digest();
-
-const matches = (a: Buffer, b: Buffer) => a.length === b.length && timingSafeEqual(a, b);
-
-/** { enabled }: this browser has a valid edit cookie */
+/** { enabled, kingOf }: god editing is on / this browser is the King of kingdom `kingOf` */
 export async function GET() {
-  const key = editKey();
-  const cookie = (await cookies()).get(COOKIE)?.value;
-  const enabled = !!key && !!cookie && matches(Buffer.from(cookie, 'hex'), hash(key));
-  return NextResponse.json({ enabled }, { headers: { 'Cache-Control': 'no-store' } });
+  const access = await getAccess();
+  return NextResponse.json({ enabled: access.god, kingOf: access.kingOf }, noStore);
 }
 
-/** { key } -> turns editing on when it's the key, off otherwise */
+/** { key } -> turns on the role the key belongs to; an unknown key turns everything off */
 export async function POST(request: NextRequest) {
-  const key = editKey();
-  if (!key) {
-    console.warn('[edit-mode] EDIT_MODE_KEY is not set: editing stays off');
+  if (!process.env.EDIT_MODE_KEY) {
+    console.warn('[edit-mode] EDIT_MODE_KEY is not set: god editing stays off');
   }
   const body = (await request.json().catch(() => null)) as { key?: unknown } | null;
   const given = typeof body?.key === 'string' ? body.key : '';
-  const enabled = !!key && !!given && matches(hash(given), hash(key));
-
   const store = await cookies();
-  if (enabled) {
-    store.set(COOKIE, hash(key).toString('hex'), {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: MAX_AGE,
-    });
-  } else {
-    store.delete(COOKIE);
+
+  if (isGodKey(given)) {
+    store.set(GOD_COOKIE, hashGodKey(process.env.EDIT_MODE_KEY!).toString('hex'), cookieOptions);
+    store.delete(KING_COOKIE);
+    return NextResponse.json({ enabled: true, kingOf: null });
   }
-  return NextResponse.json({ enabled });
+
+  const kingdomId = await findKingdomForKingKey(given);
+  store.delete(GOD_COOKIE);
+  if (kingdomId !== null) {
+    store.set(KING_COOKIE, hashKingKey(given), cookieOptions);
+    return NextResponse.json({ enabled: false, kingOf: kingdomId });
+  }
+
+  store.delete(KING_COOKIE);
+  return NextResponse.json({ enabled: false, kingOf: null });
 }
 
 /** Exit: back to view only */
 export async function DELETE() {
-  (await cookies()).delete(COOKIE);
-  return NextResponse.json({ enabled: false });
+  const store = await cookies();
+  store.delete(GOD_COOKIE);
+  store.delete(KING_COOKIE);
+  return NextResponse.json({ enabled: false, kingOf: null });
 }

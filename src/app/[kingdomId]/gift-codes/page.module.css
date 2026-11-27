@@ -1,0 +1,98 @@
+.filter {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 20px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background-color: var(--bg-secondary);
+}
+
+.filter:disabled {
+  opacity: 0.6;
+}
+
+.legend {
+  padding: 0 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.scopeOptions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+}
+
+.option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.filter:disabled .option {
+  cursor: not-allowed;
+}
+
+.count {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.allianceList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 6px 16px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background-color: var(--bg-primary);
+}
+
+.excludePanel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background-color: var(--bg-primary);
+}
+
+.search {
+  width: 100%;
+  max-width: 320px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.playerList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 6px 16px;
+  max-height: 280px;
+  overflow: auto;
+  padding: 0;
+  list-style: none;
+}
+
+.tag {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.jailed {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background-color: color-mix(in srgb, var(--danger-color) 15%, transparent);
+  color: var(--danger-color);
+  font-size: 11px;
+  font-weight: 700;
+}

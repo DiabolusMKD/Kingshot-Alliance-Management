@@ -303,6 +303,40 @@ export async function getKingdomPlayers(
   return { players: data ?? [], total: count ?? data?.length ?? 0 };
 }
 
+/** Every player of the kingdom (any alliance or none), strongest first. */
+export async function getAllKingdomPlayers(kingdomId: number): Promise<Player[]> {
+  const PAGE_SIZE = 1000; // Supabase returns at most 1000 rows per request
+  const players: Player[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { players: page } = await getKingdomPlayers(kingdomId, from, PAGE_SIZE);
+    players.push(...page);
+    if (page.length < PAGE_SIZE) break;
+  }
+  return players;
+}
+
+/**
+ * Players from OTHER kingdoms whose name, alias or in-game id matches (e.g. picking a
+ * High King), strongest first.
+ */
+export async function searchPlayersOutsideKingdom(kingdomId: number, query: string, limit = 20): Promise<Player[]> {
+  // Keep the term safe inside the PostgREST or() filter
+  const term = query.trim().replace(/[^\p{L}\p{N} _.-]/gu, '').slice(0, 50);
+  if (term.length < 2) return [];
+  const filters = [`name.ilike.*${term}*`, `aliasName.ilike.*${term}*`];
+  if (/^\d+$/.test(term)) filters.push(`playerId.eq.${term}`);
+
+  const { data, error } = await supabase
+    .from('player')
+    .select('*')
+    .neq('kingdomId', kingdomId)
+    .or(filters.join(','))
+    .order('power', { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(`Failed to search players: ${error.message}`);
+  return data ?? [];
+}
+
 /**
  * Players by their database ids (e.g. other-alliance players saved in an SSL event).
  */

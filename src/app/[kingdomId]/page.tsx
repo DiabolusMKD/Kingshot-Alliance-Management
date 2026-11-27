@@ -17,13 +17,15 @@ import { getAlliancesByKingdomId } from '@/utils/allianceService';
 import {
   AllianceStats,
   createPlayer,
+  getAllKingdomPlayers,
   getAllianceStats,
   getKingdomPlayers,
   getUnassignedPlayers,
   updatePlayer,
 } from '@/utils/playerService';
 import { describeSavedPlayer } from '@/utils/playerFeedback';
-import { useCanEdit } from '@/components/EditMode';
+import { useCanEdit, useCanRule } from '@/components/EditMode';
+import KingdomRulers from '@/components/KingdomRulers';
 import styles from './page.module.css';
 
 interface KingdomPageProps {
@@ -53,6 +55,9 @@ export default function KingdomPage({ params }: KingdomPageProps) {
   const { kingdomId } = use(params);
   const kingdomIdNumber = Number(kingdomId);
   const canEdit = useCanEdit();
+  // King features: this kingdom's King (King link) or god
+  const canRule = useCanRule(kingdomIdNumber);
+  const [isLoadingAllPlayers, setIsLoadingAllPlayers] = useState(false);
 
   const [alliances, setAlliances] = useState<Alliance[]>([]);
   const toast = useToast();
@@ -132,6 +137,23 @@ export default function KingdomPage({ params }: KingdomPageProps) {
     onFinished: () => loadAlliances({ silent: true }),
   });
 
+  // King: refresh every player of the kingdom in one go, instead of alliance by alliance
+  const handleUpdateAllPlayers = async () => {
+    setIsLoadingAllPlayers(true);
+    try {
+      const players = await getAllKingdomPlayers(kingdomIdNumber);
+      if (players.length === 0) {
+        toast.info('No players in this kingdom yet');
+        return;
+      }
+      startUpdate(players);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to load the kingdom players');
+    } finally {
+      setIsLoadingAllPlayers(false);
+    }
+  };
+
   const handleViewMorePlayers = async () => {
     setIsLoadingMorePlayers(true);
     try {
@@ -187,7 +209,33 @@ export default function KingdomPage({ params }: KingdomPageProps) {
           <Breadcrumbs />
           <div className={styles.header}>
             <h1 className={styles.title}>Welcome to Kingdom {kingdomId}</h1>
+            {canRule && (
+              <div className={styles.sectionActions}>
+                <button
+                  type="button"
+                  className={styles.sectionButton}
+                  onClick={handleUpdateAllPlayers}
+                  disabled={isUpdating || isLoadingAllPlayers}
+                  title="Refresh every player of the kingdom from the game"
+                >
+                  {isUpdating || isLoadingAllPlayers ? 'Updating...' : 'Update All Players'}
+                </button>
+                <Link
+                  href={`/${kingdomId}/gift-codes`}
+                  className={`${styles.sectionButton} ${isUpdating ? styles.sectionButtonDisabled : ''}`}
+                  aria-disabled={isUpdating}
+                  onClick={(e) => isUpdating && e.preventDefault()}
+                >
+                  Redeem Gift Codes
+                </Link>
+                <Link href={`/${kingdomId}/jail`} className={styles.sectionButton}>
+                  Jail
+                </Link>
+              </div>
+            )}
           </div>
+
+          <KingdomRulers kingdomId={kingdomIdNumber} />
 
           <section>
             <div className={styles.sectionHeader}>

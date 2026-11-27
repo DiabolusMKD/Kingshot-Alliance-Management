@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 
 /**
  * View-only by default; `?mode=<edit key>` in the URL turns editing on in this browser.
+ * `?mode=<King key>` (generated on the Kingdom page) turns on that kingdom's King features.
  *
  * The key is checked by /api/edit-mode (EDIT_MODE_KEY stays on the server), which remembers it
  * in an httpOnly cookie; changing the key in the env turns editing off everywhere.
@@ -16,13 +17,16 @@ import { usePathname } from 'next/navigation';
 
 const ENDPOINT = '/api/edit-mode';
 
-// One shared state for every component (asked from the server once per page load)
+// One shared state for every component (asked from the server once per page load).
+// `enabled` = god (EDIT_MODE_KEY); `kingOf` = kingdom whose King key this browser holds.
 let enabled = false;
+let kingOf: number | null = null;
 let checked = false;
 const listeners = new Set<() => void>();
 
-const setEnabled = (value: boolean) => {
-  enabled = value;
+const setAccess = (god: boolean, king: number | null) => {
+  enabled = god;
+  kingOf = king;
   listeners.forEach((listener) => listener());
 };
 
@@ -34,10 +38,10 @@ const subscribe = (onChange: () => void) => {
 const request = async (init?: RequestInit) => {
   try {
     const response = await fetch(ENDPOINT, { cache: 'no-store', ...init });
-    const data = (await response.json()) as { enabled?: boolean };
-    setEnabled(!!data.enabled);
+    const data = (await response.json()) as { enabled?: boolean; kingOf?: number | null };
+    setAccess(!!data.enabled, typeof data.kingOf === 'number' ? data.kingOf : null);
   } catch {
-    setEnabled(false);
+    setAccess(false, null);
   }
 };
 
@@ -47,6 +51,21 @@ export const disableEditMode = () => request({ method: 'DELETE' });
 /** True when editing is on (always false on the server and until the server answered) */
 export function useCanEdit(): boolean {
   return useSyncExternalStore(subscribe, () => enabled, () => false);
+}
+
+/** Kingdom id this browser is the King of (King key), or null */
+export function useKingOf(): number | null {
+  return useSyncExternalStore(subscribe, () => kingOf, () => null);
+}
+
+/**
+ * King features of a kingdom (kingdom-wide gift codes, update every player, Jail):
+ * that kingdom's King, or god. A High King has none.
+ */
+export function useCanRule(kingdomId: number): boolean {
+  const god = useCanEdit();
+  const king = useKingOf();
+  return god || king === kingdomId;
 }
 
 /**

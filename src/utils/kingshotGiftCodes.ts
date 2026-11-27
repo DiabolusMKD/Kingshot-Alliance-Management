@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import type { GiftCodeReward, ItemQuantity } from '@/types';
 
 // Server-only helpers for gift codes.
 //
@@ -50,6 +51,95 @@ export async function fetchActiveGiftCodes(): Promise<KingshotActiveGiftCode[]> 
   return body.data.giftCodes.filter(
     (c) => typeof c.code === 'string' && (!c.expiresAt || new Date(c.expiresAt).getTime() > now)
   );
+}
+
+// ---------------------------------------------------------------------------
+// Rewards (kingshot.net/gift-codes page)
+// ---------------------------------------------------------------------------
+//
+// The JSON API above has no rewards, but the public gift codes page embeds them in
+// its React Server Components payload, e.g.
+//   {"code":"GOBBLE","reward":{"kind":"items","items":[{"item":"wood","amount":1000,"count":100}, ...]}, ...}
+// `item` is an icon slug (see utils/items), `amount` the size of one item
+// (1000 wood, 5 min speedup), `count` how many of them.
+
+const SLUG_PATTERN = /^[a-z0-9-]{1,60}$/;
+
+function isPositiveNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0;
+}
+
+/** Validate an untrusted reward object; null when it has nothing usable. */
+function parseReward(raw: unknown): GiftCodeReward | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const reward = raw as { kind?: unknown; items?: unknown; text?: unknown };
+
+  if (reward.kind === 'items' && Array.isArray(reward.items)) {
+    const items: ItemQuantity[] = [];
+    for (const entry of reward.items as { item?: unknown; count?: unknown; amount?: unknown }[]) {
+      if (typeof entry?.item !== 'string' || !SLUG_PATTERN.test(entry.item)) continue;
+      items.push({
+        item: entry.item,
+        count: isPositiveNumber(entry.count) ? entry.count : 1,
+        ...(isPositiveNumber(entry.amount) ? { amount: entry.amount } : {}),
+      });
+    }
+    return items.length > 0 ? { kind: 'items', items } : null;
+  }
+  if (reward.kind === 'text' && typeof reward.text === 'string' && reward.text.trim()) {
+    return { kind: 'text', text: reward.text.trim().slice(0, 200) };
+  }
+  return null;
+}
+
+/** The balanced {...} object starting at `start` (string-aware), or null. */
+function sliceObject(source: string, start: number): string | null {
+  let depth = 0;
+  let inString = false;
+  for (let i = start; i < source.length; i++) {
+    const ch = source[i];
+    if (inString) {
+      if (ch === '\\') i++;
+      else if (ch === '"') inString = false;
+    } else if (ch === '"') inString = true;
+    else if (ch === '{') depth++;
+    else if (ch === '}' && --depth === 0) return source.slice(start, i + 1);
+  }
+  return null;
+}
+
+/**
+ * Rewards per code, scraped from kingshot.net/gift-codes. Codes the page lists without
+ * rewards map to null. Throws when the page can't be fetched or has no reward data
+ * (e.g. its markup changed), so callers can keep what they already stored.
+ */
+export async function fetchGiftCodeRewards(): Promise<Map<string, GiftCodeReward | null>> {
+  const res = await fetch(`${KINGSHOT_ORIGIN}/gift-codes`, {
+    cache: 'no-store',
+    headers: { 'User-Agent': 'kingshot-alliance-management/1.0', Accept: 'text/html' },
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!res.ok) throw new Error(`kingshot.net gift codes page returned HTTP ${res.status}`);
+
+  // The payload is JSON inside JS string literals: drop one level of quote escaping
+  const html = (await res.text()).replace(/\\"/g, '"');
+  const rewards = new Map<string, GiftCodeReward | null>();
+  const marker = /\{"code":"([A-Za-z0-9_-]{3,50})","reward":\{/g;
+
+  for (let match; (match = marker.exec(html)); ) {
+    const code = match[1];
+    if (rewards.get(code)) continue; // already have a non-empty reward for it
+    const json = sliceObject(html, match.index + match[0].length - 1);
+    if (!json) continue;
+    try {
+      rewards.set(code, parseReward(JSON.parse(json)));
+    } catch {
+      // Not plain JSON (e.g. still escaped): skip this occurrence
+    }
+  }
+
+  if (rewards.size === 0) throw new Error('No reward data found on the kingshot.net gift codes page');
+  return rewards;
 }
 
 // ---------------------------------------------------------------------------

@@ -1,5 +1,20 @@
+import type { JailTrial } from "@/utils/jailTrials";
+
 export interface Kingdom {
   id: number;
+  /** player.id of the King (a player of this kingdom); has the King features via a King key */
+  kingPlayerId?: number | null;
+  /** player.id of the High King (from another kingdom); no extra permissions */
+  highKingPlayerId?: number | null;
+  created_at?: string;
+}
+
+/** One offender in the kingdom Jail (kingdom_jail): one player per trial, at most six */
+export interface JailEntry {
+  id: number;
+  kingdomId: number;
+  playerId: number; // player.id
+  trial: JailTrial;
   created_at?: string;
 }
 
@@ -217,11 +232,24 @@ export interface LegionBuildingData {
 // Gift codes
 export type GiftCodeStatus = "active" | "inactive";
 
+/** `count` x `amount` of an in-game item (e.g. 100 x 1000 wood, 20 x 5 min speedup). See utils/items. */
+export interface ItemQuantity {
+  item: string; // item slug, e.g. "gem", "general-speedup" (public/images/items/<slug>.webp)
+  count: number;
+  amount?: number;
+}
+
+/** What a gift code gives, as listed on kingshot.net */
+export type GiftCodeReward =
+  | { kind: "items"; items: ItemQuantity[] }
+  | { kind: "text"; text: string };
+
 export interface GiftCode {
   id: number;
   code: string;
   status: GiftCodeStatus;
   expires_at: string | null;
+  reward?: GiftCodeReward | null; // null = not listed yet
   created_at?: string;
   updated_at?: string;
 }
