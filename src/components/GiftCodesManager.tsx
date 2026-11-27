@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import Navigation from '@/components/Navigation';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import { useToast } from '@/components/Toast';
-import { GiftCode, GiftCodeRedemption, GiftCodeRedeemResult, Player } from '@/types';
+import { GiftCode, GiftCodeRedemption, GiftCodeRedeemResult, GiftCodeReward, Player } from '@/types';
 import {
   DEAD_CODE_REASONS,
   describeRedemptionReason,
@@ -15,6 +15,7 @@ import {
 } from '@/utils/giftCodeService';
 import styles from './GiftCodesManager.module.css';
 import { useCanEdit } from './EditMode';
+import ItemList from './ItemList';
 
 interface GiftCodesManagerProps {
   /** Loads the players codes are redeemed for (an alliance, or players without one) */
@@ -24,6 +25,16 @@ interface GiftCodesManagerProps {
   /** Who the players are, e.g. "[ABC]Alliance" or "Kingdom 1010 without an alliance" */
   groupLabel: string;
   emptyPlayersText: string;
+  /** Who may sync / redeem; defaults to editing (god) mode */
+  canRedeem?: boolean;
+  /**
+   * Narrows the loaded players down to the ones codes are redeemed for (e.g. the kingdom page's
+   * alliance / exclusion choices). `render` gets every loaded player and is disabled mid-run.
+   */
+  playerFilter?: {
+    apply: (allPlayers: Player[]) => Player[];
+    render: (allPlayers: Player[], disabled: boolean) => ReactNode;
+  };
 }
 
 type CellState = 'none' | 'queued' | 'running' | 'redeemed' | 'failed';
@@ -66,11 +77,16 @@ export default function GiftCodesManager({
   loadKey,
   groupLabel,
   emptyPlayersText,
+  canRedeem,
+  playerFilter,
 }: GiftCodesManagerProps) {
   const toast = useToast();
 
-  const canEdit = useCanEdit();
-  const [players, setPlayers] = useState<Player[]>([]);
+  const isEditor = useCanEdit();
+  const canEdit = canRedeem ?? isEditor;
+  const [allPlayers, setAllPlayers] = useState<Player[]>([]);
+  // Memoize `playerFilter` in the page, or this recomputes on every render
+  const players = useMemo(() => (playerFilter ? playerFilter.apply(allPlayers) : allPlayers), [allPlayers, playerFilter]);
   const [codes, setCodes] = useState<GiftCode[]>([]);
   const [redemptions, setRedemptions] = useState<Map<string, GiftCodeRedemption>>(new Map());
   const [live, setLive] = useState<Map<string, LiveCell>>(new Map());
@@ -81,6 +97,13 @@ export default function GiftCodesManager({
   const [syncError, setSyncError] = useState<string | null>(null);
   const [summary, setSummary] = useState<RunSummary | null>(null);
   const [progress, setProgress] = useState<{ current: number; total: number; waitingUntil?: number } | null>(null);
+  const activeRowRef = useRef<HTMLTableRowElement>(null);
+  const activePlayerIndex = progress ? progress.current - 1 : null;
+
+  // Keep the player being redeemed for in view as the run progresses (same as the players updater)
+  useEffect(() => {
+    activeRowRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [activePlayerIndex]);
   const [now, setNow] = useState(() => Date.now());
 
   const isBusy = isLoading || isSyncing || isRedeeming;
@@ -114,7 +137,7 @@ export default function GiftCodesManager({
       try {
         const [groupPlayers, activeCodes] = await Promise.all([loadPlayers(), refreshCodes()]);
         if (!isMounted) return;
-        setPlayers(groupPlayers);
+        setAllPlayers(groupPlayers);
         setCodes(activeCodes);
         await loadRedemptions(activeCodes, groupPlayers);
       } catch (error) {
@@ -145,7 +168,7 @@ export default function GiftCodesManager({
       const previousIds = new Set(codes.map((c) => c.id));
       const activeCodes = await refreshCodes();
       setCodes(activeCodes);
-      await loadRedemptions(activeCodes, players);
+      await loadRedemptions(activeCodes, allPlayers);
 
       const newCount = activeCodes.filter((c) => !previousIds.has(c.id)).length;
       if (newCount > 0) toast.success(`Found ${newCount} new gift code(s)`);
@@ -258,7 +281,7 @@ export default function GiftCodesManager({
         if (index < players.length - 1) await sleep(DELAY_BETWEEN_PLAYERS_MS);
       }
 
-      await loadRedemptions(codes, players).catch((error) =>
+      await loadRedemptions(codes, allPlayers).catch((error) =>
         console.error('Failed to reload redemptions:', error)
       );
     } finally {
@@ -374,28 +397,35 @@ export default function GiftCodesManager({
           </label>
           )}
 
-          {syncError && (
-            <div className={`${styles.banner} ${styles.bannerError}`} role="alert">
-              Could not check kingshot.net for new codes ({syncError}). Showing codes already saved.
-            </div>
-          )}
+          {playerFilter?.render(allPlayers, isBusy)}
 
-          {progress && (
-            <div className={`${styles.banner} ${styles.bannerInfo}`} role="status" aria-live="polite">
-              Redeeming for player {progress.current} / {progress.total}
-              {progress.waitingUntil &&
-                ` · rate limited by the game server, retrying in ${Math.max(0, Math.ceil((progress.waitingUntil - now) / 1000))}s`}
-            </div>
-          )}
+          {/* Sticky right below the header, so the progress stays visible while the table scrolls */}
+          {(syncError || progress || summary) && (
+            <div className={styles.statusBar}>
+            {syncError && (
+              <div className={`${styles.banner} ${styles.bannerError}`} role="alert">
+                Could not check kingshot.net for new codes ({syncError}). Showing codes already saved.
+              </div>
+            )}
 
-          {summary && (
-            <div
-              className={`${styles.banner} ${summary.failed > 0 ? styles.bannerWarning : styles.bannerSuccess}`}
-              role="status"
-            >
-              {summary.failed === 0 ? 'Success! ' : 'Finished. '}
-              {summary.redeemed} redeemed, {summary.failed} failed, {summary.skipped} skipped (already redeemed).
-              {summary.failed > 0 && ' Hover a failed cell to see why.'}
+            {progress && (
+              <div className={`${styles.banner} ${styles.bannerInfo}`} role="status" aria-live="polite">
+                Redeeming for player {progress.current} / {progress.total}
+                {progress.waitingUntil &&
+                  ` · rate limited by the game server, retrying in ${Math.max(0, Math.ceil((progress.waitingUntil - now) / 1000))}s`}
+              </div>
+            )}
+
+            {summary && (
+              <div
+                className={`${styles.banner} ${summary.failed > 0 ? styles.bannerWarning : styles.bannerSuccess}`}
+                role="status"
+              >
+                {summary.failed === 0 ? 'Success! ' : 'Finished. '}
+                {summary.redeemed} redeemed, {summary.failed} failed, {summary.skipped} skipped (already redeemed).
+                {summary.failed > 0 && ' Hover a failed cell to see why.'}
+              </div>
+            )}
             </div>
           )}
 
@@ -411,6 +441,7 @@ export default function GiftCodesManager({
                     <span className={styles.codeMeta}>
                       {redeemedCounts.get(code.id) ?? 0} / {players.length} redeemed
                     </span>
+                    <RewardList reward={code.reward} />
                   </div>
                 ))}
               </div>
@@ -429,8 +460,12 @@ export default function GiftCodesManager({
                       </tr>
                     </thead>
                     <tbody>
-                      {players.map((player) => (
-                        <tr key={player.id}>
+                      {players.map((player, index) => (
+                        <tr
+                          key={player.id}
+                          ref={index === activePlayerIndex ? activeRowRef : undefined}
+                          className={styles.playerRow}
+                        >
                           <td className={styles.playerColumn}>
                             <span className={styles.playerName}>{player.aliasName || player.name}</span>
                             <span className={styles.playerId}>{player.playerId}</span>
@@ -460,4 +495,11 @@ export default function GiftCodesManager({
       </main>
     </>
   );
+}
+
+/** What a code gives, as item icons with quantities. */
+function RewardList({ reward }: { reward: GiftCodeReward | null | undefined }) {
+  // kingshot.net's 'text' rewards are just the code name again: nothing to show
+  if (reward?.kind !== 'items') return null;
+  return <ItemList items={reward.items} label="Rewards" className={styles.rewardList} />;
 }

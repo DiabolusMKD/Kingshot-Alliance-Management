@@ -2,11 +2,12 @@
 
 import Link from 'next/link';
 import Logo from './Logo';
-import { disableEditMode, useCanEdit } from './EditMode';
+import { disableEditMode, useCanEdit, useKingOf } from './EditMode';
 import styles from './Navigation.module.css';
 
 export default function Navigation() {
   const canEdit = useCanEdit();
+  const kingOf = useKingOf();
 
   return (
     <nav className={styles.navigation}>
@@ -14,11 +15,15 @@ export default function Navigation() {
         <Link href="/" className={styles.logo} aria-label="Kingshot Alliance Management home">
           <Logo variant="header" />
         </Link>
-        {/* Only visible to whoever turned editing on (?mode=<edit key>) */}
-        {canEdit && (
+        {/* Only visible to whoever turned editing on (?mode=<edit key> or a King key) */}
+        {(canEdit || kingOf !== null) && (
           <span className={styles.editBadge}>
             <span className={styles.editDot} aria-hidden="true" />
-            Editing on
+            {canEdit ? 'Editing on' : (
+              <Link href={`/${kingOf}`} className={styles.editKingLink}>
+                King of Kingdom {kingOf}
+              </Link>
+            )}
             <button
               type="button"
               className={styles.editExit}

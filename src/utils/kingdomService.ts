@@ -46,3 +46,28 @@ export async function getKingdomById(id: number): Promise<Kingdom | null> {
     throw error;
   }
 }
+
+async function apiJson<T>(res: Response): Promise<T> {
+  const body = await res.json().catch(() => null);
+  if (!res.ok || body?.status !== 'success') throw new Error(body?.error || `Request failed (HTTP ${res.status})`);
+  return body.data as T;
+}
+
+export type KingdomRulerChange = { kingPlayerId: number } | { highKingPlayerId: number } | { clear: true };
+
+/** Set the King or the High King (god only). Revokes the current King key. */
+export async function setKingdomRuler(kingdomId: number, change: KingdomRulerChange): Promise<Kingdom> {
+  return apiJson(
+    await fetch(`/api/kingdoms/${kingdomId}/king`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(change),
+    })
+  );
+}
+
+/** New King key for the current King (god only); the previous key stops working. */
+export async function generateKingKey(kingdomId: number): Promise<string> {
+  const data = await apiJson<{ key: string }>(await fetch(`/api/kingdoms/${kingdomId}/king`, { method: 'POST' }));
+  return data.key;
+}

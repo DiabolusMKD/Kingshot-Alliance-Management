@@ -36,13 +36,23 @@ export async function syncGiftCodes(): Promise<GiftCode[]> {
 
 export async function getRedemptions(giftCodeIds: number[], playerIds: number[]): Promise<GiftCodeRedemption[]> {
   if (giftCodeIds.length === 0 || playerIds.length === 0) return [];
-  const { data, error } = await supabase
-    .from('gift_code_redemption')
-    .select('*')
-    .in('giftCodeId', giftCodeIds)
-    .in('playerId', playerIds);
-  if (error) throw new Error(`Failed to fetch redemptions: ${error.message}`);
-  return data ?? [];
+  // A whole kingdom can be thousands of players: keep each request URL short
+  const CHUNK = 200;
+  const chunks: number[][] = [];
+  for (let i = 0; i < playerIds.length; i += CHUNK) chunks.push(playerIds.slice(i, i + CHUNK));
+
+  const results = await Promise.all(
+    chunks.map(async (ids) => {
+      const { data, error } = await supabase
+        .from('gift_code_redemption')
+        .select('*')
+        .in('giftCodeId', giftCodeIds)
+        .in('playerId', ids);
+      if (error) throw new Error(`Failed to fetch redemptions: ${error.message}`);
+      return data ?? [];
+    })
+  );
+  return results.flat();
 }
 
 /** Redeem the given codes for one player. Results are recorded server-side. */

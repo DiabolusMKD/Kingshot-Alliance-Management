@@ -122,6 +122,29 @@
   font-weight: 600;
 }
 
+.statusBar {
+  position: sticky;
+  top: var(--header-height);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 calc(-1 * var(--page-gutter)) 20px;
+  padding: 8px var(--page-gutter);
+  /* Opaque, so the table doesn't show through the translucent banners */
+  background-color: var(--bg-primary);
+}
+
+.statusBar .banner {
+  margin-bottom: 0;
+}
+
+/* scrollIntoView clears the sticky header + status bar and the sticky table header */
+.playerRow {
+  scroll-margin-top: calc(var(--header-height) + 120px);
+  scroll-margin-bottom: 16px;
+}
+
 .bannerSuccess {
   color: #22c55e;
   background-color: rgba(34, 197, 94, 0.12);
@@ -143,7 +166,7 @@
 
 .codeList {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 12px;
   margin-bottom: 24px;
 }
@@ -169,6 +192,10 @@
 .codeMeta {
   font-size: 13px;
   color: var(--text-secondary);
+}
+
+.rewardList {
+  margin-top: 6px;
 }
 
 /* Players x codes grid */
