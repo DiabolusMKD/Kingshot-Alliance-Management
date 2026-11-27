@@ -5,6 +5,12 @@
   min-width: 0;
 }
 
+.photoSlot {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
 .photo,
 .photoPlaceholder {
   flex-shrink: 0;

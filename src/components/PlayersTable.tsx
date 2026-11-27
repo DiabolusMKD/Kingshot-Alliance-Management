@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { getPlayerHref } from '@/utils/playerLinks';
+import JailedBadge from './JailedBadge';
 import ZoomableImage from './ZoomableImage';
 import { Alliance, Player } from '@/types';
 import styles from './PlayersTable.module.css';
@@ -101,17 +102,20 @@ export default function PlayersTable({
                 <td>{filteredPlayers.indexOf(player) + 1}</td>
                 <td>
                   <div className={styles.photoWrapper}>
-                    {player.profilePhoto ? (
-                      <ZoomableImage
-                        src={player.profilePhoto}
-                        alt={player.name}
-                        className={styles.playerPhoto}
-                        width={40}
-                        height={40}
-                      />
-                    ) : (
-                      <div className={styles.noPhoto}>—</div>
-                    )}
+                    <span className={styles.photoSlot}>
+                      {player.profilePhoto ? (
+                        <ZoomableImage
+                          src={player.profilePhoto}
+                          alt={player.name}
+                          className={styles.playerPhoto}
+                          width={40}
+                          height={40}
+                        />
+                      ) : (
+                        <div className={styles.noPhoto}>—</div>
+                      )}
+                      <JailedBadge player={player} size="small" />
+                    </span>
                     {player.levelImage && (
                       <div className={styles.levelBadge} title="Level">
                         {isImageUrl(player.levelImage) ? (

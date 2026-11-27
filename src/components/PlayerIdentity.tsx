@@ -3,6 +3,7 @@
 import { ReactNode } from 'react';
 import { Player } from '@/types';
 import ZoomableImage from './ZoomableImage';
+import JailedBadge from './JailedBadge';
 import { isImageUrl, truncateLevelLabel } from '@/utils/isImageUrl';
 import styles from './PlayerIdentity.module.css';
 
@@ -14,28 +15,33 @@ interface PlayerIdentityProps {
   size?: number;
   /** Extra content after the name (badges...) */
   children?: ReactNode;
+  /** "Jailed" badge on the photo when the player is in their kingdom's jail (default on) */
+  showJailed?: boolean;
 }
 
 /** Player photo, level image next to it, and the name - used in event tables and cards */
-export default function PlayerIdentity({ player, label, size = 32, children }: PlayerIdentityProps) {
+export default function PlayerIdentity({ player, label, size = 32, children, showJailed = true }: PlayerIdentityProps) {
   const name = label || player.name;
   const levelSize = Math.round(size * 0.75);
 
   return (
     <div className={styles.identity}>
-      {player.profilePhoto ? (
-        <ZoomableImage
-          src={player.profilePhoto}
-          alt={name}
-          width={size}
-          height={size}
-          className={styles.photo}
-        />
-      ) : (
-        <span className={styles.photoPlaceholder} style={{ width: size, height: size }} aria-hidden="true">
-          {name.charAt(0).toUpperCase()}
-        </span>
-      )}
+      <span className={styles.photoSlot}>
+        {player.profilePhoto ? (
+          <ZoomableImage
+            src={player.profilePhoto}
+            alt={name}
+            width={size}
+            height={size}
+            className={styles.photo}
+          />
+        ) : (
+          <span className={styles.photoPlaceholder} style={{ width: size, height: size }} aria-hidden="true">
+            {name.charAt(0).toUpperCase()}
+          </span>
+        )}
+        {showJailed && <JailedBadge player={player} size="small" />}
+      </span>
 
       {player.levelImage &&
         (isImageUrl(player.levelImage) ? (

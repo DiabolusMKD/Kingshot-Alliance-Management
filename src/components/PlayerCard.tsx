@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { Player } from '@/types';
 import ZoomableImage from './ZoomableImage';
+import JailedBadge from './JailedBadge';
 import styles from './PlayerCard.module.css';
 import { formatNumbers } from '@/utils/formatNumbers';
 import { isImageUrl, truncateLevelLabel } from '@/utils/isImageUrl';
@@ -20,6 +21,7 @@ export default function PlayerCard({ player, allianceLabel, href }: PlayerCardPr
   const content = (
     <>
       <div className={styles.cardHeader}>
+        <JailedBadge player={player} />
         {player.profilePhoto && (
           <ZoomableImage
             src={player.profilePhoto}

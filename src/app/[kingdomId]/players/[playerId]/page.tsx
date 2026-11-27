@@ -2,6 +2,7 @@
 
 import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import JailedBadge from "@/components/JailedBadge";
 import { Alliance, EventType, Player } from "@/types";
 import Navigation from "@/components/Navigation";
 import Breadcrumbs, { Crumb } from "@/components/Breadcrumbs";
@@ -364,6 +365,7 @@ export default function PlayerPage({ params }: PlayerPageProps) {
           ) : (
             <>
               <header className={styles.profile}>
+                <JailedBadge player={player} />
                 <div className={styles.identity}>
                   {player.profilePhoto ? (
                     <ZoomableImage

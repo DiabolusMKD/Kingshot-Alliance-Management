@@ -148,6 +148,12 @@
 }
 
 /* Photo with the TC level next to it (same as the event tables) */
+.photoSlot {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
 .photoWrapper {
   display: inline-flex;
   align-items: center;

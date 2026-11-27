@@ -7,13 +7,16 @@ import Breadcrumbs from '@/components/Breadcrumbs';
 import Dialog from '@/components/Dialog';
 import PlayerIdentity from '@/components/PlayerIdentity';
 import PlayerPicker from '@/components/PlayerPicker';
+import PlayerForm, { PlayerFormSubmitMeta } from '@/components/PlayerForm';
+import { setJailCache } from '@/components/useJail';
 import { useCanRule } from '@/components/EditMode';
 import { useToast } from '@/components/Toast';
 import { Alliance, JailEntry, Player } from '@/types';
 import { getAlliancesByKingdomId } from '@/utils/allianceService';
 import { getJail, setJailTrial } from '@/utils/jailService';
 import { JAIL_TRIALS, JailTrial, MAX_OFFENDERS } from '@/utils/jailTrials';
-import { getAllKingdomPlayers } from '@/utils/playerService';
+import { createPlayer, getAllKingdomPlayers, updatePlayer } from '@/utils/playerService';
+import { describeSavedPlayer } from '@/utils/playerFeedback';
 import styles from './page.module.css';
 
 interface JailPageProps {
@@ -33,8 +36,19 @@ export default function JailPage({ params }: JailPageProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [pickingTrial, setPickingTrial] = useState<JailTrial | null>(null);
   const [savingTrial, setSavingTrial] = useState<JailTrial | null>(null);
+  // Picking dialog shows the standard Add Player form instead of the list
+  const [isAddingPlayer, setIsAddingPlayer] = useState(false);
 
-  const reloadJail = async () => setJail(await getJail(kingdomIdNumber));
+  const reloadJail = async () => {
+    const entries = await getJail(kingdomIdNumber);
+    setJail(entries);
+    setJailCache(kingdomIdNumber, entries); // "Jailed" badges elsewhere on the page
+  };
+
+  const openPicker = (trial: JailTrial) => {
+    setIsAddingPlayer(false);
+    setPickingTrial(trial);
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -76,10 +90,45 @@ export default function JailPage({ params }: JailPageProps) {
         player ? `${player.aliasName || player.name} sent to the ${trialName(trial)}` : `${trialName(trial)} released`
       );
       setPickingTrial(null);
+      setIsAddingPlayer(false);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to update the jail');
     } finally {
       setSavingTrial(null);
+    }
+  };
+
+  /**
+   * Player not in the app yet: the standard Add Player flow (looked up in the game, their
+   * alliance created when missing), then straight into the trial being filled.
+   */
+  const handleAddPlayer = async (
+    formData: Omit<Player, 'id' | 'created_at' | 'updated_at'>,
+    existingPlayerId?: string,
+    meta?: PlayerFormSubmitMeta
+  ) => {
+    if (!pickingTrial) return;
+    try {
+      // Already in the database (e.g. another kingdom): move that row instead of duplicating it
+      const saved = existingPlayerId ? await updatePlayer(existingPlayerId, formData) : await createPlayer(formData);
+      toast.success(describeSavedPlayer('Added', formData, alliances, meta?.createdAlliance));
+
+      const [kingdomPlayers, kingdomAlliances] = await Promise.all([
+        getAllKingdomPlayers(kingdomIdNumber),
+        getAlliancesByKingdomId(kingdomIdNumber).catch(() => alliances),
+      ]);
+      setPlayers(kingdomPlayers);
+      setAlliances(kingdomAlliances);
+
+      if (Number(saved.kingdomId) !== kingdomIdNumber) {
+        toast.error(`${saved.aliasName || saved.name} is in kingdom ${saved.kingdomId}: only kingdom ${kingdomId} players can be jailed`);
+        setIsAddingPlayer(false);
+        return;
+      }
+      await update(pickingTrial, saved);
+    } catch (error) {
+      console.error('Failed to add player:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to add player');
     }
   };
 
@@ -118,7 +167,7 @@ export default function JailPage({ params }: JailPageProps) {
                     <div className={styles.offender}>
                       {offender ? (
                         <Link href={`/${kingdomId}/players/${offender.playerId}`} className={styles.offenderLink}>
-                          <PlayerIdentity player={offender} label={offender.aliasName || offender.name} />
+                          <PlayerIdentity player={offender} label={offender.aliasName || offender.name} showJailed={false} />
                           {tag && <span className={styles.tag}>[{tag}]</span>}
                         </Link>
                       ) : entry ? (
@@ -133,7 +182,7 @@ export default function JailPage({ params }: JailPageProps) {
                         <button
                           type="button"
                           className={styles.button}
-                          onClick={() => setPickingTrial(trial.id)}
+                          onClick={() => openPicker(trial.id)}
                           disabled={savingTrial !== null}
                         >
                           {entry ? 'Replace' : 'Jail a player'}
@@ -164,22 +213,44 @@ export default function JailPage({ params }: JailPageProps) {
         onClose={() => setPickingTrial(null)}
         closeDisabled={savingTrial !== null}
       >
-        {pickingTrial && (
-          <PlayerPicker
-            players={players}
-            disabled={savingTrial !== null}
-            onPick={(player) => update(pickingTrial, player)}
-            describe={(player) => {
-              const tag = player.allianceId != null ? allianceTags.get(String(player.allianceId)) : undefined;
-              const current = trialOf.get(String(player.id));
-              return (
-                <>
-                  {tag && <span>[{tag}]</span>}
-                  {current && <span className={styles.jailedNote}>In {trialName(current)}</span>}
-                </>
-              );
-            }}
+        {pickingTrial && isAddingPlayer && (
+          <PlayerForm
+            kingdomId={kingdomIdNumber}
+            allianceId=""
+            alliances={alliances}
+            onSubmit={handleAddPlayer}
+            onCancel={() => setIsAddingPlayer(false)}
           />
+        )}
+        {pickingTrial && !isAddingPlayer && (
+          <>
+            <PlayerPicker
+              players={players}
+              disabled={savingTrial !== null}
+              onPick={(player) => update(pickingTrial, player)}
+              describe={(player) => {
+                const tag = player.allianceId != null ? allianceTags.get(String(player.allianceId)) : undefined;
+                const current = trialOf.get(String(player.id));
+                return (
+                  <>
+                    {tag && <span>[{tag}]</span>}
+                    {current && <span className={styles.jailedNote}>In {trialName(current)}</span>}
+                  </>
+                );
+              }}
+            />
+            <p className={styles.addHint}>
+              Not in the list?{' '}
+              <button
+                type="button"
+                className={styles.linkButton}
+                onClick={() => setIsAddingPlayer(true)}
+                disabled={savingTrial !== null}
+              >
+                Add the player by ID
+              </button>
+            </p>
+          </>
         )}
       </Dialog>
     </>
