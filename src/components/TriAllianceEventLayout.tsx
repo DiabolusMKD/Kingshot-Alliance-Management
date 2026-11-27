@@ -11,6 +11,8 @@ import LegionTimeSelect from "./LegionTimeSelect";
 import ViewAssignmentsButton from "./ViewAssignmentsButton";
 import GeneratedOutput from "./GeneratedOutput";
 import { AssignmentCard, AssignmentCards } from "./BuildingPreview";
+import type { OpponentsState } from "./EventOpponents";
+import { TRI_COLOR_LABELS, formatFacing, legionSides } from "@/utils/triAllianceColors";
 import { LegionSchedules, formatLegionTitle, getLegionSchedules } from "@/utils/legionSchedule";
 import { EventSaveInput } from "@/utils/eventData";
 import { formatCompactPower, formatPower } from "@/utils/formatNumbers";
@@ -54,6 +56,8 @@ interface TriAllianceEventLayoutProps {
   onDelete?: () => void;
   /** The opponents section; read-only while a completed event is locked */
   renderOpponents?: (readOnly: boolean) => ReactNode;
+  /** Opponents + colors (from the opponents section): who each side fights, in the generated string */
+  opponents?: OpponentsState | null;
 }
 
 type LegionKey = "legion1" | "legion2";
@@ -279,6 +283,7 @@ export default function TriAllianceEventLayout({
   isSaving = false,
   onDelete,
   renderOpponents,
+  opponents = null,
 }: TriAllianceEventLayoutProps) {
   const toast = useToast();
   const [currentEventStatus, setCurrentEventStatus] =
@@ -418,20 +423,33 @@ export default function TriAllianceEventLayout({
     const formatPlayers = (players: Player[]) =>
       [...players].sort(byTriPower).map((p) => p.name).join(", ") || "None";
 
-    const formatLegion = (title: string, teams: Team[], substitutes: Player[]) =>
-      `${title}:
+    // Colors (once the matchmaking is done): our color, and who each side fights
+    const sidesOf = (legion: "legion_1" | "legion_2") =>
+      opponents
+        ? legionSides(
+            opponents.ownColors[legion],
+            opponents.opponents.filter((o) => o.legion === legion),
+          )
+        : null;
+
+    const formatLegion = (title: string, teams: Team[], substitutes: Player[], sides: ReturnType<typeof sidesOf>) =>
+      `${title}${sides?.own ? ` - We are ${TRI_COLOR_LABELS[sides.own]}` : ""}:
 ${teams
   .map(
-    (team, index) => `${TEAM_LABELS[index]}:
+    (team, index) => {
+      // Team 1 + 2 are the right side, Team 3 + 4 the left side
+      const facing = sides?.[index < 2 ? "right" : "left"];
+      return `${TEAM_LABELS[index]}${facing ? ` vs ${formatFacing(facing)}` : ""}:
 - Offense: ${formatPlayers(team.offense)}
-- Support: ${formatPlayers(team.support)}`,
+- Support: ${formatPlayers(team.support)}`;
+    },
   )
   .join("\n")}
 Substitutions: ${formatPlayers(substitutes)}`;
 
-    const fullString = `${formatLegion(formatLegionTitle("Legion 1", legionSchedules.legion_1), legionTeams.legion1.teams, assignments.substituteLegion1)}
+    const fullString = `${formatLegion(formatLegionTitle("Legion 1", legionSchedules.legion_1), legionTeams.legion1.teams, assignments.substituteLegion1, sidesOf("legion_1"))}
 
-${formatLegion(formatLegionTitle("Legion 2", legionSchedules.legion_2), legionTeams.legion2.teams, assignments.substituteLegion2)}`;
+${formatLegion(formatLegionTitle("Legion 2", legionSchedules.legion_2), legionTeams.legion2.teams, assignments.substituteLegion2, sidesOf("legion_2"))}`;
 
     // JSON with player ids only (the players are looked up again on upload)
     const toJson = (teams: Team[], substitutes: Player[]) => ({
@@ -447,7 +465,7 @@ ${formatLegion(formatLegionTitle("Legion 2", legionSchedules.legion_2), legionTe
     };
 
     return [fullString, JSON.stringify(jsonData, null, 2)];
-  }, [assignments, legionTeams, legionSchedules]);
+  }, [assignments, legionTeams, legionSchedules, opponents]);
 
   const handleReset = () => {
     if (!confirm("Reset all assignments? Every player goes back to Unassigned. Nothing is saved until you click Save.")) return;

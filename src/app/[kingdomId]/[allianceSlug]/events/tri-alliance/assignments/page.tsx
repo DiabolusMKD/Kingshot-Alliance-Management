@@ -29,9 +29,8 @@ import {
   TRI_COLOR_LABELS,
   TriColor,
   TriSide,
-  leftOpponentColor,
+  legionSides,
   resolveColors,
-  rightOpponentColor,
   sideFacing,
 } from "@/utils/triAllianceColors";
 import { formatAllianceLabel } from "@/utils/allianceLabel";
@@ -194,25 +193,9 @@ export default function TriAllianceAssignmentsPage({ params, searchParams }: Pag
     return Object.fromEntries(
       LEGIONS.map(({ key, resultKey }) => {
         const legionOpponents = opponents.opponents.filter((o) => o.legion === resultKey);
-        const { own, opponents: colors } = resolveColors(
-          opponents.ownColors[resultKey],
-          legionOpponents.map((o) => o.color ?? null),
-        );
-        const facing = (target: TriColor | null) => {
-          if (!target) return null;
-          const index = colors.indexOf(target);
-          return { color: target, tag: index === -1 ? null : legionOpponents[index].allianceTag };
-        };
-        return [
-          key,
-          {
-            own,
-            right: facing(own ? rightOpponentColor(own) : null),
-            left: facing(own ? leftOpponentColor(own) : null),
-          },
-        ];
+        return [key, legionSides(opponents.ownColors[resultKey], legionOpponents)];
       }),
-    ) as Record<TriLegion, { own: TriColor | null; right: Facing | null; left: Facing | null }>;
+    ) as Record<TriLegion, ReturnType<typeof legionSides>>;
   }, [opponents]);
   // The simulation compares by power on both sides: the opponents' tri-alliance power isn't known
   const totalPower = (p: Player) => p.power ?? 0;
@@ -435,12 +418,6 @@ export default function TriAllianceAssignmentsPage({ params, searchParams }: Pag
       )}
     </>,
   );
-}
-
-interface Facing {
-  color: TriColor;
-  /** The opponent with that color (null while it isn't added) */
-  tag: string | null;
 }
 
 function ColorName({ color }: { color: TriColor }) {

@@ -8,7 +8,7 @@ import Breadcrumbs from "@/components/Breadcrumbs";
 import EventHero from "@/components/EventHero";
 import TriAllianceEventLayout from "@/components/TriAllianceEventLayout";
 import EventList from "@/components/EventList";
-import EventOpponents from "@/components/EventOpponents";
+import EventOpponents, { OpponentsState } from "@/components/EventOpponents";
 import ReliabilityStats from "@/components/ReliabilityStats";
 import { useToast } from "@/components/Toast";
 import { useEventEditorData } from "@/components/useEventEditorData";
@@ -55,6 +55,8 @@ export default function TriAlliancePage({ params, searchParams }: TriAlliancePag
   const [formData, setFormData] = useState<EventFormData>({ startsAt: "" });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  // Opponents (and colors) of the open event, for the generated string
+  const [opponents, setOpponents] = useState<OpponentsState | null>(null);
 
   // The event being edited comes from the ?event= URL param
   const selectedEvent = eventSlug ? findEventBySlug(events, eventSlug) ?? null : null;
@@ -295,6 +297,7 @@ export default function TriAlliancePage({ params, searchParams }: TriAlliancePag
                   onSave={handleSaveAssignments}
                   onDelete={() => handleDeleteEvent(selectedEvent.id!)}
                   isSaving={isSaving}
+                  opponents={opponents}
                   renderOpponents={(readOnly) =>
                     alliance && (
                       <EventOpponents
@@ -302,6 +305,7 @@ export default function TriAlliancePage({ params, searchParams }: TriAlliancePag
                         eventType="tri-alliance"
                         ownAllianceId={alliance.id}
                         readOnly={readOnly}
+                        onChange={setOpponents}
                       />
                     )
                   }

@@ -59,3 +59,32 @@ export function resolveColors(
   const remaining = TRI_COLORS.find((c) => !distinct.has(c))!;
   return own ? { own, opponents: opponents.map((c) => c ?? remaining) } : { own: remaining, opponents };
 }
+
+/** The alliance a side of ours fights: its color and tag (null while that opponent isn't added) */
+export interface FacingAlliance {
+  color: TriColor;
+  tag: string | null;
+}
+
+/** Our color in a legion (set, or the only one left) and who our right and left sides fight */
+export function legionSides(
+  own: TriColor | null,
+  opponents: { color?: TriColor | null; allianceTag: string }[],
+): { own: TriColor | null; right: FacingAlliance | null; left: FacingAlliance | null } {
+  const resolved = resolveColors(own, opponents.map((o) => o.color ?? null));
+  const facing = (target: TriColor | null): FacingAlliance | null => {
+    if (!target) return null;
+    const index = resolved.opponents.indexOf(target);
+    return { color: target, tag: index === -1 ? null : opponents[index].allianceTag };
+  };
+  const ownColor = resolved.own;
+  return {
+    own: ownColor,
+    right: facing(ownColor ? rightOpponentColor(ownColor) : null),
+    left: facing(ownColor ? leftOpponentColor(ownColor) : null),
+  };
+}
+
+/** "Purple [ABC]" (or just the color) */
+export const formatFacing = (facing: FacingAlliance) =>
+  `${TRI_COLOR_LABELS[facing.color]}${facing.tag ? ` [${facing.tag}]` : ""}`;
