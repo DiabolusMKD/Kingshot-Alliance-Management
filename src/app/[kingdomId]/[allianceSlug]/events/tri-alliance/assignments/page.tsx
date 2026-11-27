@@ -285,7 +285,7 @@ export default function TriAllianceAssignmentsPage({ params, searchParams }: Pag
                 <article key={TEAM_LABELS[index]} className={styles.building}>
                   <h3 className={styles.buildingTitle}>
                     {TEAM_LABELS[index]}
-                    <span className={styles.buildingCount}>{teamPlayers(team).length}</span>
+                    <PlayerCount players={teamPlayers(team)} power={triPower} />
                   </h3>
                   {(() => {
                     const facing = sides?.[key][index < 2 ? "right" : "left"];
@@ -313,7 +313,7 @@ export default function TriAllianceAssignmentsPage({ params, searchParams }: Pag
               <article className={`${styles.building} ${styles.substitutes}`}>
                 <h3 className={styles.buildingTitle}>
                   Substitutes
-                  <span className={styles.buildingCount}>{ours[key].substitutes.length}</span>
+                  <PlayerCount players={ours[key].substitutes} power={triPower} />
                 </h3>
                 {ours[key].substitutes.length === 0 ? (
                   <p className={styles.muted}>None</p>
@@ -504,5 +504,15 @@ function Matchup({
         {side(right, "right")}
       </div>
     </article>
+  );
+}
+
+/** "5 (1.2B)": the number of players and their total power */
+function PlayerCount({ players, power }: { players: Player[]; power: (p: Player) => number }) {
+  const total = players.reduce((sum, p) => sum + power(p), 0);
+  return (
+    <span className={styles.buildingCount} title={`${players.length} players · ${formatNumbers(total)} total power`}>
+      {players.length} ({formatCompactPower(total)})
+    </span>
   );
 }

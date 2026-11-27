@@ -220,7 +220,7 @@ export default function SwordlandAssignmentsPage({ params, searchParams }: PageP
                   <article key={building} className={styles.building}>
                     <h3 className={styles.buildingTitle}>
                       {building}
-                      <span className={styles.buildingCount}>{list.length}</span>
+                      <PlayerCount players={list} power={powerOf} />
                     </h3>
                     {list.length === 0 ? (
                       <p className={styles.muted}>None</p>
@@ -242,7 +242,7 @@ export default function SwordlandAssignmentsPage({ params, searchParams }: PageP
               <article className={`${styles.building} ${styles.substitutes}`}>
                 <h3 className={styles.buildingTitle}>
                   Substitutes
-                  <span className={styles.buildingCount}>{ours[key].substitutes.length}</span>
+                  <PlayerCount players={ours[key].substitutes} power={powerOf} />
                 </h3>
                 {ours[key].substitutes.length === 0 ? (
                   <p className={styles.muted}>None</p>
@@ -394,5 +394,15 @@ function Matchup({
         {side(right, "right")}
       </div>
     </article>
+  );
+}
+
+/** "5 (1.2B)": the number of players and their total power */
+function PlayerCount({ players, power }: { players: Player[]; power: (p: Player) => number }) {
+  const total = players.reduce((sum, p) => sum + power(p), 0);
+  return (
+    <span className={styles.buildingCount} title={`${players.length} players · ${formatNumbers(total)} total power`}>
+      {players.length} ({formatCompactPower(total)})
+    </span>
   );
 }
