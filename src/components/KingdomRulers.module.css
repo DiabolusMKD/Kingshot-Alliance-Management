@@ -13,18 +13,45 @@
 
 .info {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 14px;
+  gap: 10px 24px;
+}
+
+/* Crown + "KING", then the gap above before the player */
+.title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .crown {
-  font-size: 28px;
-  color: #e6b85c;
+  display: block;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+}
+
+.crownBody {
+  fill: #e6b85c;
+  stroke: #b8862e;
+  stroke-width: 0.8;
+  stroke-linejoin: round;
+}
+
+.crownBand {
+  fill: #b8862e;
+}
+
+.crownTip {
+  fill: #f3d58a;
+}
+
+.crownJewel {
+  fill: #dc2626;
 }
 
 .label {
-  display: block;
-  margin-bottom: 4px;
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.05em;

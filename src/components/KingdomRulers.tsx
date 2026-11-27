@@ -107,23 +107,33 @@ export default function KingdomRulers({ kingdomId }: { kingdomId: number }) {
   const isHighKing = !!kingdom?.highKingPlayerId;
   const title = isKing ? 'King' : isHighKing ? 'High King' : 'King';
 
-  if (!ruler && !canEdit) return null;
-
   return (
     <section className={styles.rulers}>
       <div className={styles.info}>
-        <span className={styles.crown} aria-hidden="true">♛</span>
-        <div>
+        {/* Crown + "KING", then the player */}
+        <span className={styles.title}>
+          <svg className={styles.crown} viewBox="0 0 24 24" aria-hidden="true">
+            {/* Gold crown: five-point band with jewels */}
+            <path
+              className={styles.crownBody}
+              d="M3 8.5l4.2 3.6L12 5l4.8 7.1L21 8.5l-1.8 9.3a1.5 1.5 0 0 1-1.5 1.2H6.3a1.5 1.5 0 0 1-1.5-1.2z"
+            />
+            <rect className={styles.crownBand} x="5.2" y="15.2" width="13.6" height="2" rx="0.6" />
+            <circle className={styles.crownTip} cx="3" cy="7.6" r="1.4" />
+            <circle className={styles.crownTip} cx="12" cy="3.9" r="1.4" />
+            <circle className={styles.crownTip} cx="21" cy="7.6" r="1.4" />
+            <circle className={styles.crownJewel} cx="12" cy="12.4" r="1.5" />
+          </svg>
           <span className={styles.label}>{title}</span>
-          {ruler ? (
-            <Link href={`/${ruler.kingdomId}/players/${ruler.playerId}`} className={styles.rulerLink}>
-              <PlayerIdentity player={ruler} label={ruler.aliasName || ruler.name} />
-              {isHighKing && <span className={styles.from}>from Kingdom {ruler.kingdomId}</span>}
-            </Link>
-          ) : (
-            <span className={styles.none}>No ruler set</span>
-          )}
-        </div>
+        </span>
+        {ruler ? (
+          <Link href={`/${ruler.kingdomId}/players/${ruler.playerId}`} className={styles.rulerLink}>
+            <PlayerIdentity player={ruler} label={ruler.aliasName || ruler.name} />
+            {isHighKing && <span className={styles.from}>from Kingdom {ruler.kingdomId}</span>}
+          </Link>
+        ) : (
+          <span className={styles.none}>No ruler set</span>
+        )}
       </div>
 
       {canEdit && (
