@@ -100,6 +100,65 @@ export function generateBuildings(
   return { buildings, substitutes };
 }
 
+/** Same players on the same buildings and roles (support order ignored) */
+export function sameBuildings(a: LegionBuildingData, b: LegionBuildingData): boolean {
+  return BUILDINGS.every((name) => {
+    const x = a.buildings?.[name];
+    const y = b.buildings?.[name];
+    const ids = (building?: BuildingAssignment) => (building?.support ?? []).map(key).sort().join(",");
+    return (x?.leader ? key(x.leader) : null) === (y?.leader ? key(y.leader) : null) && ids(x) === ids(y);
+  });
+}
+
+/**
+ * Buildings changed by hand, kept after the legion's players change: players who left are taken
+ * off (a leader's spot goes to the strongest support), newcomers lead an empty building or support
+ * the building with the fewest players (not the Undercellars, which holds 2).
+ */
+export function syncBuildings(
+  current: LegionBuildingData,
+  list: Player[],
+  substitutes: Player[],
+  powerOf: (p: Player) => number,
+): LegionBuildingData {
+  const substituteIds = new Set(substitutes.map(key));
+  const players = list.filter((p) => !substituteIds.has(key(p)));
+  const byId = new Map(players.map((p) => [key(p), p]));
+  const buildings = emptyBuildings();
+  const placed = new Set<string>();
+
+  BUILDINGS.forEach((name) => {
+    const source = current.buildings?.[name];
+    const target = buildings[name];
+    // The legion's current player objects (powers may have changed)
+    const keep = (p: Player | null | undefined) => (p && byId.has(key(p)) ? byId.get(key(p))! : null);
+    target.leader = keep(source?.leader);
+    target.support = (source?.support ?? []).map(keep).filter((p): p is Player => !!p);
+    if (!target.leader && target.support.length > 0) {
+      const strongest = target.support.reduce((x, y) => (powerOf(x) >= powerOf(y) ? x : y));
+      target.leader = strongest;
+      target.support = target.support.filter((p) => key(p) !== key(strongest));
+    }
+    [target.leader, ...target.support].forEach((p) => p && placed.add(key(p)));
+  });
+
+  const size = (b: BuildingAssignment) => (b.leader ? 1 : 0) + b.support.length;
+  players
+    .filter((p) => !placed.has(key(p)))
+    .sort((a, b) => powerOf(b) - powerOf(a))
+    .forEach((player) => {
+      const name =
+        BUILDINGS.slice(0, 8).find((b) => !buildings[b].leader) ??
+        (size(buildings[UNDERCELLARS]) < 2 ? UNDERCELLARS : null) ??
+        BUILDINGS.slice(0, 8).reduce((x, y) => (size(buildings[y]) < size(buildings[x]) ? y : x));
+      const building = buildings[name];
+      if (!building.leader) building.leader = player;
+      else building.support.push(player);
+    });
+
+  return { buildings, substitutes };
+}
+
 // ---------------- GENERATED JSON (player ids only) ----------------
 
 interface LegionJson {

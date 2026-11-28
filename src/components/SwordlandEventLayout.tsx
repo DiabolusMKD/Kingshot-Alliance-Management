@@ -22,6 +22,8 @@ import {
   emptyPreview,
   buildingsFromPlacements,
   generateBuildings,
+  sameBuildings,
+  syncBuildings,
   parseBuildingsJson,
   previewToJson,
 } from "@/utils/swordlandBuildings";
@@ -171,6 +173,8 @@ export default function SwordlandEventLayout({
   // Buildings to show for a given assignments state instead of generating them
   // (saved positions on open, an uploaded JSON); used once by the generate effect
   const pendingPreview = useRef<{ assignments: LegionAssignments; preview: BuildingsPreview } | null>(null);
+  // Buildings changed by hand (or saved / uploaded that way): kept when players move, until Generate again
+  const [manualLegions, setManualLegions] = useState<Record<Legion, boolean>>({ legion1: false, legion2: false });
 
   /** Buildings of both legions from placements, or null when any player has none */
   const previewFromPlacements = (
@@ -337,6 +341,7 @@ export default function SwordlandEventLayout({
     player: Player,
     building: string,
   ) {
+    setManualLegions((prev) => (prev[legion] ? prev : { ...prev, [legion]: true }));
     setPreview((prev) => {
       const copy = structuredClone(prev);
 
@@ -414,9 +419,22 @@ export default function SwordlandEventLayout({
     if (pending && pending.assignments === assignments) {
       pendingPreview.current = null;
       setPreview(pending.preview);
+      // Saved / uploaded buildings that aren't the generated ones were changed by hand
+      setManualLegions({
+        legion1: !sameBuildings(pending.preview.legion1, generateBuildings(assignments.legion1, legionSubstitutes.legion1, powerOf)),
+        legion2: !sameBuildings(pending.preview.legion2, generateBuildings(assignments.legion2, legionSubstitutes.legion2, powerOf)),
+      });
       return;
     }
-    handleGenerate();
+    // Hand-made buildings keep their moves; the others are generated again
+    setPreview((prev) => ({
+      legion1: manualLegions.legion1
+        ? syncBuildings(prev.legion1, assignments.legion1, legionSubstitutes.legion1, powerOf)
+        : generateBuildings(assignments.legion1, legionSubstitutes.legion1, powerOf),
+      legion2: manualLegions.legion2
+        ? syncBuildings(prev.legion2, assignments.legion2, legionSubstitutes.legion2, powerOf)
+        : generateBuildings(assignments.legion2, legionSubstitutes.legion2, powerOf),
+    }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assignments, legionSubstitutes, powerMode]);
 
@@ -429,11 +447,13 @@ export default function SwordlandEventLayout({
     );
 
   // ---------------- GENERATE ----------------
-  const handleGenerate = () => {
-    const l1 = generateBuildings(assignments.legion1, legionSubstitutes.legion1, powerOf);
-    const l2 = generateBuildings(assignments.legion2, legionSubstitutes.legion2, powerOf);
-
-    setPreview({ legion1: l1, legion2: l2 });
+  // Drops the hand-made changes of a legion
+  const regenerateLegion = (legion: Legion) => {
+    setManualLegions((prev) => ({ ...prev, [legion]: false }));
+    setPreview((prev) => ({
+      ...prev,
+      [legion]: generateBuildings(assignments[legion], legionSubstitutes[legion], powerOf),
+    }));
   };
 
   // ---------------- GENERATED STRING ----------------
@@ -541,6 +561,7 @@ ${buildingText}${substitutesText}`;
     setJsonInput("");
     setJsonModalError("");
     setShowJsonModal(false);
+    setManualLegions({ legion1: false, legion2: false });
     setPreview({
       legion1: { buildings: emptyBuildings(), substitutes: [] },
       legion2: { buildings: emptyBuildings(), substitutes: [] },
@@ -628,7 +649,7 @@ ${buildingText}${substitutesText}`;
   const otherUnassigned = assignments.unassigned.filter((p) => !seasonRoster.has(String(p.id)));
   const rosterLeftOut = assignments.unassigned.length - otherUnassigned.length;
 
-  // `rosterLegion`: season roster players stay in the legion they started the season in (Play / Substitute)
+  // `rosterLegion`: season roster players stay in the legion they started the season in (Join / Substitute)
   const renderPoolTable = (list: Player[], keyPrefix: string, rosterLegion?: Legion) => (
     <table className={styles.table}>
       <thead>
@@ -666,7 +687,7 @@ ${buildingText}${substitutesText}`;
                   onChange={(e) => {
                     const target = e.target.value;
                     if (target === "remove") removeExternalPlayer(p.id);
-                    else if (rosterLegion && target === "play") movePlayer(p.id, "unassigned", rosterLegion);
+                    else if (rosterLegion && target === "join") movePlayer(p.id, "unassigned", rosterLegion);
                     else if (rosterLegion && target === "substitute") moveUnassignedToSubstitute(p.id, rosterLegion);
                     else if (!rosterLegion && target) movePlayer(p.id, "unassigned", target);
                   }}
@@ -675,7 +696,7 @@ ${buildingText}${substitutesText}`;
                   <option value="">Move</option>
                   {rosterLegion ? (
                     <>
-                      <option value="play">Play</option>
+                      <option value="join">Join</option>
                       <option value="substitute">Substitute</option>
                     </>
                   ) : (
@@ -878,6 +899,16 @@ ${buildingText}${substitutesText}`;
                   movePlayerFromSubstitute={movePlayerFromSubstitute}
                 />
 
+                {manualLegions[legion] && (
+                  <div className={styles.manualBar}>
+                    <span>Buildings changed by hand: kept when players move.</span>
+                    {canEdit && (
+                      <button type="button" className={styles.regenerateButton} onClick={() => regenerateLegion(legion)}>
+                        Generate again
+                      </button>
+                    )}
+                  </div>
+                )}
                 <BuildingPreview
                   title="Buildings"
                   legion={legion}
