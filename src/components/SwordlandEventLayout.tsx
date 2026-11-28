@@ -899,24 +899,27 @@ ${buildingText}${substitutesText}`;
                   movePlayerFromSubstitute={movePlayerFromSubstitute}
                 />
 
-                {manualLegions[legion] && (
-                  <div className={styles.manualBar}>
-                    <span>Buildings changed by hand: kept when players move.</span>
-                    {canEdit && (
-                      <button type="button" className={styles.regenerateButton} onClick={() => regenerateLegion(legion)}>
-                        Generate again
-                      </button>
-                    )}
-                  </div>
-                )}
-                <BuildingPreview
-                  title="Buildings"
-                  legion={legion}
-                  legionData={preview[legion]}
-                  BUILDINGS={BUILDINGS}
-                  powerMode={powerMode}
-                  noShowIds={noShowIds}
-                />
+                {/* One row of the legion's grid: the hand-made notice sits on top of the buildings */}
+                <div className={styles.buildingsBlock}>
+                  {manualLegions[legion] && (
+                    <div className={styles.manualBar}>
+                      <span>Buildings changed by hand: kept when players move.</span>
+                      {canEdit && (
+                        <button type="button" className={styles.regenerateButton} onClick={() => regenerateLegion(legion)}>
+                          Generate again
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  <BuildingPreview
+                    title="Buildings"
+                    legion={legion}
+                    legionData={preview[legion]}
+                    BUILDINGS={BUILDINGS}
+                    powerMode={powerMode}
+                    noShowIds={noShowIds}
+                  />
+                </div>
               </div>
             ))}
           </div>

@@ -776,6 +776,14 @@
   font-size: 0.9rem;
 }
 
+/* The buildings row of a legion: the hand-made notice above the cards */
+.buildingsBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
 /* Buildings changed by hand (kept when players move) */
 .manualBar {
   display: flex;
