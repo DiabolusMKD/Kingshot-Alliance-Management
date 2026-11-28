@@ -680,7 +680,7 @@ function OpponentCard({
 
 // ---------------- TRI ALLIANCE COLORS ----------------
 
-/** Yellow / Purple / Red swatches; the chosen one again clears it. Colors taken in the legion are disabled. */
+/** Yellow / Blue / Red swatches; the chosen one again clears it. Colors taken in the legion are disabled. */
 function ColorRow({
   label,
   value,

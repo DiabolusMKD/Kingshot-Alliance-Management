@@ -339,8 +339,8 @@ export default function TriAllianceAssignmentsPage({ params, searchParams }: Pag
             A guess: each opponent&apos;s strongest players by power, as many as they registered, then their
             substitutes, split into the teams the same way as ours. Their tri-alliance power isn&apos;t known, so both
             sides are compared by power; the stronger side of each team is highlighted. Once the matchmaking is done
-            and the colors are set (ours too), each side is matched with the side it fights: Purple is on Yellow&apos;s
-            right, Red on Purple&apos;s right and Yellow on Red&apos;s right.
+            and the colors are set (ours too), each side is matched with the side it fights: Blue is on Yellow&apos;s
+            right, Red on Blue&apos;s right and Yellow on Red&apos;s right.
           </p>
           {LEGIONS.map(({ key, resultKey, title }) => (
             <div key={key} className={styles.legion}>

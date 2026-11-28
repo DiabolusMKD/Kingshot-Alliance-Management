@@ -1,21 +1,21 @@
 // Tri-Alliance: the 3 alliances of a battle are told apart by color, known once the in-game
-// matchmaking is done (ours too). Fixed order: Purple is on Yellow's right, Red on Purple's right,
+// matchmaking is done (ours too). Fixed order: Blue is on Yellow's right, Red on Blue's right,
 // Yellow on Red's right. So each alliance's right side (Team 1 + 2) fights the left side (Team 3 + 4)
 // of the alliance on its right:
-//   Yellow right vs Purple left · Purple right vs Red left · Red right vs Yellow left
+//   Yellow right vs Blue left · Blue right vs Red left · Red right vs Yellow left
 
-export const TRI_COLORS = ["yellow", "purple", "red"] as const;
+export const TRI_COLORS = ["yellow", "blue", "red"] as const;
 export type TriColor = (typeof TRI_COLORS)[number];
 
 export const TRI_COLOR_LABELS: Record<TriColor, string> = {
   yellow: "Yellow",
-  purple: "Purple",
+  blue: "Blue",
   red: "Red",
 };
 
 export const TRI_COLOR_HEX: Record<TriColor, string> = {
   yellow: "#eab308",
-  purple: "#a855f7",
+  blue: "#3b82f6",
   red: "#ef4444",
 };
 
@@ -85,6 +85,6 @@ export function legionSides(
   };
 }
 
-/** "Purple [ABC]" (or just the color) */
+/** "Blue [ABC]" (or just the color) */
 export const formatFacing = (facing: FacingAlliance) =>
   `${TRI_COLOR_LABELS[facing.color]}${facing.tag ? ` [${facing.tag}]` : ""}`;
