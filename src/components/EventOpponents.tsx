@@ -215,7 +215,11 @@ export default function EventOpponents({
           </h2>
           <p className={styles.subtitle}>
             {maxPerLegion === 1 ? "1 opponent per legion" : `${maxPerLegion} opponents per legion`}.{" "}
-            {isDraft
+            {usesColors
+              ? isDraft
+                ? "Our color can be picked once the event is created."
+                : "Pick our color once the matchmaking is done: the generated string then names the opponents by color (who each side fights). The opponents themselves are only known once the battle starts, so add them then (server and alliance tag) and give each its color: their tags are added to the string."
+              : isDraft
               ? "Optional: enter the server and the alliance tag if the matchmaking is already known. The alliance is looked up in the game now and saved as an opponent when the event is created."
               : "Enter the server and the alliance tag once the matchmaking is known: the alliance and its players are looked up in the game and saved right away."}
           </p>
