@@ -303,6 +303,16 @@ export default function SwordlandEventLayout({
     });
   };
 
+  // SSL season roster: from Unassigned straight to the substitutes of the player's season legion
+  const moveUnassignedToSubstitute = (id: string, legion: Legion) => {
+    const player = allPlayers.find((p) => p.id === id);
+    if (!player || areSubstitutesFull(legion)) return;
+    setAssignments((prev) => ({ ...prev, unassigned: prev.unassigned.filter((p) => p.id !== id) }));
+    setLegionSubstitutes((prev) =>
+      prev[legion].some((p) => p.id === id) ? prev : { ...prev, [legion]: [...prev[legion], player] },
+    );
+  };
+
   const movePlayerFromSubstitute = (id: string, legion: Legion) => {
     if (isLegionFull(legion)) return;
     // Remove from substitutes
@@ -618,7 +628,8 @@ ${buildingText}${substitutesText}`;
   const otherUnassigned = assignments.unassigned.filter((p) => !seasonRoster.has(String(p.id)));
   const rosterLeftOut = assignments.unassigned.length - otherUnassigned.length;
 
-  const renderPoolTable = (list: Player[], keyPrefix: string) => (
+  // `rosterLegion`: season roster players stay in the legion they started the season in (Play / Substitute)
+  const renderPoolTable = (list: Player[], keyPrefix: string, rosterLegion?: Legion) => (
     <table className={styles.table}>
       <thead>
         <tr>
@@ -652,17 +663,28 @@ ${buildingText}${substitutesText}`;
                 <select
                   className={styles.tableSelect}
                   disabled={!canEdit}
-                  onChange={(e) =>
-                    e.target.value === "remove"
-                      ? removeExternalPlayer(p.id)
-                      : movePlayer(p.id, "unassigned", e.target.value)
-                  }
+                  onChange={(e) => {
+                    const target = e.target.value;
+                    if (target === "remove") removeExternalPlayer(p.id);
+                    else if (rosterLegion && target === "play") movePlayer(p.id, "unassigned", rosterLegion);
+                    else if (rosterLegion && target === "substitute") moveUnassignedToSubstitute(p.id, rosterLegion);
+                    else if (!rosterLegion && target) movePlayer(p.id, "unassigned", target);
+                  }}
                   value=""
                 >
                   <option value="">Move</option>
-                  <option value="legion1">Legion 1</option>
-                  <option value="legion2">Legion 2</option>
-                  {externalIds.has(p.id) && !rosterLocked && (
+                  {rosterLegion ? (
+                    <>
+                      <option value="play">Play</option>
+                      <option value="substitute">Substitute</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="legion1">Legion 1</option>
+                      <option value="legion2">Legion 2</option>
+                    </>
+                  )}
+                  {externalIds.has(p.id) && !rosterLocked && !rosterLegion && (
                     <option value="remove">Remove from event</option>
                   )}
                 </select>
@@ -767,7 +789,7 @@ ${buildingText}${substitutesText}`;
                       {list.length === 0 ? (
                         <p className={styles.rosterEmpty}>Everyone is assigned.</p>
                       ) : (
-                        <div className={styles.tableWrapper}>{renderPoolTable(list, `r${index + 1}`)}</div>
+                        <div className={styles.tableWrapper}>{renderPoolTable(list, `r${index + 1}`, index === 0 ? "legion1" : "legion2")}</div>
                       )}
                     </div>
                   );
